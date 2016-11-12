@@ -309,3 +309,9 @@ docs/dev
 
 # Third party
 third_party/gflags/
+
+# Stats
+stats_log
+
+# Nops
+script/testing/nops/out

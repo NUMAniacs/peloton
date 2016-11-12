@@ -17,4 +17,5 @@ apt-get --ignore-missing -y install \
     libjemalloc-dev \
     valgrind \
     lcov \
-    postgresql-client
+    postgresql-client \
+    libnuma-dev

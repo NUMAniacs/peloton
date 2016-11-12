@@ -10,9 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include "common/harness.h"
-
 #include "common/varlen_pool.h"
 #include "concurrency/transaction.h"
 #include "concurrency/transaction_manager_factory.h"
@@ -32,7 +30,9 @@ TestingHarness::TestingHarness()
     : txn_id_counter(INVALID_TXN_ID),
       cid_counter(INVALID_CID),
       tile_group_id_counter(START_OID),
-      pool_(new common::VarlenPool(BACKEND_TYPE_MM)) {}
+      pool_(new common::VarlenPool(BACKEND_TYPE_MM)) {
+
+}
 
 uint64_t TestingHarness::GetThreadId() {
   std::hash<std::thread::id> hash_fn;
@@ -58,6 +58,22 @@ common::VarlenPool* TestingHarness::GetTestingPool() {
 }
 
 oid_t TestingHarness::GetNextTileGroupId() { return ++tile_group_id_counter; }
+
+ExecutorPoolHarness& ExecutorPoolHarness::GetInstance() {
+  static ExecutorPoolHarness execHarness;
+  return execHarness;
+}
+
+ExecutorPoolHarness::ExecutorPoolHarness() {
+  // Start the executor thread pool
+  executor_thread_pool.Initialize(std::thread::hardware_concurrency(), 0);
+}
+
+ExecutorPoolHarness::~ExecutorPoolHarness() {
+  // Shutdown the executor thread pool
+  executor_thread_pool.Shutdown();
+}
+
 
 }  // End test namespace
 }  // End peloton namespace

@@ -23,14 +23,17 @@
 #include "planner/delete_plan.h"
 #include "planner/insert_plan.h"
 #include "storage/tile.h"
+#include "tcop/tcop.h"
 
 namespace peloton {
 namespace test {
 
 void StatsTestsUtil::ShowTable(std::string database_name,
                                std::string table_name) {
+  // start executor pool
+  ExecutorPoolHarness::GetInstance();
   catalog::Catalog::GetInstance()->GetTableWithName(database_name, table_name);
-  std::unique_ptr<Statement> statement;
+  std::shared_ptr<Statement> statement;
   auto &peloton_parser = parser::Parser::GetInstance();
   std::vector<common::Value> params;
   std::vector<ResultType> result;
@@ -41,8 +44,7 @@ void StatsTestsUtil::ShowTable(std::string database_name,
       optimizer::SimpleOptimizer::BuildPelotonPlanTree(select_stmt));
   bridge::PlanExecutor::PrintPlan(statement->GetPlanTree().get(), "Plan");
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  bridge::PlanExecutor::ExecutePlan(statement->GetPlanTree().get(), params,
-                                    result, result_format);
+  tcop::TrafficCop::ExchangeOperator(statement, params, result, result_format);
 }
 
 storage::Tuple StatsTestsUtil::PopulateTuple(const catalog::Schema *schema,
@@ -92,34 +94,34 @@ void StatsTestsUtil::CreateTable() {
   txn_manager.CommitTransaction(txn);
 }
 
-std::unique_ptr<Statement> StatsTestsUtil::GetInsertStmt() {
-  std::unique_ptr<Statement> statement;
+std::shared_ptr<Statement> StatsTestsUtil::GetInsertStmt() {
+  std::shared_ptr<Statement> statement;
   std::string sql =
       "INSERT INTO EMP_DB.department_table(dept_id,dept_name) VALUES "
       "(1,'hello_1');";
   LOG_INFO("Query: %s", sql.c_str());
   statement.reset(new Statement("DELETE", sql));
   ParseAndPlan(statement.get(), sql);
-  return std::move(statement);
+  return statement;
 }
 
-std::unique_ptr<Statement> StatsTestsUtil::GetDeleteStmt() {
-  std::unique_ptr<Statement> statement;
+std::shared_ptr<Statement> StatsTestsUtil::GetDeleteStmt() {
+  std::shared_ptr<Statement> statement;
   std::string sql = "DELETE FROM EMP_DB.department_table";
   LOG_INFO("Query: %s", sql.c_str());
   statement.reset(new Statement("DELETE", sql));
   ParseAndPlan(statement.get(), sql);
-  return std::move(statement);
+  return statement;
 }
 
-std::unique_ptr<Statement> StatsTestsUtil::GetUpdateStmt() {
-  std::unique_ptr<Statement> statement;
+std::shared_ptr<Statement> StatsTestsUtil::GetUpdateStmt() {
+  std::shared_ptr<Statement> statement;
   std::string sql =
       "UPDATE EMP_DB.department_table SET dept_name = 'CS' WHERE dept_id = 1";
   LOG_INFO("Query: %s", sql.c_str());
   statement.reset(new Statement("UPDATE", sql));
   ParseAndPlan(statement.get(), sql);
-  return std::move(statement);
+  return statement;
 }
 
 void StatsTestsUtil::ParseAndPlan(Statement *statement, std::string sql) {

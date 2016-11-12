@@ -81,7 +81,8 @@ class TimestampOrderingTransactionManager : public TransactionManager {
 
   virtual bool PerformRead(Transaction *const current_txn,
                            const ItemPointer &location,
-                           bool acquire_ownership = false);
+                           bool acquire_ownership = false,
+                           const int partition_id=0);
 
   virtual void PerformUpdate(Transaction *const current_txn,
                              const ItemPointer &old_location,
@@ -101,7 +102,7 @@ class TimestampOrderingTransactionManager : public TransactionManager {
 
   virtual Result AbortTransaction(Transaction *const current_txn);
 
-  virtual Transaction *BeginTransaction();
+  virtual Transaction *BeginTransaction(const int num_parallel_task=1);
 
   virtual void EndTransaction(Transaction *current_txn);
 

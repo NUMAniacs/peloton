@@ -23,6 +23,11 @@ find_package(Libevent REQUIRED)
 include_directories(SYSTEM ${LIBEVENT_INCLUDE_DIRS})
 list(APPEND Peloton_LINKER_LIBS ${LIBEVENT_LIBRARIES})
 
+# ---[ Libnuma
+find_package(Libnuma REQUIRED)
+include_directories(SYSTEM ${NUMA_INCLUDE_DIRS})
+list(APPEND Peloton_LINKER_LIBS ${NUMA_LIBRARIES})
+
 # ---[ Doxygen
 if(BUILD_docs)
   find_package(Doxygen)

@@ -26,7 +26,6 @@
 #include "executor/insert_executor.h"
 #include "executor/logical_tile.h"
 #include "executor/logical_tile_factory.h"
-#include "executor/plan_executor.h"
 #include "optimizer/simple_optimizer.h"
 #include "parser/parser.h"
 #include "planner/create_plan.h"
@@ -176,7 +175,7 @@ TEST_F(IndexScanTests, MultiColumnPredicateTest) {
 void ShowTable(std::string database_name, std::string table_name) {
   auto table = catalog::Catalog::GetInstance()->GetTableWithName(database_name,
                                                                  table_name);
-  std::unique_ptr<Statement> statement;
+  std::shared_ptr<Statement> statement;
   auto &peloton_parser = parser::Parser::GetInstance();
   bridge::peloton_status status;
   std::vector<common::Value> params;
@@ -192,14 +191,14 @@ void ShowTable(std::string database_name, std::string table_name) {
       tcop::TrafficCop::GetInstance().GenerateTupleDescriptor(
           statement->GetQueryString());
   result_format = std::move(std::vector<int>(tuple_descriptor.size(), 0));
-  status = bridge::PlanExecutor::ExecutePlan(statement->GetPlanTree().get(),
-                                             params, result, result_format);
+  status = tcop::TrafficCop::ExchangeOperator(statement, params, result,
+                                              result_format);
 }
 
 void ExecuteSQLQuery(const std::string statement_name,
                      const std::string query_string) {
   LOG_INFO("Query: %s", query_string.c_str());
-  static std::unique_ptr<Statement> statement;
+  static std::shared_ptr<Statement> statement;
   statement.reset(new Statement(statement_name, query_string));
   auto &peloton_parser = parser::Parser::GetInstance();
   LOG_INFO("Building parse tree...");
@@ -219,13 +218,14 @@ void ExecuteSQLQuery(const std::string statement_name,
           statement->GetQueryString());
   result_format = std::move(std::vector<int>(tuple_descriptor.size(), 0));
   UNUSED_ATTRIBUTE bridge::peloton_status status =
-      bridge::PlanExecutor::ExecutePlan(statement->GetPlanTree().get(), params,
-                                        result, result_format);
+  tcop::TrafficCop::ExchangeOperator(statement, params, result, result_format);
   LOG_INFO("Statement executed. Result: %d", status.m_result);
   ShowTable(DEFAULT_DB_NAME, "department_table");
 }
 
 TEST_F(IndexScanTests, SQLTest) {
+  // start executor pool
+  ExecutorPoolHarness::GetInstance();
   LOG_INFO("Bootstrapping...");
   catalog::Catalog::GetInstance()->CreateDatabase(DEFAULT_DB_NAME, nullptr);
   LOG_INFO("Bootstrapping completed!");

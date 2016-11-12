@@ -34,24 +34,33 @@ class SeqScanExecutor : public AbstractScanExecutor {
 
   bool DExecute();
 
- private:
-  //===--------------------------------------------------------------------===//
-  // Executor State
-  //===--------------------------------------------------------------------===//
+  private:
+    //===--------------------------------------------------------------------===//
+    // Executor State
+    //===--------------------------------------------------------------------===//
 
-  /** @brief Keeps track of current tile group id being scanned. */
-  oid_t current_tile_group_offset_ = INVALID_OID;
+    /** @brief Keeps track of current tile group id being scanned. */
+    oid_t current_tile_group_offset_ = INVALID_OID;
 
-  /** @brief Keeps track of the number of tile groups to scan. */
-  oid_t table_tile_group_count_ = INVALID_OID;
+    /** @brief Keeps track of the number of tile groups to scan. */
+    oid_t table_tile_group_count_ = INVALID_OID;
 
-  //===--------------------------------------------------------------------===//
-  // Plan Info
-  //===--------------------------------------------------------------------===//
+    // number of tile groups that this thread
+    // of execution will work on
+    int num_tile_groups_processed_ = 0;
 
-  /** @brief Pointer to table to scan from. */
-  storage::DataTable *target_table_ = nullptr;
+    // number of sequential tile groups each
+    // thread of execution will work on
+    int num_tile_groups_per_thread_;
+
+    //===--------------------------------------------------------------------===//
+    // Plan Info
+    //===--------------------------------------------------------------------===//
+
+    /** @brief Pointer to table to scan from. */
+    storage::DataTable *target_table_ = nullptr;
 };
+
 
 }  // namespace executor
 }  // namespace peloton
