@@ -373,6 +373,7 @@ void PelotonService::QueryPlan(::google::protobuf::RpcController* controller,
         ss_plan->DeserializeFrom(input);
 
         std::vector<std::unique_ptr<executor::LogicalTile>> logical_tile_list;
+
         partitioned_executor_thread_pool.SubmitTaskRandom(
             bridge::PlanExecutor::ExecutePlanRemote, ss_plan.get(), std::ref(params),
             std::ref(logical_tile_list), std::ref(p));

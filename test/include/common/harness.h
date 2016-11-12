@@ -30,8 +30,9 @@
 
 #include <google/protobuf/stubs/common.h>
 #include <gflags/gflags.h>
-#include <include/common/thread_pool.h>
-#include <include/common/partition_thread_pool.h>
+#include "common/thread_pool.h"
+#include "common/partition_thread_pool.h"
+
 
 namespace peloton {
 
@@ -40,6 +41,7 @@ class VarlenPool;
 }
 
 namespace test {
+
 
 //===--------------------------------------------------------------------===//
 // Test Harness (common routines)

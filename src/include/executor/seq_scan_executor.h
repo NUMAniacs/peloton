@@ -35,10 +35,10 @@ class SeqScanExecutor : public AbstractScanExecutor {
 
   bool DExecute();
 
- private:
-  //===--------------------------------------------------------------------===//
-  // Executor State
-  //===--------------------------------------------------------------------===//
+  private:
+    //===--------------------------------------------------------------------===//
+    // Executor State
+    //===--------------------------------------------------------------------===//
 
   /** @brief Keeps track of current tile group id within the current
    * partition being scanned. */
@@ -54,6 +54,14 @@ class SeqScanExecutor : public AbstractScanExecutor {
    * in the current partition */
   size_t partition_tile_group_count_ = 0;
 
+  // number of tile groups that this thread
+  // of execution will work on
+  int num_tile_groups_processed_ = 0;
+
+  // number of sequential tile groups each
+  // thread of execution will work on
+  int num_tile_groups_per_thread_;
+
   //===--------------------------------------------------------------------===//
   // Plan Info
   //===--------------------------------------------------------------------===//
@@ -61,6 +69,7 @@ class SeqScanExecutor : public AbstractScanExecutor {
   /** @brief Pointer to table to scan from. */
   storage::DataTable *target_table_ = nullptr;
 };
+
 
 }  // namespace executor
 }  // namespace peloton

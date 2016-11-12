@@ -69,6 +69,8 @@ class AbstractExecutor {
 
   bool Execute();
 
+  virtual void SetParallelism(int num_tasks, int partition_id);
+
   //===--------------------------------------------------------------------===//
   // Children + Parent Helpers
   //===--------------------------------------------------------------------===//
@@ -145,6 +147,13 @@ class AbstractExecutor {
  protected:
   // Executor context
   ExecutorContext *executor_context_ = nullptr;
+
+  // number of threads executing this query
+  int num_tasks_;
+
+  // modulo-partition that this thread of
+  // execution will work on
+  int partition_id_;
 };
 
 }  // namespace executor

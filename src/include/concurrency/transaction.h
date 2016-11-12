@@ -45,8 +45,9 @@ class Transaction : public Printable {
     Init(txn_id, INVALID_CID);
   }
 
-  Transaction(const txn_id_t &txn_id, const cid_t &begin_cid) {
-    Init(txn_id, begin_cid);
+  Transaction(const txn_id_t &txn_id, const cid_t &begin_cid,
+              const int num_parallel_tasks=1) {
+    Init(txn_id, begin_cid, num_parallel_tasks);
   }
 
   Transaction(const txn_id_t &txn_id, const cid_t &begin_cid, bool ro) {
@@ -56,14 +57,17 @@ class Transaction : public Printable {
 
   ~Transaction() {}
 
-  void Init(const txn_id_t &txn_id, const cid_t &begin_cid) {
+  void Init(const txn_id_t &txn_id, const cid_t &begin_cid,
+            const int num_parallel_tasks=1) {
     txn_id_ = txn_id;
     begin_cid_ = begin_cid;
     end_cid_ = MAX_CID;
     is_written_ = false;
     declared_readonly_ = false;
     insert_count_ = 0;
+
     rw_set_.resize(std::thread::hardware_concurrency());
+
     gc_set_.reset(new ReadWriteSet());
   }
 

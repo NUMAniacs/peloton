@@ -30,7 +30,9 @@ TestingHarness::TestingHarness()
     : txn_id_counter(INVALID_TXN_ID),
       cid_counter(INVALID_CID),
       tile_group_id_counter(START_OID),
-      pool_(new common::VarlenPool(BACKEND_TYPE_MM)) {}
+      pool_(new common::VarlenPool(BACKEND_TYPE_MM)) {
+
+}
 
 uint64_t TestingHarness::GetThreadId() {
   std::hash<std::thread::id> hash_fn;

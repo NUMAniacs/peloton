@@ -123,12 +123,14 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     const std::vector<common::Value> &params, std::vector<ResultType> &result,
     const std::vector<int> &result_format) {
 
+  int num_tasks = 1;
   bridge::peloton_status final_status;
 
   if (statement->GetPlanTree().get() == nullptr) {
     return final_status;
   }
 
+<<<<<<< HEAD
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
   size_t num_partitions = PL_NUM_PARTITIONS();
   // The result of the logical tiles for all tasks
@@ -205,16 +207,19 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   }
 
   LOG_DEBUG("Generated %ld tasks", tasks.size());
+
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   // This happens for single statement queries in PG
   bool single_statement_txn = true;
   bool init_failure = false;
 
   auto txn = txn_manager.BeginTransaction();
+
   PL_ASSERT(txn);
 
   std::vector<std::shared_ptr<bridge::ExchangeParams>> exchg_params_list;
   final_status.m_processed = 0;
+
   bridge::BlockingWait wait;
   std::shared_ptr<executor::Trackable> trackable(
       new executor::Trackable(tasks.size()));
@@ -254,6 +259,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     // wait for executor thread to return result
     auto temp_status = exchg_params->p_status;
     init_failure &= exchg_params->init_failure;
+
     if (init_failure == false) {
       // proceed only if none of the threads so far have failed
       final_status.m_processed += temp_status.m_processed;
@@ -265,6 +271,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
       result.insert(result.end(), exchg_params->result.begin(),
                     exchg_params->result.end());
+
     }
   }
 

@@ -996,6 +996,59 @@ struct ReadWriteSet {
 
 };
 
+typedef std::unordered_map<oid_t, std::unordered_map<oid_t, RWType>> RWSetEle;
+
+struct ReadWriteSet {
+  std::vector<RWSetEle> rw_list_;
+  ReadWriteSet(int size=1) {
+    resize(size);
+  }
+
+  void resize(int size) {
+    rw_list_.resize(size);
+  }
+
+  RWSetEle::const_iterator find(oid_t oid, int i) const {
+    return rw_list_[i].find(oid);
+  }
+
+  RWSetEle::const_iterator end(int i) const {
+    return rw_list_[i].end();
+  }
+
+  std::unordered_map<oid_t, RWType>& at(oid_t oid, int i) {
+    return rw_list_[i].at(oid);
+  }
+
+  RWSetEle& get(int i=0) {
+    return rw_list_[i];
+  }
+
+  bool empty() const {
+    for (auto &ele : rw_list_) {
+      if (ele.empty() == false)
+        return false;
+    }
+    return true;
+  }
+
+  RWSetEle::const_iterator begin() const {
+    for (auto &ele : rw_list_) {
+      if (ele.begin() != ele.end())
+        return ele.begin();
+    }
+    return rw_list_[0].begin();
+  }
+
+  std::vector<RWSetEle>::const_iterator list_begin() const {
+    return rw_list_.begin();
+  }
+
+  std::vector<RWSetEle>::const_iterator list_end() const {
+    return rw_list_.end();
+  }
+
+};
 
 //===--------------------------------------------------------------------===//
 // File Handle

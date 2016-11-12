@@ -61,6 +61,13 @@ bool SeqScanExecutor::DInit() {
   if (target_table_ != nullptr) {
     table_partition_count_ = target_table_->GetPartitionCount();
 
+    // round up to the nearest value of parallelism count
+    num_tile_groups_per_thread_ =
+        (table_tile_group_count_ + num_tasks_ - 1)/num_tasks_;
+
+    // offset by the number of tiles that each thread processes
+    current_tile_group_offset_ *= num_tile_groups_per_thread_;
+
     if (column_ids_.empty()) {
       column_ids_.resize(target_table_->GetSchema()->GetColumnCount());
       std::iota(column_ids_.begin(), column_ids_.end(), 0);
@@ -111,6 +118,8 @@ bool SeqScanExecutor::DExecute() {
   }
     // Scanning a table
   else if (children_.size() == 0) {
+    // support intra-query parallelism, be parallelism count aware
+
     LOG_TRACE("Seq Scan executor :: 0 child ");
 
     PL_ASSERT(target_table_ != nullptr);
@@ -205,7 +214,6 @@ bool SeqScanExecutor::DExecute() {
       current_partition_offset_++;
     }
   }
-
   return false;
 }
 
