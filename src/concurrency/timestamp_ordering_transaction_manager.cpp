@@ -85,13 +85,14 @@ void TimestampOrderingTransactionManager::InitTupleReserved(
   *(cid_t *)(reserved_area + LAST_READER_OFFSET) = 0;
 }
 
-Transaction *TimestampOrderingTransactionManager::BeginTransaction() {
+Transaction *TimestampOrderingTransactionManager::BeginTransaction(
+    const int num_parallel_tasks) {
   auto &log_manager = logging::LogManager::GetInstance();
   log_manager.PrepareLogging();
 
   txn_id_t txn_id = GetNextTransactionId();
   cid_t begin_cid = GetNextCommitId();
-  Transaction *txn = new Transaction(txn_id, begin_cid);
+  Transaction *txn = new Transaction(txn_id, begin_cid, num_parallel_tasks);
 
   auto eid = EpochManagerFactory::GetInstance().EnterEpoch(begin_cid);
   txn->SetEpochId(eid);
@@ -397,7 +398,8 @@ void TimestampOrderingTransactionManager::YieldOwnership(
 }
 
 bool TimestampOrderingTransactionManager::PerformRead(
-    Transaction *const current_txn, const ItemPointer &location, bool acquire_ownership) {
+    Transaction *const current_txn, const ItemPointer &location,
+    bool acquire_ownership, const int partition_id) {
 
   if (current_txn->IsDeclaredReadOnly() == true) {
     // Ignore read validation for all readonly transactions
@@ -426,7 +428,7 @@ bool TimestampOrderingTransactionManager::PerformRead(
       return false;
     }
     // Promote to RW_TYPE_READ_OWN
-    current_txn->RecordReadOwn(location);
+    current_txn->RecordReadOwn(location, partition_id);
   }
 
   // if the current transaction has already owned this tuple, then perform read
@@ -445,7 +447,7 @@ bool TimestampOrderingTransactionManager::PerformRead(
   // reader cid.
   if (SetLastReaderCommitId(tile_group_header, tuple_id,
                             current_txn->GetBeginCommitId()) == true) {
-    current_txn->RecordRead(location);
+    current_txn->RecordRead(location, partition_id);
     // Increment table read op stats
     if (FLAGS_stats_mode != STATS_TYPE_INVALID) {
       stats::BackendStatsContext::GetInstance()->IncrementTableReads(
@@ -780,112 +782,114 @@ Result TimestampOrderingTransactionManager::CommitTransaction(
   // 1. install a new version for update operations;
   // 2. install an empty version for delete operations;
   // 3. install a new tuple for insert operations.
-  for (auto &tile_group_entry : rw_set) {
-    oid_t tile_group_id = tile_group_entry.first;
-    auto tile_group = manager.GetTileGroup(tile_group_id);
-    auto tile_group_header = tile_group->GetHeader();
-    for (auto &tuple_entry : tile_group_entry.second) {
-      auto tuple_slot = tuple_entry.first;
-      if (tuple_entry.second == RW_TYPE_READ_OWN) {
-        // A read operation has acquired ownership but hasn't done any further update/delete yet
-        // Yield the ownership
-        YieldOwnership(current_txn, tile_group_id, tuple_slot);
-      } else if (tuple_entry.second == RW_TYPE_UPDATE) {
-        // we must guarantee that, at any time point, only one version is
-        // visible.
-        ItemPointer new_version =
-            tile_group_header->GetPrevItemPointer(tuple_slot);
+  for (auto itr = rw_set.list_begin(); itr != rw_set.list_end(); itr++) {
+    for (auto &tile_group_entry : *itr) {
+      oid_t tile_group_id = tile_group_entry.first;
+      auto tile_group = manager.GetTileGroup(tile_group_id);
+      auto tile_group_header = tile_group->GetHeader();
+      for (auto &tuple_entry : tile_group_entry.second) {
+        auto tuple_slot = tuple_entry.first;
+        if (tuple_entry.second == RW_TYPE_READ_OWN) {
+          // A read operation has acquired ownership but hasn't done any further update/delete yet
+          // Yield the ownership
+          YieldOwnership(current_txn, tile_group_id, tuple_slot);
+        } else if (tuple_entry.second == RW_TYPE_UPDATE) {
+          // we must guarantee that, at any time point, only one version is
+          // visible.
+          ItemPointer new_version =
+              tile_group_header->GetPrevItemPointer(tuple_slot);
 
-        PL_ASSERT(new_version.IsNull() == false);
+          PL_ASSERT(new_version.IsNull() == false);
 
-        auto cid = tile_group_header->GetEndCommitId(tuple_slot);
-        PL_ASSERT(cid > end_commit_id);
-        auto new_tile_group_header =
-            manager.GetTileGroup(new_version.block)->GetHeader();
-        new_tile_group_header->SetBeginCommitId(new_version.offset,
-                                                end_commit_id);
-        new_tile_group_header->SetEndCommitId(new_version.offset, cid);
+          auto cid = tile_group_header->GetEndCommitId(tuple_slot);
+          PL_ASSERT(cid > end_commit_id);
+          auto new_tile_group_header =
+              manager.GetTileGroup(new_version.block)->GetHeader();
+          new_tile_group_header->SetBeginCommitId(new_version.offset,
+                                                  end_commit_id);
+          new_tile_group_header->SetEndCommitId(new_version.offset, cid);
 
-        COMPILER_MEMORY_FENCE;
+          COMPILER_MEMORY_FENCE;
 
-        tile_group_header->SetEndCommitId(tuple_slot, end_commit_id);
+          tile_group_header->SetEndCommitId(tuple_slot, end_commit_id);
 
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
 
-        new_tile_group_header->SetTransactionId(new_version.offset,
-                                                INITIAL_TXN_ID);
-        tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+          new_tile_group_header->SetTransactionId(new_version.offset,
+                                                  INITIAL_TXN_ID);
+          tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
-        // add to gc set.
-        gc_set->operator[](tile_group_id)[tuple_slot] = RW_TYPE_UPDATE;
+          // add to gc set.
+          gc_set->get().operator[](tile_group_id)[tuple_slot] = RW_TYPE_UPDATE;
 
-        // add to log manager
-        log_manager.LogUpdate(end_commit_id, ItemPointer(tile_group_id, tuple_slot), new_version);
+          // add to log manager
+          log_manager.LogUpdate(end_commit_id, ItemPointer(tile_group_id, tuple_slot), new_version);
 
-      } else if (tuple_entry.second == RW_TYPE_DELETE) {
-        ItemPointer new_version =
-            tile_group_header->GetPrevItemPointer(tuple_slot);
+        } else if (tuple_entry.second == RW_TYPE_DELETE) {
+          ItemPointer new_version =
+              tile_group_header->GetPrevItemPointer(tuple_slot);
 
-        auto cid = tile_group_header->GetEndCommitId(tuple_slot);
-        PL_ASSERT(cid > end_commit_id);
-        auto new_tile_group_header =
-            manager.GetTileGroup(new_version.block)->GetHeader();
-        new_tile_group_header->SetBeginCommitId(new_version.offset,
-                                                end_commit_id);
-        new_tile_group_header->SetEndCommitId(new_version.offset, cid);
+          auto cid = tile_group_header->GetEndCommitId(tuple_slot);
+          PL_ASSERT(cid > end_commit_id);
+          auto new_tile_group_header =
+              manager.GetTileGroup(new_version.block)->GetHeader();
+          new_tile_group_header->SetBeginCommitId(new_version.offset,
+                                                  end_commit_id);
+          new_tile_group_header->SetEndCommitId(new_version.offset, cid);
 
-        COMPILER_MEMORY_FENCE;
+          COMPILER_MEMORY_FENCE;
 
-        tile_group_header->SetEndCommitId(tuple_slot, end_commit_id);
+          tile_group_header->SetEndCommitId(tuple_slot, end_commit_id);
 
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
 
-        new_tile_group_header->SetTransactionId(new_version.offset,
-                                                INVALID_TXN_ID);
-        tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+          new_tile_group_header->SetTransactionId(new_version.offset,
+                                                  INVALID_TXN_ID);
+          tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
-        // add to gc set.
-        gc_set->operator[](tile_group_id)[tuple_slot] = RW_TYPE_DELETE;
+          // add to gc set.
+          gc_set->get().operator[](tile_group_id)[tuple_slot] = RW_TYPE_DELETE;
 
-        // add to log manager
-        log_manager.LogDelete(end_commit_id, ItemPointer(tile_group_id, tuple_slot));
+          // add to log manager
+          log_manager.LogDelete(end_commit_id, ItemPointer(tile_group_id, tuple_slot));
 
-      } else if (tuple_entry.second == RW_TYPE_INSERT) {
-        PL_ASSERT(tile_group_header->GetTransactionId(tuple_slot) ==
-                  current_txn->GetTransactionId());
-        // set the begin commit id to persist insert
-        tile_group_header->SetBeginCommitId(tuple_slot, end_commit_id);
-        tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
+        } else if (tuple_entry.second == RW_TYPE_INSERT) {
+          PL_ASSERT(tile_group_header->GetTransactionId(tuple_slot) ==
+                    current_txn->GetTransactionId());
+          // set the begin commit id to persist insert
+          tile_group_header->SetBeginCommitId(tuple_slot, end_commit_id);
+          tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
 
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
 
-        tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+          tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
-        // nothing to be added to gc set.
+          // nothing to be added to gc set.
 
-        // add to log manager
-        log_manager.LogInsert(end_commit_id, ItemPointer(tile_group_id, tuple_slot));
+          // add to log manager
+          log_manager.LogInsert(end_commit_id, ItemPointer(tile_group_id, tuple_slot));
 
-      } else if (tuple_entry.second == RW_TYPE_INS_DEL) {
-        PL_ASSERT(tile_group_header->GetTransactionId(tuple_slot) ==
-                  current_txn->GetTransactionId());
+        } else if (tuple_entry.second == RW_TYPE_INS_DEL) {
+          PL_ASSERT(tile_group_header->GetTransactionId(tuple_slot) ==
+                    current_txn->GetTransactionId());
 
-        tile_group_header->SetBeginCommitId(tuple_slot, MAX_CID);
-        tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
+          tile_group_header->SetBeginCommitId(tuple_slot, MAX_CID);
+          tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
 
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
 
-        // set the begin commit id to persist insert
-        tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
+          // set the begin commit id to persist insert
+          tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
 
-        // add to gc set.
-        gc_set->operator[](tile_group_id)[tuple_slot] = RW_TYPE_INS_DEL;
+          // add to gc set.
+          gc_set->get().operator[](tile_group_id)[tuple_slot] = RW_TYPE_INS_DEL;
 
-        // no log is needed for this case
+          // no log is needed for this case
+        }
       }
     }
   }
@@ -923,152 +927,154 @@ Result TimestampOrderingTransactionManager::AbortTransaction(
     }
   }
 
-  for (auto &tile_group_entry : rw_set) {
-    oid_t tile_group_id = tile_group_entry.first;
-    auto tile_group = manager.GetTileGroup(tile_group_id);
-    auto tile_group_header = tile_group->GetHeader();
+  for (auto itr = rw_set.list_begin(); itr != rw_set.list_end(); itr++) {
+    for (auto &tile_group_entry : *itr) {
+      oid_t tile_group_id = tile_group_entry.first;
+      auto tile_group = manager.GetTileGroup(tile_group_id);
+      auto tile_group_header = tile_group->GetHeader();
 
-    for (auto &tuple_entry : tile_group_entry.second) {
-      auto tuple_slot = tuple_entry.first;
-      if (tuple_entry.second == RW_TYPE_READ_OWN) {
-        // A read operation has acquired ownership but hasn't done any further update/delete yet
-        // Yield the ownership
-        YieldOwnership(current_txn, tile_group_id, tuple_slot);
-      } else if (tuple_entry.second == RW_TYPE_UPDATE) {
-        ItemPointer new_version =
-            tile_group_header->GetPrevItemPointer(tuple_slot);
+      for (auto &tuple_entry : tile_group_entry.second) {
+        auto tuple_slot = tuple_entry.first;
+        if (tuple_entry.second == RW_TYPE_READ_OWN) {
+          // A read operation has acquired ownership but hasn't done any further update/delete yet
+          // Yield the ownership
+          YieldOwnership(current_txn, tile_group_id, tuple_slot);
+        } else if (tuple_entry.second == RW_TYPE_UPDATE) {
+          ItemPointer new_version =
+              tile_group_header->GetPrevItemPointer(tuple_slot);
 
-        auto new_tile_group_header =
-            manager.GetTileGroup(new_version.block)->GetHeader();
+          auto new_tile_group_header =
+              manager.GetTileGroup(new_version.block)->GetHeader();
 
-        // these two fields can be set at any time.
-        new_tile_group_header->SetBeginCommitId(new_version.offset, MAX_CID);
-        new_tile_group_header->SetEndCommitId(new_version.offset, MAX_CID);
+          // these two fields can be set at any time.
+          new_tile_group_header->SetBeginCommitId(new_version.offset, MAX_CID);
+          new_tile_group_header->SetEndCommitId(new_version.offset, MAX_CID);
 
-        COMPILER_MEMORY_FENCE;
+          COMPILER_MEMORY_FENCE;
 
-        // as the aborted version has already been placed in the version chain,
-        // we need to unlink it by resetting the item pointers.
-        auto old_prev =
-            new_tile_group_header->GetPrevItemPointer(new_version.offset);
+          // as the aborted version has already been placed in the version chain,
+          // we need to unlink it by resetting the item pointers.
+          auto old_prev =
+              new_tile_group_header->GetPrevItemPointer(new_version.offset);
 
-        // check whether the previous version exists.
-        if (old_prev.IsNull() == true) {
-          PL_ASSERT(tile_group_header->GetEndCommitId(tuple_slot) == MAX_CID);
-          // if we updated the latest version.
-          // We must first adjust the head pointer
-          // before we unlink the aborted version from version list
-          ItemPointer *index_entry_ptr =
-              tile_group_header->GetIndirection(tuple_slot);
-          UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(
-              index_entry_ptr, ItemPointer(tile_group_id, tuple_slot));
-          PL_ASSERT(res == true);
-        }
-        //////////////////////////////////////////////////
+          // check whether the previous version exists.
+          if (old_prev.IsNull() == true) {
+            PL_ASSERT(tile_group_header->GetEndCommitId(tuple_slot) == MAX_CID);
+            // if we updated the latest version.
+            // We must first adjust the head pointer
+            // before we unlink the aborted version from version list
+            ItemPointer *index_entry_ptr =
+                tile_group_header->GetIndirection(tuple_slot);
+            UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(
+                index_entry_ptr, ItemPointer(tile_group_id, tuple_slot));
+            PL_ASSERT(res == true);
+          }
+          //////////////////////////////////////////////////
 
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
 
-        new_tile_group_header->SetTransactionId(new_version.offset,
-                                                INVALID_TXN_ID);
+          new_tile_group_header->SetTransactionId(new_version.offset,
+                                                  INVALID_TXN_ID);
 
-        if (old_prev.IsNull() == false) {
-          auto old_prev_tile_group_header = catalog::Manager::GetInstance()
-                                                .GetTileGroup(old_prev.block)
-                                                ->GetHeader();
-          old_prev_tile_group_header->SetNextItemPointer(
-              old_prev.offset, ItemPointer(tile_group_id, tuple_slot));
+          if (old_prev.IsNull() == false) {
+            auto old_prev_tile_group_header = catalog::Manager::GetInstance()
+                .GetTileGroup(old_prev.block)
+                ->GetHeader();
+            old_prev_tile_group_header->SetNextItemPointer(
+                old_prev.offset, ItemPointer(tile_group_id, tuple_slot));
+            tile_group_header->SetPrevItemPointer(tuple_slot, old_prev);
+          } else {
+            tile_group_header->SetPrevItemPointer(tuple_slot, INVALID_ITEMPOINTER);
+          }
+
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
+
+          tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+
+          // add to gc set.
+          gc_set->get().operator[](new_version.block)[new_version.offset] = RW_TYPE_UPDATE;
+
+        } else if (tuple_entry.second == RW_TYPE_DELETE) {
+
+          ItemPointer new_version =
+              tile_group_header->GetPrevItemPointer(tuple_slot);
+
+          auto new_tile_group_header =
+              manager.GetTileGroup(new_version.block)->GetHeader();
+
+          new_tile_group_header->SetBeginCommitId(new_version.offset, MAX_CID);
+          new_tile_group_header->SetEndCommitId(new_version.offset, MAX_CID);
+
+          COMPILER_MEMORY_FENCE;
+
+          // as the aborted version has already been placed in the version chain,
+          // we need to unlink it by resetting the item pointers.
+          auto old_prev =
+              new_tile_group_header->GetPrevItemPointer(new_version.offset);
+
+          // check whether the previous version exists.
+          if (old_prev.IsNull() == true) {
+            // if we updated the latest version.
+            // We must first adjust the head pointer
+            // before we unlink the aborted version from version list
+            ItemPointer *index_entry_ptr =
+                tile_group_header->GetIndirection(tuple_slot);
+            UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(
+                index_entry_ptr, ItemPointer(tile_group_id, tuple_slot));
+            PL_ASSERT(res == true);
+          }
+          //////////////////////////////////////////////////
+
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
+
+          new_tile_group_header->SetTransactionId(new_version.offset,
+                                                  INVALID_TXN_ID);
+
+          if (old_prev.IsNull() == false) {
+            auto old_prev_tile_group_header = catalog::Manager::GetInstance()
+                .GetTileGroup(old_prev.block)
+                ->GetHeader();
+            old_prev_tile_group_header->SetNextItemPointer(
+                old_prev.offset, ItemPointer(tile_group_id, tuple_slot));
+          }
+
           tile_group_header->SetPrevItemPointer(tuple_slot, old_prev);
-        } else {
-          tile_group_header->SetPrevItemPointer(tuple_slot, INVALID_ITEMPOINTER);
+
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
+
+          tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+
+          // add to gc set.
+          gc_set->get().operator[](new_version.block)[new_version.offset] = RW_TYPE_DELETE;
+
+        } else if (tuple_entry.second == RW_TYPE_INSERT) {
+          tile_group_header->SetBeginCommitId(tuple_slot, MAX_CID);
+          tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
+
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
+
+          tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
+
+          // add to gc set.
+          gc_set->get().operator[](tile_group_id)[tuple_slot] = RW_TYPE_INSERT;
+
+        } else if (tuple_entry.second == RW_TYPE_INS_DEL) {
+          tile_group_header->SetBeginCommitId(tuple_slot, MAX_CID);
+          tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
+
+          // we should set the version before releasing the lock.
+          COMPILER_MEMORY_FENCE;
+
+          tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
+
+          // add to gc set.
+          gc_set->get().operator[](tile_group_id)[tuple_slot] = RW_TYPE_INS_DEL;
         }
-
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
-
-        tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
-
-        // add to gc set.
-        gc_set->operator[](new_version.block)[new_version.offset] = RW_TYPE_UPDATE;
-
-      } else if (tuple_entry.second == RW_TYPE_DELETE) {
-
-        ItemPointer new_version =
-            tile_group_header->GetPrevItemPointer(tuple_slot);
-
-        auto new_tile_group_header =
-            manager.GetTileGroup(new_version.block)->GetHeader();
-
-        new_tile_group_header->SetBeginCommitId(new_version.offset, MAX_CID);
-        new_tile_group_header->SetEndCommitId(new_version.offset, MAX_CID);
-
-        COMPILER_MEMORY_FENCE;
-
-        // as the aborted version has already been placed in the version chain,
-        // we need to unlink it by resetting the item pointers.
-        auto old_prev =
-            new_tile_group_header->GetPrevItemPointer(new_version.offset);
-
-        // check whether the previous version exists.
-        if (old_prev.IsNull() == true) {
-          // if we updated the latest version.
-          // We must first adjust the head pointer
-          // before we unlink the aborted version from version list
-          ItemPointer *index_entry_ptr =
-              tile_group_header->GetIndirection(tuple_slot);
-          UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(
-              index_entry_ptr, ItemPointer(tile_group_id, tuple_slot));
-          PL_ASSERT(res == true);
-        }
-        //////////////////////////////////////////////////
-
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
-
-        new_tile_group_header->SetTransactionId(new_version.offset,
-                                                INVALID_TXN_ID);
-
-        if (old_prev.IsNull() == false) {
-          auto old_prev_tile_group_header = catalog::Manager::GetInstance()
-                                                .GetTileGroup(old_prev.block)
-                                                ->GetHeader();
-          old_prev_tile_group_header->SetNextItemPointer(
-              old_prev.offset, ItemPointer(tile_group_id, tuple_slot));
-        }
-
-        tile_group_header->SetPrevItemPointer(tuple_slot, old_prev);
-
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
-
-        tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
-
-        // add to gc set.
-        gc_set->operator[](new_version.block)[new_version.offset] = RW_TYPE_DELETE;
-
-      } else if (tuple_entry.second == RW_TYPE_INSERT) {
-        tile_group_header->SetBeginCommitId(tuple_slot, MAX_CID);
-        tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
-
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
-
-        tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
-
-        // add to gc set.
-        gc_set->operator[](tile_group_id)[tuple_slot] = RW_TYPE_INSERT;
-
-      } else if (tuple_entry.second == RW_TYPE_INS_DEL) {
-        tile_group_header->SetBeginCommitId(tuple_slot, MAX_CID);
-        tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
-
-        // we should set the version before releasing the lock.
-        COMPILER_MEMORY_FENCE;
-
-        tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
-
-        // add to gc set.
-        gc_set->operator[](tile_group_id)[tuple_slot] = RW_TYPE_INS_DEL;
       }
     }
   }

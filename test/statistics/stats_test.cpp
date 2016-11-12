@@ -17,6 +17,7 @@
 
 #include <sys/resource.h>
 #include <time.h>
+#include <include/tcop/tcop.h>
 
 #include "executor/executor_context.h"
 #include "executor/executor_tests_util.h"
@@ -24,6 +25,7 @@
 #include "statistics/backend_stats_context.h"
 #include "statistics/stats_aggregator.h"
 #include "statistics/stats_tests_util.h"
+#include "tcop/tcop.h"
 
 #define NUM_ITERATION 50
 #define NUM_TABLE_INSERT 1
@@ -353,6 +355,8 @@ TEST_F(StatsTest, PerThreadStatsTest) {
 
 TEST_F(StatsTest, PerQueryStatsTest) {
   int64_t aggregate_interval = 1000;
+  // start executor pool
+  ExecutorPoolHarness::GetInstance();
   LaunchAggregator(aggregate_interval);
   auto &aggregator = stats::StatsAggregator::GetInstance();
 
@@ -385,8 +389,8 @@ TEST_F(StatsTest, PerQueryStatsTest) {
   std::vector<common::Value> params;
   std::vector<ResultType> result;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  bridge::peloton_status status = bridge::PlanExecutor::ExecutePlan(
-      statement->GetPlanTree().get(), params, result, result_format);
+  bridge::peloton_status status = tcop::TrafficCop::ExchangeOperator(
+      statement, params, result, result_format);
   LOG_DEBUG("Statement executed. Result: %d", status.m_result);
   LOG_INFO("Tuple inserted!");
 
@@ -400,13 +404,13 @@ TEST_F(StatsTest, PerQueryStatsTest) {
   result.clear();
   result_format =
       std::move(std::vector<int>(statement->GetTupleDescriptor().size(), 0));
-  status = bridge::PlanExecutor::ExecutePlan(statement->GetPlanTree().get(),
-                                             params, result, result_format);
+  status = tcop::TrafficCop::ExchangeOperator(statement, params, result,
+                                              result_format);
   LOG_DEBUG("Statement executed. Result: %d", status.m_result);
   LOG_INFO("Tuple updated!");
 
   // Deleting end-to-end
-  statement = std::move(StatsTestsUtil::GetDeleteStmt());
+  statement = StatsTestsUtil::GetDeleteStmt();
   // Initialize the query metric
   backend_context->InitQueryMetric(statement, nullptr);
 
@@ -415,8 +419,8 @@ TEST_F(StatsTest, PerQueryStatsTest) {
   result.clear();
   result_format =
       std::move(std::vector<int>(statement->GetTupleDescriptor().size(), 0));
-  status = bridge::PlanExecutor::ExecutePlan(statement->GetPlanTree().get(),
-                                             params, result, result_format);
+  status = tcop::TrafficCop::ExchangeOperator(statement, params, result,
+                                              result_format);
   LOG_DEBUG("Statement executed. Result: %d", status.m_result);
   LOG_INFO("Tuple deleted!");
 

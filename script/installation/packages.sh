@@ -37,7 +37,8 @@ if [ "$DISTRO" = "UBUNTU" ]; then
         libjemalloc-dev \
         valgrind \
         lcov \
-        postgresql-client
+        postgresql-client \
+	libnuma-dev
 ## ------------------------------------------------
 ## FEDORA/REDHAT
 ## ------------------------------------------------
@@ -54,7 +55,8 @@ elif [[ "$DISTRO" == *"FEDORA"* ]]; then
         jemalloc-devel \
         valgrind \
         lcov \
-        postgresql
+        postgresql \
+	libnuma-dev
 ## ------------------------------------------------
 ## UNKNOWN
 ## ------------------------------------------------

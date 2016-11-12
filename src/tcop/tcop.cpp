@@ -30,7 +30,10 @@
 #include "executor/plan_executor.h"
 #include "optimizer/simple_optimizer.h"
 
-#include <boost/algorithm/string.hpp>
+#include "common/thread_pool.h"
+#include <include/common/init.h>
+#include <tuple>
+#include <include/tcop/tcop.h>
 
 namespace peloton {
 namespace tcop {
@@ -100,8 +103,7 @@ Result TrafficCop::ExecuteStatement(
             statement->GetStatementName().c_str());
   try {
     bridge::PlanExecutor::PrintPlan(statement->GetPlanTree().get(), "Plan");
-    bridge::peloton_status status = bridge::PlanExecutor::ExecutePlan(
-        statement->GetPlanTree().get(), params, result, result_format);
+    auto status = ExchangeOperator(statement, params, result, result_format);
     LOG_TRACE("Statement executed. Result: %d", status.m_result);
     rows_changed = status.m_processed;
     return status.m_result;
@@ -109,6 +111,89 @@ Result TrafficCop::ExecuteStatement(
     error_message = e.what();
     return Result::RESULT_FAILURE;
   }
+}
+
+bridge::peloton_status TrafficCop::ExchangeOperator(
+    const std::shared_ptr<Statement> &statement,
+    const std::vector<common::Value> &params,
+    std::vector<ResultType>& result, const std::vector<int> &result_format) {
+
+  int num_tasks = 1;
+  bridge::peloton_status final_status;
+
+  if (statement->GetPlanTree().get() == nullptr) {
+    return final_status;
+  }
+
+  if(statement->GetPlanTree()->GetPlanNodeType() ==
+     PlanNodeType::PLAN_NODE_TYPE_SEQSCAN) {
+    // provide intra-query parallelism for sequential scans
+    num_tasks = std::thread::hardware_concurrency();
+  }
+
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  // This happens for single statement queries in PG
+  bool single_statement_txn = true;
+  bool init_failure = false;
+
+  auto txn = txn_manager.BeginTransaction(num_tasks);
+  PL_ASSERT(txn);
+
+  std::vector<std::shared_ptr<bridge::ExchangeParams>> exchg_params_list;
+  final_status.m_processed = 0;
+
+  for(int i=0; i<num_tasks; i++) {
+    // in first pass make the exch params list
+    std::shared_ptr<bridge::ExchangeParams> exchg_params(
+        new bridge::ExchangeParams(txn, statement, params,
+                                   num_tasks,
+                                   i, result_format, init_failure));
+    exchg_params->self = exchg_params.get();
+    exchg_params_list.push_back(exchg_params);
+    executor_thread_pool.SubmitTask(bridge::PlanExecutor::ExecutePlanLocal,
+                                    &exchg_params->self);
+  }
+
+  for(int i=0; i<num_tasks; i++) {
+    // wait for executor thread to return result
+    auto temp_status = exchg_params_list[i]->f.get();
+    init_failure &= exchg_params_list[i]->init_failure;
+    if (init_failure == false) {
+      // proceed only if none of the threads so far have failed
+      final_status.m_processed += temp_status.m_processed;
+
+      // persist failure states across iterations
+      if (final_status.m_result == peloton::Result::RESULT_SUCCESS)
+        final_status.m_result = temp_status.m_result;
+      final_status.m_result_slots = nullptr;
+
+      result.insert(result.end(), exchg_params_list[i]->result.begin(),
+                    exchg_params_list[i]->result.end());
+    }
+  }
+
+  LOG_TRACE("About to commit: single stmt: %d, init_failure: %d, status: %d",
+            single_statement_txn, init_failure, txn->GetResult());
+
+  // should we commit or abort ?
+  if (single_statement_txn == true || init_failure == true) {
+    auto status = txn->GetResult();
+    switch (status) {
+      case Result::RESULT_SUCCESS:
+        // Commit
+        LOG_TRACE("Commit Transaction");
+        final_status.m_result = txn_manager.CommitTransaction(txn);
+        break;
+
+      case Result::RESULT_FAILURE:
+      default:
+        // Abort
+        LOG_TRACE("Abort Transaction");
+        final_status.m_result = txn_manager.AbortTransaction(txn);
+    }
+  }
+
+  return final_status;
 }
 
 std::shared_ptr<Statement> TrafficCop::PrepareStatement(

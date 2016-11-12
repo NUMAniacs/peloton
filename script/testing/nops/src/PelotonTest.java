@@ -18,61 +18,60 @@ import java.util.Properties;
 import java.util.concurrent.*;
 
 public class PelotonTest {
+    // Peloton, Postgres, Timesten Endpoints
+    private final String[] url = {
+    		"jdbc:postgresql://localhost:54321/postgres", // PELOTON
+    		"jdbc:postgresql://localhost:5432/postgres", // POSTGRES
+    		"jdbc:timesten:client:TTC_SERVER_DSN=xxx;TTC_SERVER=xxx;TCP_PORT=xxx" }; // TIMESTEN
 
-	// Peloton, Postgres, Timesten Endpoints
-	private final String[] url = {
-			"jdbc:postgresql://localhost:54321/postgres", // PELOTON
-			"jdbc:postgresql://localhost:5432/postgres", // POSTGRES
-			"jdbc:timesten:client:TTC_SERVER_DSN=xxx;TTC_SERVER=xxx;TCP_PORT=xxx" }; // TIMESTEN
+    private final String[] user = { "postgres", "postgres", "xxx" };
+    private final String[] pass = { "postgres", "postgres", "xxx" };
+    private final String[] driver = { "org.postgresql.Driver",
+    		"org.postgresql.Driver", "com.timesten.jdbc.TimesTenDriver" };
 
-	private final String[] user = { "postgres", "postgres", "xxx" };
-	private final String[] pass = { "postgres", "postgres", "xxx" };
-	private final String[] driver = { "org.postgresql.Driver",
-			"org.postgresql.Driver", "com.timesten.jdbc.TimesTenDriver" };
+    private final int LOG_LEVEL = 0;
 
-	private final int LOG_LEVEL = 0;
+    // Query types
+    public static final int SEMICOLON = 0;
+    public static final int SIMPLE_SELECT = 1;
+    public static final int BATCH_UPDATE = 2;
+    public static final int COMPLEX_SELECT = 3;
+    public static final int SIMPLE_UPDATE = 4;
+    public static final int LARGE_UPDATE = 5;
 
-	// Query types
-	public static final int SEMICOLON = 0;
-	public static final int SIMPLE_SELECT = 1;
-	public static final int BATCH_UPDATE = 2;
-	public static final int COMPLEX_SELECT = 3;
-	public static final int SIMPLE_UPDATE = 4;
-	public static final int LARGE_UPDATE = 5;
+    public static int numThreads = 1;
 
-	public static int numThreads = 1;
+    // Endpoint types
+    public static final int PELOTON = 0;
+    public static final int POSTGRES = 1;
+    public static final int TIMESTEN = 2;
 
-	// Endpoint types
-	public static final int PELOTON = 0;
-	public static final int POSTGRES = 1;
-	public static final int TIMESTEN = 2;
+    // QUERY TEMPLATES
+    private final String DROP = "DROP TABLE IF EXISTS A;";
 
-	// QUERY TEMPLATES
-	private final String DROP = "DROP TABLE IF EXISTS A;";
+    private final String DDL = "CREATE TABLE A (id INT PRIMARY KEY, data VARCHAR(100), "
+    		+ "field1 VARCHAR(100), field2 VARCHAR(100), field3 VARCHAR(100), field4 VARCHAR(100), "
+    		+ "field5 VARCHAR(100), field6 VARCHAR(100), field7 VARCHAR(100), field8 VARCHAR(100), field9 VARCHAR(100));";
 
-	private final String DDL = "CREATE TABLE A (id INT PRIMARY KEY, data VARCHAR(100), "
-			+ "field1 VARCHAR(100), field2 VARCHAR(100), field3 VARCHAR(100), field4 VARCHAR(100), "
-			+ "field5 VARCHAR(100), field6 VARCHAR(100), field7 VARCHAR(100), field8 VARCHAR(100), field9 VARCHAR(100));";
+    private final String INDEXSCAN_PARAM = "SELECT * FROM A WHERE id = ?";
 
-	private final String INDEXSCAN_PARAM = "SELECT * FROM A WHERE id = ?";
+    private final String UPDATE_BY_INDEXSCAN = "UPDATE A SET id=99 WHERE id=?";
 
-	private final String UPDATE_BY_INDEXSCAN = "UPDATE A SET id=99 WHERE id=?";
+    private final String UPDATE_BY_LARGE_DATA = "UPDATE A SET data = ?, "
+    		+ "field1 = ?, field2 = ?, field3 = ?, field4 = ?, "
+    		+ "field5 = ?, field6 = ?, field7 = ?, field8 = ?, field9 = ? WHERE id = 99;";
 
-	private final String UPDATE_BY_LARGE_DATA = "UPDATE A SET data = ?, "
-			+ "field1 = ?, field2 = ?, field3 = ?, field4 = ?, "
-			+ "field5 = ?, field6 = ?, field7 = ?, field8 = ?, field9 = ? WHERE id = 99;";
+    private final String LARGE_STRING = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    		+ "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
-	private final String LARGE_STRING = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-			+ "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    private final Connection conn;
 
-	private final Connection conn;
+    private enum TABLE {
+    	A, B, AB
+    }
 
-	private enum TABLE {
-		A, B, AB
-	}
-
-	private int target;
-	private int query_type;
+    private int target;
+    private int query_type;
 
 	class QueryWorker extends Thread {
 		public long runningTime;
@@ -360,5 +359,4 @@ public class PelotonTest {
 			pt.Nop_Test();
 		}
 	}
-
 }

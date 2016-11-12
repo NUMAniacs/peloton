@@ -19,7 +19,7 @@
 #include "executor/create_executor.h"
 #include "executor/delete_executor.h"
 #include "executor/insert_executor.h"
-#include "executor/plan_executor.h"
+#include "tcop/tcop.h"
 #include "executor/update_executor.h"
 #include "optimizer/simple_optimizer.h"
 #include "parser/parser.h"
@@ -39,7 +39,10 @@ namespace test {
 
 class UpdateTests : public PelotonTest {};
 
+
 TEST_F(UpdateTests, Updating) {
+  ExecutorPoolHarness::GetInstance();
+
   LOG_INFO("Bootstrapping...");
   auto catalog = catalog::Catalog::GetInstance();
   catalog->CreateDatabase(DEFAULT_DB_NAME, nullptr);
@@ -81,7 +84,7 @@ TEST_F(UpdateTests, Updating) {
   LOG_INFO(
       "Query: INSERT INTO department_table(dept_id,manager_id,dept_name) "
       "VALUES (1,12,'hello_1');");
-  std::unique_ptr<Statement> statement;
+  std::shared_ptr<Statement> statement;
   statement.reset(new Statement("INSERT",
                                 "INSERT INTO "
                                 "department_table(dept_id,manager_id,dept_name)"
@@ -103,8 +106,8 @@ TEST_F(UpdateTests, Updating) {
   std::vector<int> result_format;
   result_format =
       std::move(std::vector<int>(statement->GetTupleDescriptor().size(), 0));
-  bridge::peloton_status status = bridge::PlanExecutor::ExecutePlan(
-      statement->GetPlanTree().get(), params, result, result_format);
+  bridge::peloton_status status = tcop::TrafficCop::ExchangeOperator(
+      statement, params, result, result_format);
   LOG_INFO("Statement executed. Result: %d", status.m_result);
   LOG_INFO("Tuple inserted!");
   txn_manager.CommitTransaction(txn);
@@ -127,10 +130,11 @@ TEST_F(UpdateTests, Updating) {
   LOG_INFO("Building plan tree completed!");
   bridge::PlanExecutor::PrintPlan(statement->GetPlanTree().get(), "Plan");
   LOG_INFO("Executing plan...");
+
   result_format =
       std::move(std::vector<int>(statement->GetTupleDescriptor().size(), 0));
-  status = bridge::PlanExecutor::ExecutePlan(statement->GetPlanTree().get(),
-                                             params, result, result_format);
+  status = tcop::TrafficCop::ExchangeOperator(statement, params, result,
+                                              result_format);
   LOG_INFO("Statement executed. Result: %d", status.m_result);
   LOG_INFO("Tuple Updated!");
   txn_manager.CommitTransaction(txn);
@@ -156,7 +160,7 @@ TEST_F(UpdateTests, Updating) {
   LOG_INFO("Executing plan...");
   result_format =
       std::move(std::vector<int>(statement->GetTupleDescriptor().size(), 0));
-  status = bridge::PlanExecutor::ExecutePlan(statement->GetPlanTree().get(),
+  status = tcop::TrafficCop::ExchangeOperator(statement,
                                              params, result, result_format);
   LOG_INFO("Statement executed. Result: %d", status.m_result);
   LOG_INFO("Tuple Updated!");
@@ -180,8 +184,8 @@ TEST_F(UpdateTests, Updating) {
   LOG_INFO("Executing plan...");
   result_format =
       std::move(std::vector<int>(statement->GetTupleDescriptor().size(), 0));
-  status = bridge::PlanExecutor::ExecutePlan(statement->GetPlanTree().get(),
-                                             params, result, result_format);
+  status = tcop::TrafficCop::ExchangeOperator(statement, params, result,
+                                              result_format);
   LOG_INFO("Statement executed. Result: %d", status.m_result);
   LOG_INFO("Tuple deleted!");
   txn_manager.CommitTransaction(txn);

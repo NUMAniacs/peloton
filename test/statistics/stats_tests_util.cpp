@@ -23,14 +23,17 @@
 #include "planner/delete_plan.h"
 #include "planner/insert_plan.h"
 #include "storage/tile.h"
+#include "tcop/tcop.h"
 
 namespace peloton {
 namespace test {
 
 void StatsTestsUtil::ShowTable(std::string database_name,
                                std::string table_name) {
+  // start executor pool
+  ExecutorPoolHarness::GetInstance();
   catalog::Catalog::GetInstance()->GetTableWithName(database_name, table_name);
-  std::unique_ptr<Statement> statement;
+  std::shared_ptr<Statement> statement;
   auto &peloton_parser = parser::Parser::GetInstance();
   std::vector<common::Value> params;
   std::vector<ResultType> result;
@@ -41,8 +44,7 @@ void StatsTestsUtil::ShowTable(std::string database_name,
       optimizer::SimpleOptimizer::BuildPelotonPlanTree(select_stmt));
   bridge::PlanExecutor::PrintPlan(statement->GetPlanTree().get(), "Plan");
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  bridge::PlanExecutor::ExecutePlan(statement->GetPlanTree().get(), params,
-                                    result, result_format);
+  tcop::TrafficCop::ExchangeOperator(statement, params, result, result_format);
 }
 
 storage::Tuple StatsTestsUtil::PopulateTuple(const catalog::Schema *schema,

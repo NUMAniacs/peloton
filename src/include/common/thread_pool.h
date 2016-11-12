@@ -20,7 +20,6 @@
 #include <boost/thread/thread.hpp>
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
-
 #include "common/macros.h"
 
 namespace peloton {
@@ -46,6 +45,22 @@ class ThreadPool {
     }
 
     dedicated_threads_.resize(dedicated_thread_count_);
+  }
+
+  void InitializePinned(std::vector<int> &cpu_ids) {
+    cpu_set_t cpuset;
+
+    pool_size_ = cpu_ids.size();
+    PL_ASSERT(pool_size_ != 0);
+
+    for (size_t i=0; i < pool_size_; i++) {
+      auto new_thread = thread_pool_.create_thread(
+          boost::bind(&boost::asio::io_service::run, &io_service_));
+      auto nt_handle = new_thread->native_handle();
+      CPU_ZERO(&cpuset);
+      CPU_SET(cpu_ids[i], &cpuset);
+      pthread_setaffinity_np(nt_handle, sizeof(cpu_set_t), &cpuset);
+    }
   }
 
   void Shutdown() {
@@ -75,6 +90,10 @@ class ThreadPool {
     dedicated_threads_[thread_id].reset(new std::thread(std::thread(func, params...)));
   }
 
+  boost::asio::io_service &GetIOService() {
+    return io_service_;
+  }
+
  private:
   ThreadPool(const ThreadPool &);
   ThreadPool &operator=(const ThreadPool &);
@@ -89,6 +108,7 @@ class ThreadPool {
 
   // real thread pool that holds a set of threads.
   boost::thread_group thread_pool_;
+
   // io_service provides IO functionality of asynchronize services.
   boost::asio::io_service io_service_;
   // io_service::work is responsible for starting the io_service processing

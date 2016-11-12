@@ -44,8 +44,9 @@ class Transaction : public Printable {
     Init(txn_id, INVALID_CID);
   }
 
-  Transaction(const txn_id_t &txn_id, const cid_t &begin_cid) {
-    Init(txn_id, begin_cid);
+  Transaction(const txn_id_t &txn_id, const cid_t &begin_cid,
+              const int num_parallel_tasks=1) {
+    Init(txn_id, begin_cid, num_parallel_tasks);
   }
 
   Transaction(const txn_id_t &txn_id, const cid_t &begin_cid, bool ro) {
@@ -55,13 +56,15 @@ class Transaction : public Printable {
 
   ~Transaction() {}
 
-  void Init(const txn_id_t &txn_id, const cid_t &begin_cid) {
+  void Init(const txn_id_t &txn_id, const cid_t &begin_cid,
+            const int num_parallel_tasks=1) {
     txn_id_ = txn_id;
     begin_cid_ = begin_cid;
     end_cid_ = MAX_CID;
     is_written_ = false;
     declared_readonly_ = false;
     insert_count_ = 0;
+    rw_set_.resize(num_parallel_tasks);
     gc_set_.reset(new ReadWriteSet());
   }
 
@@ -81,18 +84,18 @@ class Transaction : public Printable {
 
   inline void SetEpochId(const size_t eid) { epoch_id_ = eid; }
 
-  void RecordRead(const ItemPointer &);
+  void RecordRead(const ItemPointer &, int i=0);
 
-  void RecordReadOwn(const ItemPointer &);
+  void RecordReadOwn(const ItemPointer &, int i=0);
 
-  void RecordUpdate(const ItemPointer &);
+  void RecordUpdate(const ItemPointer &, int i=0);
 
-  void RecordInsert(const ItemPointer &);
+  void RecordInsert(const ItemPointer &, int i=0);
 
   // Return true if we detect INS_DEL
-  bool RecordDelete(const ItemPointer &);
+  bool RecordDelete(const ItemPointer &, int i=0);
 
-  RWType GetRWType(const ItemPointer&);
+  RWType GetRWType(const ItemPointer&, int i=0);
 
   inline const ReadWriteSet &GetReadWriteSet() {
     return rw_set_;

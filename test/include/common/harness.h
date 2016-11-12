@@ -32,6 +32,8 @@
 
 #include <google/protobuf/stubs/common.h>
 #include <gflags/gflags.h>
+#include <include/common/thread_pool.h>
+
 
 namespace peloton {
 
@@ -40,6 +42,7 @@ class VarlenPool;
 }
 
 namespace test {
+
 
 //===--------------------------------------------------------------------===//
 // Test Harness (common routines)
@@ -84,6 +87,21 @@ class TestingHarness {
   std::unique_ptr<common::VarlenPool> pool_;
 };
 
+// harness that is used to create a new instance of the executor pool
+class ExecutorPoolHarness {
+  public:
+    ExecutorPoolHarness(const ExecutorPoolHarness &) = delete;
+    ExecutorPoolHarness &operator=(const ExecutorPoolHarness &) = delete;
+    ExecutorPoolHarness(ExecutorPoolHarness &&) = delete;
+    ExecutorPoolHarness &operator=(ExecutorPoolHarness &&) = delete;
+
+    static ExecutorPoolHarness &GetInstance(void);
+  private:
+    ExecutorPoolHarness();
+
+    ~ExecutorPoolHarness();
+};
+
 template <typename... Args>
 void LaunchParallelTest(uint64_t num_threads, Args &&... args) {
   std::vector<std::thread> thread_group;
@@ -108,6 +126,7 @@ class PelotonTest : public ::testing::Test {
  protected:
 
   virtual void SetUp() {
+
     // Initialize CDS library
     cds::Initialize();
 
@@ -116,6 +135,7 @@ class PelotonTest : public ::testing::Test {
   }
 
   virtual void TearDown() {
+
     // Detach thread from cds
     cds::threading::Manager::detachThread();
 

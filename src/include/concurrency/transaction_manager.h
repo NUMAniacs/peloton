@@ -111,7 +111,8 @@ class TransactionManager {
 
   virtual bool PerformRead(Transaction *const current_txn, 
                            const ItemPointer &location,
-                           bool acquire_ownership = false) = 0;
+                           bool acquire_ownership = false,
+                           const int partition_id = 0) = 0;
 
   virtual void PerformUpdate(Transaction *const current_txn, 
                              const ItemPointer &old_location,
@@ -136,7 +137,7 @@ class TransactionManager {
 
   void SetMaxGrantCid(cid_t cid) { maximum_grant_cid_ = cid; }
 
-  virtual Transaction *BeginTransaction() = 0;
+  virtual Transaction *BeginTransaction(const int num_parallel_tasks=1) = 0;
 
   virtual Transaction *BeginReadonlyTransaction() = 0;
 
