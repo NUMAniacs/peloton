@@ -97,17 +97,23 @@ DataTable::~DataTable() {
 
   // clean up tile groups by dropping the references in the catalog
   auto &catalog_manager = catalog::Manager::GetInstance();
-  auto tile_groups_size = tile_groups_.GetSize();
+
   std::size_t tile_groups_itr;
 
-  for (tile_groups_itr = 0; tile_groups_itr < tile_groups_size;
-       tile_groups_itr++) {
-    auto tile_group_id = tile_groups_.Find(tile_groups_itr);
+  for (std::size_t partition = 0; partition < num_partitions_; partition++){
 
-    if (tile_group_id != invalid_tile_group_id) {
-      LOG_TRACE("Dropping tile group : %u ", tile_group_id);
-      // drop tile group in catalog
-      catalog_manager.DropTileGroup(tile_group_id);
+    auto & part_tilegroup = tile_groups_[partition];
+    std::size_t part_tilegroup_size = part_tilegroup.GetSize();
+
+    for (tile_groups_itr = 0; tile_groups_itr < part_tilegroup_size;
+         tile_groups_itr++) {
+      auto tile_group_id = part_tilegroup.Find(tile_groups_itr);
+
+      if (tile_group_id != invalid_tile_group_id) {
+        LOG_TRACE("Dropping tile group : %u ", tile_group_id);
+        // drop tile group in catalog
+        catalog_manager.DropTileGroup(tile_group_id);
+      }
     }
   }
 
@@ -691,7 +697,7 @@ oid_t DataTable::AddDefaultTileGroup(const size_t &active_tile_group_id, const i
 
   LOG_TRACE("Added a tile group ");
 
-  tile_groups_.Append(tile_group_id);
+  tile_groups_[partition].Append(tile_group_id);
 
   // add tile group metadata in locator
   catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
@@ -734,11 +740,19 @@ void DataTable::AddTileGroupWithOidForRecovery(const oid_t &tile_group_id) {
       database_oid, table_oid, tile_group_id, this, schemas, column_map,
       tuples_per_tilegroup_, LOCAL_NUMA_REGION));
 
-  auto tile_groups_exists = tile_groups_.Contains(tile_group_id);
+  auto tile_groups_exists = false;
+
+  for (std::size_t partition = 0; partition < num_partitions_; partition++){
+    if (tile_groups_[partition].Contains(tile_group_id)){
+      tile_groups_exists = true;
+      break;
+    }
+  }
 
   if (tile_groups_exists == false) {
 
-    tile_groups_.Append(tile_group_id);
+    // TODO: we should find out what partition this should go in for now, just be lazy
+    tile_groups_[0].Append(tile_group_id);
 
     LOG_TRACE("Added a tile group ");
 
@@ -766,7 +780,7 @@ void DataTable::AddTileGroup(const std::shared_ptr<TileGroup> &tile_group) {
 
   oid_t tile_group_id = tile_group->GetTileGroupId();
 
-  tile_groups_.Append(tile_group_id);
+  tile_groups_[current_partition].Append(tile_group_id);
 
   // add tile group in catalog
   catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
@@ -785,9 +799,14 @@ size_t DataTable::GetTileGroupCount() const { return tile_group_count_; }
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
     const std::size_t &tile_group_offset) const {
   PL_ASSERT(tile_group_offset < GetTileGroupCount());
+  // if not we have to pass in partitions
+  PL_ASSERT(num_partitions_ == 1);
 
+
+  // TODO: obviously this is broken but is it used anywhere?
+  // for now just assume we are on the same socket
   auto tile_group_id =
-      tile_groups_.FindValid(tile_group_offset, invalid_tile_group_id);
+      tile_groups_.at(0).FindValid(tile_group_offset, invalid_tile_group_id);
 
   return GetTileGroupById(tile_group_id);
 }
@@ -801,21 +820,25 @@ std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupById(
 void DataTable::DropTileGroups() {
 
   auto &catalog_manager = catalog::Manager::GetInstance();
-  auto tile_groups_size = tile_groups_.GetSize();
+
   std::size_t tile_groups_itr;
 
-  for (tile_groups_itr = 0; tile_groups_itr < tile_groups_size;
-       tile_groups_itr++) {
-    auto tile_group_id = tile_groups_.Find(tile_groups_itr);
+  for (std::size_t partition = 0; partition < num_partitions_; partition++){
+    auto tile_groups_size = tile_groups_[partition].GetSize();
+    for (tile_groups_itr = 0; tile_groups_itr < tile_groups_size;
+         tile_groups_itr++) {
+      auto tile_group_id = tile_groups_[partition].Find(tile_groups_itr);
 
-    if (tile_group_id != invalid_tile_group_id) {
-      // drop tile group in catalog
-      catalog_manager.DropTileGroup(tile_group_id);
+      if (tile_group_id != invalid_tile_group_id) {
+        // drop tile group in catalog
+        catalog_manager.DropTileGroup(tile_group_id);
+      }
     }
+    // Clear array
+      tile_groups_[partition].Clear(invalid_tile_group_id);
   }
 
-  // Clear array
-  tile_groups_.Clear(invalid_tile_group_id);
+
 
   tile_group_count_ = 0;
 }
@@ -1077,14 +1100,17 @@ void SetTransformedTileGroup(storage::TileGroup *orig_tile_group,
 
 storage::TileGroup *DataTable::TransformTileGroup(
     const oid_t &tile_group_offset, const double &theta) {
+  PL_ASSERT(num_partitions_ == 1);
   // First, check if the tile group is in this table
-  if (tile_group_offset >= tile_groups_.GetSize()) {
+  if (tile_group_offset >= tile_groups_[0].GetSize()) {
     LOG_ERROR("Tile group offset not found in table : %u ", tile_group_offset);
     return nullptr;
   }
 
+  // if not we should pass in the partition
+
   auto tile_group_id =
-      tile_groups_.FindValid(tile_group_offset, invalid_tile_group_id);
+      tile_groups_[0].FindValid(tile_group_offset, invalid_tile_group_id);
 
   // Get orig tile group from catalog
   auto &catalog_manager = catalog::Manager::GetInstance();

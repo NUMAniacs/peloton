@@ -314,8 +314,9 @@ class DataTable : public AbstractTable {
   // number of tuples allocated per tilegroup
   size_t tuples_per_tilegroup_;
 
-  // TILE GROUPS
-  LockFreeArray<oid_t> tile_groups_;
+  // TILE GROUPS map of partition id to an array of it's tile group oids
+  // this is useful to know which tilegroups are in which partitions
+  std::map<int,LockFreeArray<oid_t>> tile_groups_;
 
 //  std::vector<std::shared_ptr<storage::TileGroup>> active_tile_groups_;
   std::vector<std::vector<std::shared_ptr<storage::TileGroup>>> active_tile_groups_;
