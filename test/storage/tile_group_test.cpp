@@ -87,7 +87,7 @@ TEST_F(TileGroupTests, BasicTest) {
       storage::TileGroupFactory::GetTileGroup(
           INVALID_OID, INVALID_OID,
           TestingHarness::GetInstance().GetNextTileGroupId(), nullptr, schemas,
-          column_map, 4));
+          column_map, 4, LOCAL_NUMA_REGION));
   catalog::Manager::GetInstance().AddTileGroup(tile_group->GetTileGroupId(),
                                                tile_group);
 
@@ -221,7 +221,7 @@ TEST_F(TileGroupTests, StressTest) {
       storage::TileGroupFactory::GetTileGroup(
           INVALID_OID, INVALID_OID,
           TestingHarness::GetInstance().GetNextTileGroupId(), nullptr, schemas,
-          column_map, 10000));
+          column_map, 10000, LOCAL_NUMA_REGION));
   catalog::Manager::GetInstance().AddTileGroup(tile_group->GetTileGroupId(),
                                                tile_group);
 
@@ -392,7 +392,7 @@ TEST_F(TileGroupTests, TileCopyTest) {
       storage::TileGroupFactory::GetTileGroup(
           INVALID_OID, INVALID_OID,
           TestingHarness::GetInstance().GetNextTileGroupId(), nullptr, schemas,
-          column_map, tuple_count));
+          column_map, tuple_count, LOCAL_NUMA_REGION));
   catalog::Manager::GetInstance().AddTileGroup(tile_group->GetTileGroupId(),
                                                tile_group);
 

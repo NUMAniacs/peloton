@@ -380,7 +380,7 @@ bool LoggingUtil::RemoveDirectory(const char *dir_name, bool only_remove_file) {
   if (!only_remove_file) {
     auto ret_val = remove(dir_name);
     if (ret_val != 0) {
-      LOG_ERROR("Failed to delete dir: %s, error: %s", file->d_name,
+      LOG_ERROR("Failed to delete dir. error: %s",
                 strerror(errno));
     }
   }
