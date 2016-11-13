@@ -782,6 +782,27 @@ void DataTable::AddTileGroup(const std::shared_ptr<TileGroup> &tile_group) {
   LOG_TRACE("Recording tile group : %u ", tile_group_id);
 }
 
+size_t DataTable::GetPartitionCount() const{
+  return num_partitions_;
+}
+
+size_t DataTable::GetPartitionTileGroupCount(size_t partition) const{
+  PL_ASSERT(partition < num_partitions_);
+  return tile_groups_.at(partition).GetSize();
+}
+
+// Offset is a 0-based number local to the table
+std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupFromPartition(
+const std::size_t partition, const std::size_t &tile_group_offset) const{
+  PL_ASSERT(partition < num_partitions_);
+  PL_ASSERT(tile_group_offset < GetPartitionTileGroupCount(partition));
+
+  auto tile_group_id =
+      tile_groups_.at(partition).FindValid(tile_group_offset, invalid_tile_group_id);
+
+  return GetTileGroupById(tile_group_id);
+}
+
 size_t DataTable::GetTileGroupCount() const { return tile_group_count_; }
 
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(

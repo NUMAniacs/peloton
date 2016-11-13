@@ -139,6 +139,14 @@ class DataTable : public AbstractTable {
 
   size_t GetTileGroupCount() const;
 
+  size_t GetPartitionCount() const;
+
+  size_t GetPartitionTileGroupCount(size_t partition) const;
+
+  // Offset is a 0-based number local to the table
+    std::shared_ptr<storage::TileGroup> GetTileGroupFromPartition(
+        const std::size_t partition, const std::size_t &tile_group_offset) const;
+
   // Get a tile group with given layout
   TileGroup *GetTileGroupWithLayout(const column_map_type &partitioning, const int &numa_region);
 
