@@ -150,7 +150,7 @@ struct ColumnDefinition {
 /**
  * @struct CreateStatement
  * @brief Represents "CREATE TABLE students (name TEXT, student_number INTEGER,
- * city TEXT, grade DOUBLE)"
+ * city TEXT, grade DOUBLE) PARTITION BY column"
  */
 struct CreateStatement : SQLStatement {
   enum CreateType {
@@ -179,6 +179,7 @@ struct CreateStatement : SQLStatement {
     free(index_name);
     free(database_name);
     delete table_name;
+    delete partition_col;
   }
 
   CreateType type;
@@ -202,6 +203,7 @@ struct CreateStatement : SQLStatement {
   char* index_name = nullptr;
   char* database_name = nullptr;
   expression::ParserExpression* table_name = nullptr;
+  char* partition_col = nullptr;
 
   bool unique = false;
 };

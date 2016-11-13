@@ -119,7 +119,7 @@ void Catalog::InsertDatabaseIntoCatalogDatabase(oid_t database_id,
 // Create a table in a database
 Result Catalog::CreateTable(std::string database_name, std::string table_name,
                             std::unique_ptr<catalog::Schema> schema,
-                            concurrency::Transaction *txn) {
+                            concurrency::Transaction *txn, const int partition_column) {
   LOG_TRACE("Creating table %s in database %s", table_name.c_str(),
             database_name.c_str());
 
@@ -137,7 +137,7 @@ Result Catalog::CreateTable(std::string database_name, std::string table_name,
       oid_t database_id = database->GetOid();
       storage::DataTable *table = storage::TableFactory::GetDataTable(
           database_id, table_id, schema.release(), table_name,
-          DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
+          DEFAULT_TUPLES_PER_TILEGROUP, own_schema, partition_column, adapt_table);
       GetDatabaseWithOid(database_id)->AddTable(table);
 
       // Create the primary key index for that table if there's primary key
@@ -156,11 +156,12 @@ Result Catalog::CreateTable(std::string database_name, std::string table_name,
           databases_[START_OID]
               ->GetTableWithName(TABLE_CATALOG_NAME)
               ->GetSchema(),
-          table_id, table_name, database_id, database->GetDBName(), pool_);
+          table_id, table_name, database_id, database->GetDBName(), partition_column,  pool_);
       // Another way of insertion using transaction manager
       catalog::InsertTuple(
           databases_[START_OID]->GetTableWithName(TABLE_CATALOG_NAME),
           std::move(tuple), txn);
+      LOG_INFO("Created table %s.%s partition_col = %d", database->GetDBName().c_str(), table_name.c_str(), partition_column);
       return Result::RESULT_SUCCESS;
     }
   }
@@ -469,7 +470,7 @@ std::unique_ptr<storage::DataTable> Catalog::CreateTableCatalog(
   catalog::Schema *schema = table_schema.release();
   std::unique_ptr<storage::DataTable> table(storage::TableFactory::GetDataTable(
       database_id, GetNextOid(), schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table));
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, NO_PARTITION_COLUMN, adapt_table));
   return table;
 }
 
@@ -484,7 +485,7 @@ std::unique_ptr<storage::DataTable> Catalog::CreateDatabaseCatalog(
 
   std::unique_ptr<storage::DataTable> table(storage::TableFactory::GetDataTable(
       database_id, GetNextOid(), schema, database_name,
-      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table));
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, NO_PARTITION_COLUMN, adapt_table));
 
   return table;
 }
@@ -509,7 +510,7 @@ std::unique_ptr<storage::DataTable> Catalog::CreateMetricsCatalog(
 
   std::unique_ptr<storage::DataTable> table(storage::TableFactory::GetDataTable(
       database_id, GetNextOid(), schema, table_name,
-      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table));
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, NO_PARTITION_COLUMN, adapt_table));
 
   return table;
 }
@@ -540,8 +541,13 @@ std::unique_ptr<catalog::Schema> Catalog::InitializeTablesSchema() {
   database_name_column.AddConstraint(
       catalog::Constraint(CONSTRAINT_TYPE_NOTNULL, not_null_constraint_name));
 
+  //TODO this should extend to several columns
+  auto partition_key_column = catalog::Column(
+        common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+        "partition_key", true);
+
   std::unique_ptr<catalog::Schema> table_schema(new catalog::Schema(
-      {id_column, name_column, database_id_column, database_name_column}));
+      {id_column, name_column, database_id_column, database_name_column, partition_key_column}));
 
   return table_schema;
 }

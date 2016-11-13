@@ -89,7 +89,7 @@ void ExecuteTileGroupTest() {
   bool adapt_table = true;
   std::unique_ptr<storage::DataTable> table(storage::TableFactory::GetDataTable(
       INVALID_OID, INVALID_OID, table_schema, table_name,
-      tuples_per_tilegroup_count, own_schema, adapt_table));
+      tuples_per_tilegroup_count, own_schema, NO_PARTITION_COLUMN, adapt_table));
 
   // PRIMARY INDEX
   if (indexes == true) {

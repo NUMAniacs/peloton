@@ -96,7 +96,7 @@ class DataTable : public AbstractTable {
   DataTable(catalog::Schema *schema, const std::string &table_name,
             const oid_t &database_oid, const oid_t &table_oid,
             const size_t &tuples_per_tilegroup, const bool own_schema,
-            const bool adapt_table);
+            const int partition_column, const bool adapt_table);
 
   ~DataTable();
 
@@ -141,6 +141,9 @@ class DataTable : public AbstractTable {
 
   // Get a tile group with given layout
   TileGroup *GetTileGroupWithLayout(const column_map_type &partitioning, const int &numa_region);
+
+  // TODO Need to return a vector of column offsets for multiple keys
+  inline int GetPartitionColumns() { return partition_column_; }
 
   //===--------------------------------------------------------------------===//
   // INDEX
@@ -339,6 +342,10 @@ public:
 
   // dirty flag. for detecting whether the tile group has been used.
   bool dirty_ = false;
+
+  // partition column
+  // TODO allow more than one column
+  int partition_column_ = NO_PARTITION_COLUMN;
 
   //===--------------------------------------------------------------------===//
   // TUNING MEMBERS

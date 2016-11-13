@@ -70,7 +70,7 @@ bool PacketManager::ProcessStartupPacket(Packet *pkt,
 
   // Only protocol version 3 is supported
   if (PROTO_MAJOR_VERSION(proto_version) != 3) {
-    LOG_ERROR("Protocol error: Only protocol version 3 is supported.");
+    LOG_ERROR("Protocol error: Only protocol version 3 is supported but received %d", PROTO_MAJOR_VERSION(proto_version));
     exit(EXIT_FAILURE);
   }
 

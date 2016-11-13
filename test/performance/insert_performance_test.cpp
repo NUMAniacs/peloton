@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <memory>
 #include <string>
 #include <utility>
@@ -78,7 +77,10 @@ void InsertTuple(storage::DataTable *table, common::VarlenPool *pool,
 
   // Insert the desired # of tuples
   for (oid_t tuple_itr = 0; tuple_itr < tuple_count; tuple_itr++) {
-    executor::InsertExecutor executor(&node, context.get());
+    std::shared_ptr<executor::AbstractTask> task(
+        new executor::InsertTask(&node, node.GetBulkInsertCount()));
+    context->SetTask(task);
+    executor::InsertExecutor executor(context.get());
     executor.Execute();
   }
 
@@ -119,23 +121,37 @@ TEST_F(InsertTests, LoadingTest) {
 
   auto expected_tile_group_count = 0;
 
-  int total_tuple_count = loader_threads_count * tilegroup_count_per_loader * TEST_TUPLES_PER_TILEGROUP;
-  int max_cached_tuple_count = TEST_TUPLES_PER_TILEGROUP * storage::DataTable::active_tilegroup_count_;
-  int max_unfill_cached_tuple_count = (TEST_TUPLES_PER_TILEGROUP - 1) * storage::DataTable::active_tilegroup_count_;
+  int total_tuple_count = loader_threads_count * tilegroup_count_per_loader *
+                          TEST_TUPLES_PER_TILEGROUP;
+  int max_cached_tuple_count =
+      TEST_TUPLES_PER_TILEGROUP * storage::DataTable::active_tilegroup_count_;
+  int max_unfill_cached_tuple_count =
+      (TEST_TUPLES_PER_TILEGROUP - 1) *
+      storage::DataTable::active_tilegroup_count_;
 
   if (total_tuple_count - max_cached_tuple_count <= 0) {
     if (total_tuple_count <= max_unfill_cached_tuple_count) {
       expected_tile_group_count = storage::DataTable::active_tilegroup_count_;
     } else {
-      expected_tile_group_count = storage::DataTable::active_tilegroup_count_ + total_tuple_count - max_unfill_cached_tuple_count; 
+      expected_tile_group_count = storage::DataTable::active_tilegroup_count_ +
+                                  total_tuple_count -
+                                  max_unfill_cached_tuple_count;
     }
   } else {
-    int filled_tile_group_count = total_tuple_count / max_cached_tuple_count * storage::DataTable::active_tilegroup_count_;
-    
-    if (total_tuple_count - filled_tile_group_count * TEST_TUPLES_PER_TILEGROUP - max_unfill_cached_tuple_count <= 0) {
-      expected_tile_group_count = filled_tile_group_count + storage::DataTable::active_tilegroup_count_;
+    int filled_tile_group_count = total_tuple_count / max_cached_tuple_count *
+                                  storage::DataTable::active_tilegroup_count_;
+
+    if (total_tuple_count -
+            filled_tile_group_count * TEST_TUPLES_PER_TILEGROUP -
+            max_unfill_cached_tuple_count <=
+        0) {
+      expected_tile_group_count =
+          filled_tile_group_count + storage::DataTable::active_tilegroup_count_;
     } else {
-      expected_tile_group_count = filled_tile_group_count + storage::DataTable::active_tilegroup_count_ + (total_tuple_count - filled_tile_group_count - max_unfill_cached_tuple_count); 
+      expected_tile_group_count = filled_tile_group_count +
+                                  storage::DataTable::active_tilegroup_count_ +
+                                  (total_tuple_count - filled_tile_group_count -
+                                   max_unfill_cached_tuple_count);
     }
   }
 

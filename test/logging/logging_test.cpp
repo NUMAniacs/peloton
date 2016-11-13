@@ -333,7 +333,7 @@ TEST_F(LoggingTests, BasicLogManagerTest) {
   bool own_schema = true;
   bool adapt_table = false;
   storage::DataTable *table = storage::TableFactory::GetDataTable(
-      12345, 123456, table_schema, table_name, 1, own_schema, adapt_table);
+      12345, 123456, table_schema, table_name, 1, own_schema, NO_PARTITION_COLUMN, adapt_table);
 
   storage::Database test_db(12345);
   test_db.AddTable(table);

@@ -74,7 +74,10 @@ void InsertTuple(storage::DataTable *table, common::VarlenPool *pool,
     auto tuple = ExecutorTestsUtil::GetTuple(table, ++tuple_id, pool);
 
     planner::InsertPlan node(table, std::move(tuple));
-    executor::InsertExecutor executor(&node, context.get());
+    std::shared_ptr<executor::AbstractTask> task(
+        new executor::InsertTask(&node, node.GetBulkInsertCount()));
+    context->SetTask(task);
+    executor::InsertExecutor executor(context.get());
     executor.Execute();
   }
   txn_manager.CommitTransaction(txn);
@@ -88,8 +91,8 @@ void UpdateTuple(storage::DataTable *table,
       new executor::ExecutorContext(txn));
 
   // Update
-  //std::vector<oid_t> update_column_ids = {2};
-  //std::vector<common::Value *> values;
+  // std::vector<oid_t> update_column_ids = {2};
+  // std::vector<common::Value *> values;
   auto update_val = common::ValueFactory::GetDoubleValue(23.5);
 
   TargetList target_list;
@@ -208,7 +211,10 @@ TEST_F(MutateTests, StressTests) {
   auto non_empty_tuple =
       ExecutorTestsUtil::GetTuple(table, ++tuple_id, testing_pool);
   planner::InsertPlan node2(table, std::move(non_empty_tuple));
-  executor::InsertExecutor executor2(&node2, context.get());
+  std::shared_ptr<executor::AbstractTask> task(
+      new executor::InsertTask(&node2, node2.GetBulkInsertCount()));
+  context->SetTask(task);
+  executor::InsertExecutor executor2(context.get());
   executor2.Execute();
 
   try {
@@ -289,7 +295,10 @@ TEST_F(MutateTests, InsertTest) {
       new executor::ExecutorContext(txn));
 
   planner::InsertPlan node(dest_data_table.get());
-  executor::InsertExecutor executor(&node, context.get());
+  std::shared_ptr<executor::AbstractTask> task(
+      new executor::InsertTask(&node, node.GetBulkInsertCount()));
+  context->SetTask(task);
+  executor::InsertExecutor executor(context.get());
 
   MockExecutor child_executor;
   executor.AddChild(&child_executor);

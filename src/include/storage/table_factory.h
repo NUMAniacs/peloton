@@ -36,7 +36,7 @@ class TableFactory {
                                  catalog::Schema *schema,
                                  std::string table_name,
                                  size_t tuples_per_tile_group_count,
-                                 bool own_schema, bool adapt_table);
+                                 bool own_schema, const int partition_column, bool adapt_table);
 
   /**
    * For a given table name, drop the table from database

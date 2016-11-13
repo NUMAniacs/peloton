@@ -56,10 +56,10 @@ size_t DataTable::active_indirection_array_count_ = 1;
 DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
                      const oid_t &database_oid, const oid_t &table_oid,
                      const size_t &tuples_per_tilegroup, const bool own_schema,
-                     const bool adapt_table)
+                     const int partition_column, const bool adapt_table)
     : AbstractTable(database_oid, table_oid, table_name, schema, own_schema),
       tuples_per_tilegroup_(tuples_per_tilegroup),
-      adapt_table_(adapt_table) {
+      partition_column_(partition_column), adapt_table_(adapt_table){
   num_partitions_ = std::min(numa_max_node() + 1, (int) active_tilegroup_count_);
   // Init default partition
   auto col_count = schema->GetColumnCount();

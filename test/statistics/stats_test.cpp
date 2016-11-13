@@ -131,8 +131,8 @@ TEST_F(StatsTest, MultiThreadStatsTest) {
   std::unique_ptr<catalog::Schema> table_schema(
       new catalog::Schema({id_column, name_column}));
   catalog->CreateDatabase("EMP_DB", txn);
-  catalog::Catalog::GetInstance()->CreateTable("EMP_DB", "emp_table",
-                                               std::move(table_schema), txn);
+  catalog::Catalog::GetInstance()->CreateTable(
+      "EMP_DB", "emp_table", std::move(table_schema), txn, NO_PARTITION_COLUMN);
   txn_manager.CommitTransaction(txn);
 
   // Create multiple stat worker threads
@@ -229,7 +229,10 @@ TEST_F(StatsTest, PerThreadStatsTest) {
     planner::InsertPlan node(data_table.get(), std::move(project_info));
     std::unique_ptr<executor::ExecutorContext> context(
         new executor::ExecutorContext(txn));
-    executor::InsertExecutor executor(&node, context.get());
+    std::shared_ptr<executor::AbstractTask> task(
+        new executor::InsertTask(&node, node.GetBulkInsertCount()));
+    context->SetTask(task);
+    executor::InsertExecutor executor(context.get());
     executor.Execute();
   }
   txn_manager.CommitTransaction(txn);

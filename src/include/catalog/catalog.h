@@ -70,7 +70,7 @@ class Catalog {
   // Create a table in a database
   Result CreateTable(std::string database_name, std::string table_name,
                      std::unique_ptr<catalog::Schema>,
-                     concurrency::Transaction *txn);
+                     concurrency::Transaction *txn, const int partition_column);
 
   // Create the primary key index for a table
   Result CreatePrimaryIndex(const std::string &database_name,

@@ -933,6 +933,9 @@ static const cid_t START_CID = 1;
 
 static const cid_t MAX_CID = std::numeric_limits<cid_t>::max();
 
+// For Table Paritioning
+static const int NO_PARTITION_COLUMN = -1;
+
 //===--------------------------------------------------------------------===//
 // TupleMetadata
 //===--------------------------------------------------------------------===//

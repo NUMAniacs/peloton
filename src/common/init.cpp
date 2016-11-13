@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "common/init.h"
-#include "common/thread_pool.h"
 #include "common/config.h"
 
 #include "gc/gc_manager_factory.h"
@@ -30,6 +29,9 @@ ThreadPool thread_pool;
 // decouple client handling from query execution
 ThreadPool executor_thread_pool;
 
+// partitioned thread pool (currently based on NUMA regions)
+NumaThreadPool partitioned_executor_thread_pool;
+
 void PelotonInit::Initialize() {
 
   // Initialize CDS library
@@ -41,6 +43,10 @@ void PelotonInit::Initialize() {
   // block.
   thread_pool.Initialize(std::thread::hardware_concurrency(), 0);
 
+  // Initialize partitioned thread pool
+  partitioned_executor_thread_pool.Initialize(
+      (int)std::thread::hardware_concurrency());
+
   // FIXME: Find a way to balance client threads with execution
   // threads. Too many active clients might starve execution.
   executor_thread_pool.Initialize(std::thread::hardware_concurrency(), 0);
@@ -48,7 +54,7 @@ void PelotonInit::Initialize() {
   int parallelism = (std::thread::hardware_concurrency() + 1) / 2;
   storage::DataTable::SetActiveTileGroupCount(parallelism);
   storage::DataTable::SetActiveIndirectionArrayCount(parallelism);
-  
+
   // the garbage collector is assigned to dedicated threads.
   auto &gc_manager = gc::GCManagerFactory::GetInstance();
   gc_manager.StartGC();
