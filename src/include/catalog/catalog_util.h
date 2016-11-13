@@ -49,7 +49,7 @@ std::unique_ptr<storage::Tuple> GetDatabaseCatalogTuple(
 
 std::unique_ptr<storage::Tuple> GetTableCatalogTuple(
     catalog::Schema *schema, oid_t table_id, std::string table_name,
-    oid_t database_id, std::string database_name, common::VarlenPool *pool);
+    oid_t database_id, std::string database_name, const int partition_column, common::VarlenPool *pool);
 
 std::unique_ptr<storage::Tuple> GetDatabaseMetricsCatalogTuple(
     catalog::Schema *schema, oid_t database_id, int64_t commit, int64_t abort,

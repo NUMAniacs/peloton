@@ -30,9 +30,11 @@ namespace executor {
  * @brief Constructor for insert executor.
  * @param node Insert node corresponding to this executor.
  */
-InsertExecutor::InsertExecutor(const planner::AbstractPlan *node,
-                               ExecutorContext *executor_context)
-    : AbstractExecutor(node, executor_context) {}
+InsertExecutor::InsertExecutor(ExecutorContext *executor_context)
+    : AbstractExecutor(executor_context->GetTask()->node, executor_context),
+      task_(executor_context->GetTask()) {
+  PL_ASSERT(task_ != nullptr);
+}
 
 /**
  * @brief Nothing to init at the moment.
@@ -65,9 +67,10 @@ bool InsertExecutor::DExecute() {
 
   auto current_txn = executor_context_->GetTransaction();
 
-  if(!target_table) {
-	  transaction_manager.SetTransactionResult(current_txn, peloton::Result::RESULT_FAILURE);
-	         return false;
+  if (!target_table) {
+    transaction_manager.SetTransactionResult(current_txn,
+                                             peloton::Result::RESULT_FAILURE);
+    return false;
   }
 
   LOG_TRACE("Number of tuples in table before insert: %lu",
@@ -103,12 +106,15 @@ bool InsertExecutor::DExecute() {
 
       // insert tuple into the table.
       ItemPointer *index_entry_ptr = nullptr;
-      peloton::ItemPointer location = target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
+      peloton::ItemPointer location =
+          target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
 
-      // it is possible that some concurrent transactions have inserted the same tuple.
+      // it is possible that some concurrent transactions have inserted the same
+      // tuple.
       // in this case, abort the transaction.
       if (location.block == INVALID_OID) {
-        transaction_manager.SetTransactionResult(current_txn, peloton::Result::RESULT_FAILURE);
+        transaction_manager.SetTransactionResult(
+            current_txn, peloton::Result::RESULT_FAILURE);
         return false;
       }
 
@@ -150,14 +156,25 @@ bool InsertExecutor::DExecute() {
     }
 
     // Bulk Insert Mode
+    InsertTask *insert_task = static_cast<InsertTask *>(task_.get());
+    PL_ASSERT(bulk_insert_count == insert_task->tuple_bitmap.size());
     for (oid_t insert_itr = 0; insert_itr < bulk_insert_count; insert_itr++) {
+
+      // Check task bitmap before performing the insertion
+      if (insert_task->tuple_bitmap[insert_itr] == false) {
+        // If this is not a tuple assigned for this worker, skip it
+        continue;
+      }
+      LOG_TRACE("partition %d insert tuple number %d",
+                insert_task->partition_id, insert_itr);
       // if we are doing a bulk insert from values not project_info
-      if (!project_info){
+      if (!project_info) {
         tuple = node.GetTuple(insert_itr);
       }
       // Carry out insertion
       ItemPointer *index_entry_ptr = nullptr;
-      ItemPointer location = target_table->InsertTuple(tuple, current_txn, &index_entry_ptr);
+      ItemPointer location =
+          target_table->InsertTuple(tuple, current_txn, &index_entry_ptr);
       LOG_TRACE("Inserted into location: %u, %u", location.block,
                 location.offset);
       if (tuple->GetColumnCount() > 2) {
@@ -167,12 +184,13 @@ bool InsertExecutor::DExecute() {
 
       if (location.block == INVALID_OID) {
         LOG_TRACE("Failed to Insert. Set txn failure.");
-        transaction_manager.SetTransactionResult(current_txn, Result::RESULT_FAILURE);
+        transaction_manager.SetTransactionResult(current_txn,
+                                                 Result::RESULT_FAILURE);
         return false;
       }
 
       transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
-      
+
       LOG_TRACE("Number of tuples in table after insert: %lu",
                 target_table->GetTupleCount());
 

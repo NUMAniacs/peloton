@@ -16,8 +16,8 @@
 #include "common/types.h"
 #include "concurrency/transaction_manager.h"
 #include "executor/abstract_executor.h"
+#include "executor/abstract_task.h"
 #include "boost/thread/future.hpp"
-
 
 namespace peloton {
 namespace bridge {
@@ -54,29 +54,32 @@ struct ExchangeParams {
   boost::promise<bridge::peloton_status> p;
   boost::unique_future<bridge::peloton_status> f;
   std::vector<ResultType> result;
-  concurrency::Transaction* txn;
+  concurrency::Transaction *txn;
   const std::shared_ptr<Statement> statement;
   const std::vector<common::Value> params;
-  const int num_tasks, partition_id;
+  const int num_tasks;
+  std::shared_ptr<executor::AbstractTask> task;
   const std::vector<int> result_format;
   bool init_failure;
   ExchangeParams *self;
 
   inline ExchangeParams(concurrency::Transaction *txn,
                         const std::shared_ptr<Statement> &statement,
-                        const std::vector<common::Value>& params,
-                        const int num_tasks, const int partition_id,
+                        const std::vector<common::Value> &params,
+                        const int num_tasks,
+                        std::shared_ptr<executor::AbstractTask> task,
                         const std::vector<int> &result_format,
                         const bool &init_failure)
-      : txn(txn), statement(statement), params(params),
+      : txn(txn),
+        statement(statement),
+        params(params),
         num_tasks(num_tasks),
-        partition_id(partition_id),
+        task(task),
         result_format(result_format),
         init_failure(init_failure) {
     f = p.get_future();
   }
 };
-
 
 class PlanExecutor {
  public:
@@ -85,7 +88,7 @@ class PlanExecutor {
   PlanExecutor(PlanExecutor &&) = delete;
   PlanExecutor &operator=(PlanExecutor &&) = delete;
 
-  PlanExecutor(){};
+  PlanExecutor() {};
 
   static void PrintPlan(const planner::AbstractPlan *plan,
                         std::string prefix = "");
@@ -116,10 +119,10 @@ class PlanExecutor {
    * @return the number of tuple it executes and logical_tile_list
    */
   static void ExecutePlanRemote(
-      const planner::AbstractPlan *plan, const std::vector<common::Value> &params,
+      const planner::AbstractPlan *plan,
+      const std::vector<common::Value> &params,
       std::vector<std::unique_ptr<executor::LogicalTile>> &logical_tile_list,
       boost::promise<int> &p);
-
 };
 
 }  // namespace bridge

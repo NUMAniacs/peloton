@@ -34,6 +34,8 @@
 #include <include/common/init.h>
 #include <tuple>
 #include <include/tcop/tcop.h>
+#include <numa.h>
+#include "executor/abstract_task.h"
 
 namespace peloton {
 namespace tcop {
@@ -107,7 +109,8 @@ Result TrafficCop::ExecuteStatement(
     LOG_TRACE("Statement executed. Result: %d", status.m_result);
     rows_changed = status.m_processed;
     return status.m_result;
-  } catch (Exception &e) {
+  }
+  catch (Exception &e) {
     error_message = e.what();
     return Result::RESULT_FAILURE;
   }
@@ -115,8 +118,8 @@ Result TrafficCop::ExecuteStatement(
 
 bridge::peloton_status TrafficCop::ExchangeOperator(
     const std::shared_ptr<Statement> &statement,
-    const std::vector<common::Value> &params,
-    std::vector<ResultType>& result, const std::vector<int> &result_format) {
+    const std::vector<common::Value> &params, std::vector<ResultType> &result,
+    const std::vector<int> &result_format) {
 
   int num_tasks = 1;
   bridge::peloton_status final_status;
@@ -125,10 +128,81 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     return final_status;
   }
 
-  if(statement->GetPlanTree()->GetPlanNodeType() ==
-     PlanNodeType::PLAN_NODE_TYPE_SEQSCAN) {
-    // provide intra-query parallelism for sequential scans
-    num_tasks = std::thread::hardware_concurrency();
+  std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
+  int num_partitions = numa_max_node() + 1;
+
+  auto plan_tree = statement->GetPlanTree().get();
+  switch (plan_tree->GetPlanNodeType()) {
+    // For insert queries, determine the tuple's partition before execute it
+    case PLAN_NODE_TYPE_INSERT: {
+
+      planner::InsertPlan *insert_plan =
+          static_cast<planner::InsertPlan *>(plan_tree);
+
+      auto target_table = insert_plan->GetTable();
+      auto partition_cols = target_table->GetPartitionColumns();
+      auto bulk_insert_count = insert_plan->GetBulkInsertCount();
+      LOG_TRACE("bulk_insert_count = %d", (int)bulk_insert_count);
+
+      // If we have partition key, then perform partition
+      if (partition_cols != NO_PARTITION_COLUMN) {
+
+        // One task is created for each partition now.
+        // We could create more fine-graind tasks and exploit more parallelism
+        // We should also avoid creating a task if no tuple is assigned to that
+        // partition
+        num_tasks = num_partitions;
+
+        // Set default value for bitmap to false
+        std::vector<std::vector<bool>> tuple_bitmaps(
+            num_partitions, std::vector<bool>(bulk_insert_count, false));
+
+        // Iterate through tht tuples and compute the partition
+        for (oid_t tuple_itr = 0; tuple_itr < bulk_insert_count; tuple_itr++) {
+          auto tuple = insert_plan->GetTuple(tuple_itr);
+          auto partition_val = tuple->GetValue(partition_cols);
+          size_t partition_id = partition_val.Hash() % num_partitions;
+          tuple_bitmaps[partition_id][tuple_itr] = true;
+        }
+
+        // Populate the tasks
+        for (int i = 0; i < num_partitions; i++) {
+          executor::InsertTask *insert_task =
+              new executor::InsertTask(plan_tree, bulk_insert_count, i);
+          insert_task->tuple_bitmap = tuple_bitmaps[i];
+          tasks.push_back(std::shared_ptr<executor::AbstractTask>(insert_task));
+        }
+      } else {
+        // No partition specified, populate a default random task
+        auto partition_id = rand() % num_partitions;
+        std::shared_ptr<executor::AbstractTask> default_task(
+            new executor::InsertTask(plan_tree, bulk_insert_count,
+                                     partition_id));
+        tasks.push_back(default_task);
+        LOG_DEBUG("Created default task for insert stmt");
+      }
+      break;
+    }
+    case PlanNodeType::PLAN_NODE_TYPE_SEQSCAN: {
+      // provide intra-query parallelism for sequential scans
+      num_tasks = std::thread::hardware_concurrency();
+      LOG_DEBUG("create %d dummy tasks for seq scan stmt", num_tasks);
+      // FIXME currently seq scan partition id is not the actual partition id,
+      // but to make the code still work, we assign the thread id here
+      for (int i = 0; i < num_tasks; i++) {
+        tasks.push_back(std::shared_ptr<executor::AbstractTask>(
+            new executor::AbstractTask(plan_tree, i)));
+      }
+      break;
+    }
+    default: {
+      // Populate default task for other queries
+      LOG_DEBUG("Created default task for other stmt");
+      auto partition_id = rand() % num_partitions;
+      tasks.push_back(std::shared_ptr<executor::AbstractTask>(
+          new executor::AbstractTask(plan_tree, partition_id)));
+      break;
+    }
   }
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
@@ -142,19 +216,27 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   std::vector<std::shared_ptr<bridge::ExchangeParams>> exchg_params_list;
   final_status.m_processed = 0;
 
-  for(int i=0; i<num_tasks; i++) {
+  for (int i = 0; i < num_tasks; i++) {
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(
-        new bridge::ExchangeParams(txn, statement, params,
-                                   num_tasks,
-                                   i, result_format, init_failure));
+        new bridge::ExchangeParams(txn, statement, params, num_tasks, tasks[i],
+                                   result_format, init_failure));
     exchg_params->self = exchg_params.get();
     exchg_params_list.push_back(exchg_params);
-    executor_thread_pool.SubmitTask(bridge::PlanExecutor::ExecutePlanLocal,
-                                    &exchg_params->self);
+
+    if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_INSERT) {
+      // Only use the partitioned_executor_pool for insert queries for now
+      partitioned_executor_thread_pool.SubmitTask(
+          tasks[i]->partition_id, bridge::PlanExecutor::ExecutePlanLocal,
+          &exchg_params->self);
+    } else {
+      // Use normal executor pool for other queries
+      executor_thread_pool.SubmitTask(bridge::PlanExecutor::ExecutePlanLocal,
+                                      &exchg_params->self);
+    }
   }
 
-  for(int i=0; i<num_tasks; i++) {
+  for (int i = 0; i < num_tasks; i++) {
     // wait for executor thread to return result
     auto temp_status = exchg_params_list[i]->f.get();
     init_failure &= exchg_params_list[i]->init_failure;

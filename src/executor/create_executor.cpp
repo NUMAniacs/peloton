@@ -45,9 +45,11 @@ bool CreateExecutor::DExecute() {
     std::string table_name = node.GetTableName();
     auto database_name = node.GetDatabaseName();
     std::unique_ptr<catalog::Schema> schema(node.GetSchema());
+    const int partition_col = node.GetPartitionCol();
 
+    //TODO we should pass the partition key here.
     Result result = catalog::Catalog::GetInstance()->CreateTable(
-        database_name, table_name, std::move(schema), current_txn);
+        database_name, table_name, std::move(schema), current_txn, partition_col);
     current_txn->SetResult(result);
 
     if (current_txn->GetResult() == Result::RESULT_SUCCESS) {

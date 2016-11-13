@@ -319,7 +319,7 @@ storage::DataTable *ExecutorTestsUtil::CreateTable(
   bool adapt_table = false;
   storage::DataTable *table = storage::TableFactory::GetDataTable(
       INVALID_OID, table_oid, table_schema, table_name,
-      tuples_per_tilegroup_count, own_schema, adapt_table);
+      tuples_per_tilegroup_count, own_schema, NO_PARTITION_COLUMN, adapt_table);
 
   if (indexes == true) {
     // This holds column ID in the underlying table that are being indexed

@@ -96,7 +96,7 @@ void CreateTable(std::unique_ptr<storage::DataTable> &hyadapt_table,
   bool adapt_table = true;
   hyadapt_table.reset(storage::TableFactory::GetDataTable(
       INVALID_OID, INVALID_OID, table_schema, table_name, tuples_per_tile_group,
-      own_schema, adapt_table));
+      own_schema, NO_PARTITION_COLUMN, adapt_table));
 
   // PRIMARY INDEX
   if (build_indexes == true) {

@@ -233,7 +233,10 @@ TEST_F(StatsTest, PerThreadStatsTest) {
     planner::InsertPlan node(data_table.get(), std::move(project_info));
     std::unique_ptr<executor::ExecutorContext> context(
         new executor::ExecutorContext(txn));
-    executor::InsertExecutor executor(&node, context.get());
+    std::shared_ptr<executor::AbstractTask> task(
+        new executor::InsertTask(&node, node.GetBulkInsertCount()));
+    context->SetTask(task);
+    executor::InsertExecutor executor(context.get());
     executor.Execute();
   }
   txn_manager.CommitTransaction(txn);

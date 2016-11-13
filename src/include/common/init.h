@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include "common/thread_pool.h"
+#include "common/numa_thread_pool.h"
 
 namespace peloton {
 
@@ -19,6 +21,8 @@ class ThreadPool;
 extern ThreadPool thread_pool;
 
 extern ThreadPool executor_thread_pool;
+
+extern NumaThreadPool partitioned_executor_thread_pool;
 
 //===--------------------------------------------------------------------===//
 // Global Setup and Teardown

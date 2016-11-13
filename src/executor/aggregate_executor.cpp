@@ -71,7 +71,7 @@ bool AggregateExecutor::DInit() {
   bool adapt_table = false;
   output_table = storage::TableFactory::GetDataTable(
       INVALID_OID, INVALID_OID, output_table_schema, "aggregate_temp_table",
-      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, adapt_table);
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, NO_PARTITION_COLUMN, adapt_table);
 
   return true;
 }

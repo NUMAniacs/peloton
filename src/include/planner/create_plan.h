@@ -66,6 +66,8 @@ class CreatePlan : public AbstractPlan {
 
   std::vector<std::string> GetIndexAttributes() const { return index_attrs; }
 
+  int GetPartitionCol() const { return partition_col; }
+
  private:
   // Target Table
   storage::DataTable *target_table_ = nullptr;
@@ -93,6 +95,9 @@ class CreatePlan : public AbstractPlan {
 
   // UNIQUE INDEX flag
   bool unique;
+
+  // index of column to partition_on
+  int partition_col;
 };
 }
 }

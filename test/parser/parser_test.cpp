@@ -65,6 +65,11 @@ TEST_F(ParserTest, BasicTest) {
       "CREATE TABLE students (name TEXT, student_number INTEGER, city TEXT, "
       "grade DOUBLE)");
 
+  // CREATE statement with partition
+  queries.push_back(
+      "CREATE TABLE students (name TEXT, student_number INTEGER, city TEXT, "
+      "grade DOUBLE) PARTITION BY student_number");
+
   // Multiple statements
   queries.push_back(
       "CREATE TABLE students (name TEXT, student_number INTEGER); SELECT * "
@@ -109,6 +114,7 @@ TEST_F(ParserTest, BasicTest) {
   // Parsing
   UNUSED_ATTRIBUTE int ii = 0;
   for (auto query : queries) {
+    LOG_INFO("%s", query.c_str());
     parser::SQLStatementList* stmt_list =
         parser::Parser::ParseSQLString(query.c_str());
     EXPECT_TRUE(stmt_list->is_valid);

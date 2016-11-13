@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #pragma once
 
 #include "executor/abstract_executor.h"
+#include "executor/abstract_task.h"
 
 #include <vector>
 
@@ -27,8 +27,7 @@ class InsertExecutor : public AbstractExecutor {
   InsertExecutor(InsertExecutor &&) = delete;
   InsertExecutor &operator=(InsertExecutor &&) = delete;
 
-  explicit InsertExecutor(const planner::AbstractPlan *node,
-                          ExecutorContext *executor_context);
+  explicit InsertExecutor(ExecutorContext *executor_context);
 
  protected:
   bool DInit();
@@ -36,6 +35,10 @@ class InsertExecutor : public AbstractExecutor {
   bool DExecute();
 
  private:
+  // The task object for insert
+  std::shared_ptr<AbstractTask> task_;
+
+  // Whether execution is done
   bool done_ = false;
 };
 

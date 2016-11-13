@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include "common/value.h"
 #include "executor/executor_context.h"
 #include "concurrency/transaction.h"
@@ -23,8 +22,7 @@ ExecutorContext::ExecutorContext(concurrency::Transaction *transaction)
 
 ExecutorContext::ExecutorContext(concurrency::Transaction *transaction,
                                  const std::vector<common::Value> &params)
-    : transaction_(transaction),
-      params_(params) {}
+    : transaction_(transaction), params_(params) {}
 
 ExecutorContext::~ExecutorContext() {
   // params will be freed automatically
@@ -42,13 +40,12 @@ void ExecutorContext::SetParams(common::Value &value) {
   params_.push_back(value);
 }
 
-void ExecutorContext::ClearParams() {
-  params_.clear();
-}
+void ExecutorContext::ClearParams() { params_.clear(); }
 
 common::VarlenPool *ExecutorContext::GetExecutorContextPool() {
   // construct pool if needed
-  if (pool_.get() == nullptr) pool_.reset(new common::VarlenPool(BACKEND_TYPE_MM));
+  if (pool_.get() == nullptr)
+    pool_.reset(new common::VarlenPool(BACKEND_TYPE_MM));
 
   // return pool
   return pool_.get();

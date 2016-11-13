@@ -19,6 +19,7 @@
 #include "executor/plan_executor.h"
 #include "optimizer/util.h"
 #include "storage/tuple_iterator.h"
+#include "planner/insert_plan.h"
 
 namespace peloton {
 namespace bridge {
@@ -63,17 +64,18 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   // network
   std::unique_ptr<executor::ExecutorContext> executor_context(
       BuildExecutorContext(exchg_params->params, exchg_params->txn));
+  PL_ASSERT(exchg_params->task != nullptr);
+  executor_context->SetTask(exchg_params->task);
 
   // Build the executor tree
   std::unique_ptr<executor::AbstractExecutor> executor_tree(
-      BuildExecutorTree(nullptr,
-                        exchg_params->statement->GetPlanTree().get(),
+      BuildExecutorTree(nullptr, exchg_params->statement->GetPlanTree().get(),
                         executor_context.get()));
 
   LOG_TRACE("Initializing the executor tree");
 
   executor_tree->SetParallelism(exchg_params->num_tasks,
-                                exchg_params->partition_id);
+                                exchg_params->task->partition_id);
 
   // Initialize the executor tree
   status = executor_tree->Init();
@@ -99,8 +101,8 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
         std::unique_ptr<catalog::Schema> output_schema(
             logical_tile->GetPhysicalSchema());  // Physical schema of the tile
         std::vector<std::vector<std::string>> answer_tuples;
-        answer_tuples =
-            std::move(logical_tile->GetAllValuesAsStrings(exchg_params->result_format));
+        answer_tuples = std::move(
+            logical_tile->GetAllValuesAsStrings(exchg_params->result_format));
 
         // Construct the returned results
         for (auto &tuple : answer_tuples) {
@@ -301,11 +303,11 @@ executor::AbstractExecutor *BuildExecutorTree(
       child_executor = new executor::IndexScanExecutor(plan, executor_context);
       break;
 
-    case PLAN_NODE_TYPE_INSERT:
+    case PLAN_NODE_TYPE_INSERT: {
       LOG_TRACE("Adding Insert Executer");
-      child_executor = new executor::InsertExecutor(plan, executor_context);
+      child_executor = new executor::InsertExecutor(executor_context);
       break;
-
+    }
     case PLAN_NODE_TYPE_DELETE:
       LOG_TRACE("Adding Delete Executer");
       child_executor = new executor::DeleteExecutor(plan, executor_context);

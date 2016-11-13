@@ -10,17 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #pragma once
 
 #include "common/varlen_pool.h"
 #include "common/value.h"
+#include "executor/abstract_task.h"
 
 namespace peloton {
 
-//class Value;
+// class Value;
 
-namespace concurrency{
+namespace concurrency {
 class Transaction;
 }
 
@@ -52,6 +52,10 @@ class ExecutorContext {
 
   void ClearParams();
 
+  inline std::shared_ptr<AbstractTask> const GetTask() { return task_; }
+
+  inline void SetTask(std::shared_ptr<AbstractTask> task) { task_ = task; }
+
   // Get a varlen pool (will construct the pool only if needed)
   common::VarlenPool *GetExecutorContextPool();
 
@@ -72,6 +76,8 @@ class ExecutorContext {
   // pool
   std::unique_ptr<common::VarlenPool> pool_;
 
+  // Task
+  std::shared_ptr<AbstractTask> task_;
 };
 
 }  // namespace executor

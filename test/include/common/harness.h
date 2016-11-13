@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #pragma once
 
 #include <vector>
@@ -27,22 +26,20 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-
 #include "libcds/cds/init.h"
 
 #include <google/protobuf/stubs/common.h>
 #include <gflags/gflags.h>
 #include <include/common/thread_pool.h>
-
+#include <include/common/numa_thread_pool.h>
 
 namespace peloton {
 
-namespace common{
+namespace common {
 class VarlenPool;
 }
 
 namespace test {
-
 
 //===--------------------------------------------------------------------===//
 // Test Harness (common routines)
@@ -89,17 +86,18 @@ class TestingHarness {
 
 // harness that is used to create a new instance of the executor pool
 class ExecutorPoolHarness {
-  public:
-    ExecutorPoolHarness(const ExecutorPoolHarness &) = delete;
-    ExecutorPoolHarness &operator=(const ExecutorPoolHarness &) = delete;
-    ExecutorPoolHarness(ExecutorPoolHarness &&) = delete;
-    ExecutorPoolHarness &operator=(ExecutorPoolHarness &&) = delete;
+ public:
+  ExecutorPoolHarness(const ExecutorPoolHarness &) = delete;
+  ExecutorPoolHarness &operator=(const ExecutorPoolHarness &) = delete;
+  ExecutorPoolHarness(ExecutorPoolHarness &&) = delete;
+  ExecutorPoolHarness &operator=(ExecutorPoolHarness &&) = delete;
 
-    static ExecutorPoolHarness &GetInstance(void);
-  private:
-    ExecutorPoolHarness();
+  static ExecutorPoolHarness &GetInstance(void);
 
-    ~ExecutorPoolHarness();
+ private:
+  ExecutorPoolHarness();
+
+  ~ExecutorPoolHarness();
 };
 
 template <typename... Args>
@@ -124,7 +122,6 @@ void LaunchParallelTest(uint64_t num_threads, Args &&... args) {
 // All tests inherit from this class
 class PelotonTest : public ::testing::Test {
  protected:
-
   virtual void SetUp() {
 
     // Initialize CDS library
@@ -147,7 +144,6 @@ class PelotonTest : public ::testing::Test {
 
     // Shut down GFLAGS.
     ::google::ShutDownCommandLineFlags();
-
   }
 };
 

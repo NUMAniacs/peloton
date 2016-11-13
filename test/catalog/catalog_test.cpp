@@ -69,11 +69,11 @@ TEST_F(CatalogTests, CreatingTable) {
       new catalog::Schema({id_column, name_column}));
 
   catalog::Catalog::GetInstance()->CreateTable("EMP_DB", "emp_table",
-                                               std::move(table_schema), txn);
+                                               std::move(table_schema), txn, NO_PARTITION_COLUMN);
   catalog::Catalog::GetInstance()->CreateTable("EMP_DB", "department_table",
-                                               std::move(table_schema_2), txn);
+                                               std::move(table_schema_2), txn, NO_PARTITION_COLUMN);
   catalog::Catalog::GetInstance()->CreateTable("EMP_DB", "salary_table",
-                                               std::move(table_schema_3), txn);
+                                               std::move(table_schema_3), txn, NO_PARTITION_COLUMN);
 
   txn_manager.CommitTransaction(txn);
   EXPECT_EQ(catalog::Catalog::GetInstance()
@@ -93,7 +93,7 @@ TEST_F(CatalogTests, CreatingTable) {
                 ->GetTableWithName("table_catalog")
                 ->GetSchema()
                 ->GetLength(),
-            72);
+            76);
 }
 
 TEST_F(CatalogTests, DroppingTable) {

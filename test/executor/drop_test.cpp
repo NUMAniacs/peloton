@@ -51,12 +51,12 @@ TEST_F(DropTests, DroppingTable) {
 
   txn = txn_manager.BeginTransaction();
   catalog->CreateTable(DEFAULT_DB_NAME, "department_table",
-                       std::move(table_schema), txn);
+                       std::move(table_schema), txn, NO_PARTITION_COLUMN);
   txn_manager.CommitTransaction(txn);
 
   txn = txn_manager.BeginTransaction();
   catalog->CreateTable(DEFAULT_DB_NAME, "department_table_2",
-                       std::move(table_schema2), txn);
+                       std::move(table_schema2), txn, NO_PARTITION_COLUMN);
   txn_manager.CommitTransaction(txn);
 
   EXPECT_EQ(catalog->GetDatabaseWithName(DEFAULT_DB_NAME)->GetTableCount(), 2);

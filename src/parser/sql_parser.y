@@ -190,7 +190,7 @@ struct PARSER_CUST_LTYPE {
 
 /* SQL Keywords */
 %token TRANSACTION
-%token REFERENCES DEALLOCATE PARAMETERS INTERSECT TEMPORARY TIMESTAMP
+%token REFERENCES DEALLOCATE PARAMETERS INTERSECT TEMPORARY TIMESTAMP PARTITION
 %token VARBINARY ROLLBACK DISTINCT NVARCHAR RESTRICT TRUNCATE ANALYZE BETWEEN BOOLEAN ADDRESS
 %token DATABASE SMALLINT VARCHAR FOREIGN TINYINT CASCADE COLUMNS CONTROL DEFAULT EXECUTE EXPLAIN
 %token INTEGER NATURAL PREPARE PRIMARY SCHEMAS DECIMAL 
@@ -221,7 +221,7 @@ struct PARSER_CUST_LTYPE {
 %type <drop_stmt>	drop_statement
 %type <txn_stmt>    transaction_statement
 %type <copy_stmt>   copy_statement
-%type <sval> 		opt_alias alias
+%type <sval> 		opt_alias alias opt_partition_by
 %type <bval> 		opt_not_exists opt_exists opt_distinct opt_notnull opt_primary opt_unique opt_update
 %type <uval>		opt_join_type column_type opt_column_width opt_index_type
 %type <table> 		from_clause table_ref table_ref_atomic table_ref_name
@@ -345,11 +345,12 @@ execute_statement:
  * CREATE DATABASE my_db
  ******************************/
 create_statement:
-		CREATE TABLE opt_not_exists table_name '(' column_def_commalist ')' {
+		CREATE TABLE opt_not_exists table_name '(' column_def_commalist ')' opt_partition_by {
 			$$ = new CreateStatement(CreateStatement::kTable);
 			$$->if_not_exists = $3;
 			$$->table_info_ = $4;
 			$$->columns = $6;
+			$$->partition_col = $8;
 		}
 		|	CREATE DATABASE opt_not_exists IDENTIFIER {
 			$$ = new CreateStatement(CreateStatement::kDatabase);
@@ -378,6 +379,11 @@ create_statement:
 opt_not_exists:
 		IF NOT EXISTS { $$ = true; }
 	|	/* empty */ { $$ = false; }
+	;
+	
+opt_partition_by:
+		PARTITION BY IDENTIFIER{ $$ = $3; }
+	|	/* empty */ { $$ = nullptr; }
 	;
 
 column_def_commalist:

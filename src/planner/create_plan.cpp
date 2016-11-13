@@ -23,6 +23,7 @@ namespace planner {
 CreatePlan::CreatePlan(storage::DataTable *table) {
   target_table_ = table;
   table_schema = nullptr;
+  partition_col = NO_PARTITION_COLUMN;
 }
 
 CreatePlan::CreatePlan(std::string name, std::string database_name,
@@ -32,11 +33,13 @@ CreatePlan::CreatePlan(std::string name, std::string database_name,
   this->database_name = database_name;
   table_schema = schema.release();
   create_type = c_type;
+  partition_col = NO_PARTITION_COLUMN;
 }
 
 CreatePlan::CreatePlan(parser::CreateStatement *parse_tree) {
   table_name = parse_tree->GetTableName();
   database_name = parse_tree->GetDatabaseName();
+  partition_col = NO_PARTITION_COLUMN;
   std::vector<catalog::Column> columns;
   std::vector<catalog::Constraint> column_contraints;
   if (parse_tree->type == parse_tree->CreateType::kTable) {
@@ -62,6 +65,9 @@ CreatePlan::CreatePlan(parser::CreateStatement *parse_tree) {
           std::string(col->name), false);
       for (auto con : column_contraints) {
         column.AddConstraint(con);
+      }
+      if (parse_tree->partition_col != nullptr && std::string(parse_tree->partition_col) == std::string(col->name)){
+        partition_col = columns.size();
       }
 
       column_contraints.clear();

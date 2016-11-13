@@ -12,7 +12,6 @@
 #include "catalog/catalog.h"
 
 #include "common/init.h"
-#include "common/thread_pool.h"
 #include "common/config.h"
 
 #include "gc/gc_manager_factory.h"
@@ -32,6 +31,9 @@ ThreadPool thread_pool;
 // decouple client handling from query execution
 ThreadPool executor_thread_pool;
 
+// partitioned thread pool (currently based on NUMA regions)
+NumaThreadPool partitioned_executor_thread_pool;
+
 void PelotonInit::Initialize() {
 
   // Initialize CDS library
@@ -44,6 +46,10 @@ void PelotonInit::Initialize() {
 
   // set max thread number.
   thread_pool.Initialize(0, std::thread::hardware_concurrency() + 3);
+
+  // Initialize partitioned thread pool
+  partitioned_executor_thread_pool.Initialize(
+      (int)std::thread::hardware_concurrency());
 
   // FIXME: Find a way to balance client threads with execution
   // threads. Too many active clients might starve execution.

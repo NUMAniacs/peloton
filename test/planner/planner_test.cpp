@@ -45,7 +45,7 @@ TEST_F(PlannerTests, DeletePlanTestParameter) {
   std::unique_ptr<catalog::Schema> table_schema(
       new catalog::Schema({id_column, name_column}));
   catalog::Catalog::GetInstance()->CreateTable(
-      DEFAULT_DB_NAME, "department_table", std::move(table_schema), txn);
+      DEFAULT_DB_NAME, "department_table", std::move(table_schema), txn, NO_PARTITION_COLUMN);
 
   // DELETE FROM department_table WHERE id = $0
   parser::DeleteStatement *delete_statement = new parser::DeleteStatement();
@@ -105,7 +105,7 @@ TEST_F(PlannerTests, UpdatePlanTestParameter) {
   std::unique_ptr<catalog::Schema> table_schema(
       new catalog::Schema({id_column, name_column}));
   catalog::Catalog::GetInstance()->CreateTable(
-      DEFAULT_DB_NAME, "department_table", std::move(table_schema), txn);
+      DEFAULT_DB_NAME, "department_table", std::move(table_schema), txn, NO_PARTITION_COLUMN);
 
   // UPDATE department_table SET name = $0 WHERE id = $1
   parser::UpdateStatement *update_statement = new parser::UpdateStatement();
@@ -180,7 +180,7 @@ TEST_F(PlannerTests, InsertPlanTestParameter) {
   std::unique_ptr<catalog::Schema> table_schema(
       new catalog::Schema({id_column, name_column}));
   catalog::Catalog::GetInstance()->CreateTable(
-      DEFAULT_DB_NAME, "department_table", std::move(table_schema), txn);
+      DEFAULT_DB_NAME, "department_table", std::move(table_schema), txn, NO_PARTITION_COLUMN);
 
   // INSERT INTO department_table VALUES ($0, $1)
   auto insert_statement =
