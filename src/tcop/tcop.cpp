@@ -130,7 +130,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     return final_status;
   }
 
-<<<<<<< HEAD
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
   size_t num_partitions = PL_NUM_PARTITIONS();
   // The result of the logical tiles for all tasks

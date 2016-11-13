@@ -133,6 +133,7 @@ TEST_F(StatsTest, MultiThreadStatsTest) {
       "dept_name", false);
   std::unique_ptr<catalog::Schema> table_schema(
       new catalog::Schema({id_column, name_column}));
+
   catalog->CreateDatabase("emp_db", txn);
   catalog::Catalog::GetInstance()->CreateTable("emp_db", "department_table",
                                                std::move(table_schema), txn,

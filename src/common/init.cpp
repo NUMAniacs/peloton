@@ -31,6 +31,9 @@ ThreadPool thread_pool;
 // partitioned thread pool (currently based on NUMA regions)
 PartitionThreadPool partitioned_executor_thread_pool;
 
+// partitioned thread pool (currently based on NUMA regions)
+NumaThreadPool partitioned_executor_thread_pool;
+
 void PelotonInit::Initialize() {
 
   // Initialize CDS library
@@ -43,6 +46,10 @@ void PelotonInit::Initialize() {
 
   // set max thread number.
   thread_pool.Initialize(0, std::thread::hardware_concurrency() + 3);
+
+  // Initialize partitioned thread pool
+  partitioned_executor_thread_pool.Initialize(
+      (int)std::thread::hardware_concurrency());
 
   // Initialize partitioned thread pool
   partitioned_executor_thread_pool.Initialize(

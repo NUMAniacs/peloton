@@ -33,7 +33,6 @@
 #include "common/thread_pool.h"
 #include "common/partition_thread_pool.h"
 
-
 namespace peloton {
 
 namespace common {
@@ -41,7 +40,6 @@ class VarlenPool;
 }
 
 namespace test {
-
 
 //===--------------------------------------------------------------------===//
 // Test Harness (common routines)

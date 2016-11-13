@@ -168,6 +168,7 @@ bool InsertExecutor::DExecute() {
       }
       LOG_DEBUG("partition %d insert tuple number %d",
               (int) insert_task->partition_id, (int) insert_itr);
+
       // if we are doing a bulk insert from values not project_info
       if (!project_info) {
         tuple = node.GetTuple(insert_itr);

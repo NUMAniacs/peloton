@@ -273,6 +273,7 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
     EXPECT_EQ(total_num_tuples, 1);
   }
 
+
   // free the database just created
   txn = txn_manager.BeginTransaction();
   catalog::Catalog::GetInstance()->DropDatabaseWithName(DEFAULT_DB_NAME, txn);

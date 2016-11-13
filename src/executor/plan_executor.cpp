@@ -65,6 +65,8 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   // network
   std::unique_ptr<executor::ExecutorContext> executor_context(
       BuildExecutorContext(exchg_params->params, exchg_params->txn));
+  PL_ASSERT(exchg_params->task != nullptr);
+  executor_context->SetTask(exchg_params->task);
 
   PL_ASSERT(exchg_params->task != nullptr);
   executor_context->SetTask(exchg_params->task);
@@ -77,7 +79,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   LOG_TRACE("Initializing the executor tree");
 
   executor_tree->SetParallelism(exchg_params->num_tasks,
-                                exchg_params->partition_id);
+                                exchg_params->task->partition_id);
 
   // Initialize the executor tree
   status = executor_tree->Init();

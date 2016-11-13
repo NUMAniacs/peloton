@@ -25,6 +25,7 @@
 #define TASK_TILEGROUP_COUNT 100
 #define TASK_TUPLE_COUNT TASK_TILEGROUP_COUNT *DEFAULT_TUPLES_PER_TILEGROUP
 
+
 namespace peloton {
 
 namespace planner {
@@ -62,7 +63,6 @@ enum TaskType {
   TASK_HASHJOIN = 4,
 };
 
-// The abstract task class
 class AbstractTask {
  public:
   virtual ~AbstractTask() {}
