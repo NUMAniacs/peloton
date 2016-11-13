@@ -62,7 +62,9 @@ DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
       tuples_per_tilegroup_(tuples_per_tilegroup),
       partition_column_(partition_column),
       adapt_table_(adapt_table) {
+
   num_partitions_ = std::min(PL_NUM_PARTITIONS(), (int)active_tilegroup_count_);
+
   // Init default partition
   auto col_count = schema->GetColumnCount();
   for (oid_t col_itr = 0; col_itr < col_count; col_itr++) {
@@ -70,6 +72,7 @@ DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
   }
 
   //  active_tile_groups_.resize(active_tilegroup_count_);
+
   active_tile_groups_.resize(num_partitions_);
 
   active_indirection_arrays_.resize(active_indirection_array_count_);
@@ -748,7 +751,6 @@ void DataTable::AddTileGroupWithOidForRecovery(const oid_t &tile_group_id) {
   std::shared_ptr<TileGroup> tile_group(TileGroupFactory::GetTileGroup(
       database_oid, table_oid, tile_group_id, this, schemas, column_map,
       tuples_per_tilegroup_, LOCAL_NUMA_REGION));
-
   auto tile_groups_exists = false;
 
   for (std::size_t partition = 0; partition < num_partitions_; partition++) {
