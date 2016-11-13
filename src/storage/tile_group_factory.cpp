@@ -27,12 +27,12 @@ namespace storage {
 TileGroup *TileGroupFactory::GetTileGroup(
     oid_t database_id, oid_t table_id, oid_t tile_group_id,
     AbstractTable *table, const std::vector<catalog::Schema> &schemas,
-    const column_map_type &column_map, int tuple_count) {
+    const column_map_type &column_map, int tuple_count, int numa_region) {
   // Allocate the data on appropriate backend
   BackendType backend_type = GetBackendType(peloton_logging_mode);
 
-  TileGroupHeader *tile_header = new TileGroupHeader(backend_type, tuple_count);
-  TileGroup *tile_group = new TileGroup(backend_type, tile_header, table,
+  TileGroupHeader *tile_header = new(numa_region) TileGroupHeader(backend_type, tuple_count);
+  TileGroup *tile_group = new(numa_region) TileGroup(backend_type, tile_header, table,
                                         schemas, column_map, tuple_count);
 
   tile_header->SetTileGroup(tile_group);

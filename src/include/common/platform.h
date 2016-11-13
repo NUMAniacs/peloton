@@ -18,6 +18,7 @@
 
 #include <pthread.h>
 #include <immintrin.h>
+#include <numa.h>
 
 //===--------------------------------------------------------------------===//
 // Synchronization utilities

@@ -96,13 +96,13 @@ storage::DataTable *CreateTable() {
       storage::TileGroupFactory::GetTileGroup(
           INVALID_OID, INVALID_OID,
           TestingHarness::GetInstance().GetNextTileGroupId(), table.get(),
-          schemas1, column_map1, tuple_count)));
+          schemas1, column_map1, tuple_count, LOCAL_NUMA_REGION)));
 
   table->AddTileGroup(std::shared_ptr<storage::TileGroup>(
       storage::TileGroupFactory::GetTileGroup(
           INVALID_OID, INVALID_OID,
           TestingHarness::GetInstance().GetNextTileGroupId(), table.get(),
-          schemas2, column_map2, tuple_count)));
+          schemas2, column_map2, tuple_count, LOCAL_NUMA_REGION)));
 
   ExecutorTestsUtil::PopulateTiles(table->GetTileGroup(0), tuple_count);
   ExecutorTestsUtil::PopulateTiles(table->GetTileGroup(1), tuple_count);

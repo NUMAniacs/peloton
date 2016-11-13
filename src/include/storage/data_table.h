@@ -140,7 +140,7 @@ class DataTable : public AbstractTable {
   size_t GetTileGroupCount() const;
 
   // Get a tile group with given layout
-  TileGroup *GetTileGroupWithLayout(const column_map_type &partitioning);
+  TileGroup *GetTileGroupWithLayout(const column_map_type &partitioning, const int &numa_region);
 
   //===--------------------------------------------------------------------===//
   // INDEX
@@ -268,7 +268,7 @@ class DataTable : public AbstractTable {
   // add a tile group to the table
   oid_t AddDefaultTileGroup();
   // add a tile group to the table. replace the active_tile_group_id-th active tile group.
-  oid_t AddDefaultTileGroup(const size_t &active_tile_group_id);
+  oid_t AddDefaultTileGroup(const size_t &active_tile_group_id, const int &numa_region);
 
   oid_t AddDefaultIndirectionArray(const size_t &active_indirection_array_id);
   
@@ -299,13 +299,17 @@ public:
   // MEMBERS
   //===--------------------------------------------------------------------===//
 
+  // number of numa nodes (CPU sockets)
+  size_t num_partitions_;
+
   // number of tuples allocated per tilegroup
   size_t tuples_per_tilegroup_;
 
   // TILE GROUPS
   LockFreeArray<oid_t> tile_groups_;
 
-  std::vector<std::shared_ptr<storage::TileGroup>> active_tile_groups_;
+//  std::vector<std::shared_ptr<storage::TileGroup>> active_tile_groups_;
+  std::vector<std::vector<std::shared_ptr<storage::TileGroup>>> active_tile_groups_;
 
   std::atomic<size_t> tile_group_count_ = ATOMIC_VAR_INIT(0);
 

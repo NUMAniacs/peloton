@@ -53,7 +53,7 @@ void AddTileGroup(UNUSED_ATTRIBUTE uint64_t thread_id) {
 
   for (oid_t txn_itr = 0; txn_itr < 100; txn_itr++) {
     storage::TileGroup *tile_group = storage::TileGroupFactory::GetTileGroup(
-        INVALID_OID, INVALID_OID, INVALID_OID, nullptr, schemas, column_map, 3);
+        INVALID_OID, INVALID_OID, INVALID_OID, nullptr, schemas, column_map, 3, LOCAL_NUMA_REGION);
 
     delete tile_group;
   }

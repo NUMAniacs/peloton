@@ -24,6 +24,7 @@
 #include "common/value.h"
 #include "common/printable.h"
 #include "common/varlen_pool.h"
+#include <numa.h>
 
 namespace peloton {
 
@@ -74,6 +75,18 @@ class TileGroup : public Printable {
             const column_map_type &column_map, int tuple_count);
 
   ~TileGroup();
+
+  // override new / delete operator for NUMA-aware memory allocation
+  void* operator new (size_t size, int numa_region) {
+    if (numa_region == LOCAL_NUMA_REGION) {
+      numa_region = numa_node_of_cpu(sched_getcpu());
+    }
+    return numa_alloc_onnode(size, numa_region);
+  }
+
+  void operator delete(void *ptr, size_t size) {
+    numa_free(ptr, size);
+  }
 
   //===--------------------------------------------------------------------===//
   // Operations

@@ -154,7 +154,7 @@ std::shared_ptr<storage::TileGroup> ExecutorTestsUtil::CreateTileGroup(
       storage::TileGroupFactory::GetTileGroup(
           INVALID_OID, INVALID_OID,
           TestingHarness::GetInstance().GetNextTileGroupId(), nullptr, schemas,
-          column_map, tuple_count));
+          column_map, tuple_count, LOCAL_NUMA_REGION));
 
   catalog::Manager::GetInstance().AddTileGroup(tile_group_ptr->GetTileGroupId(),
                                                tile_group_ptr);
