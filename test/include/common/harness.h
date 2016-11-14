@@ -31,7 +31,7 @@
 #include <google/protobuf/stubs/common.h>
 #include <gflags/gflags.h>
 #include <include/common/thread_pool.h>
-#include <include/common/numa_thread_pool.h>
+#include <include/common/partition_thread_pool.h>
 
 namespace peloton {
 

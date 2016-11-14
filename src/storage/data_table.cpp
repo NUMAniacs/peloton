@@ -34,6 +34,7 @@
 #include "storage/abstract_table.h"
 #include "storage/database.h"
 #include "storage/data_table.h"
+#include "common/partition_macros.h"
 
 //===--------------------------------------------------------------------===//
 // Configuration Variables
@@ -59,34 +60,35 @@ DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
                      const int partition_column, const bool adapt_table)
     : AbstractTable(database_oid, table_oid, table_name, schema, own_schema),
       tuples_per_tilegroup_(tuples_per_tilegroup),
-      partition_column_(partition_column), adapt_table_(adapt_table){
-  num_partitions_ = std::min(numa_max_node() + 1, (int) active_tilegroup_count_);
+      partition_column_(partition_column),
+      adapt_table_(adapt_table) {
+  num_partitions_ = std::min(PL_NUM_PARTITIONS(), (int)active_tilegroup_count_);
   // Init default partition
   auto col_count = schema->GetColumnCount();
   for (oid_t col_itr = 0; col_itr < col_count; col_itr++) {
     default_partition_[col_itr] = std::make_pair(0, col_itr);
   }
 
-//  active_tile_groups_.resize(active_tilegroup_count_);
+  //  active_tile_groups_.resize(active_tilegroup_count_);
   active_tile_groups_.resize(num_partitions_);
 
   active_indirection_arrays_.resize(active_indirection_array_count_);
 
-
   // Create tile groups.
   for (size_t i = 0; i < num_partitions_; ++i) {
-    // assume the architecture is homogeneous; each numa node has the same number of cpu and hardware threads
+    // assume the architecture is homogeneous; each numa node has the same
+    // number of cpu and hardware threads
     active_tile_groups_[i].resize(active_tilegroup_count_ / num_partitions_);
-//    active_tile_groups_[i].resize(std::thread::hardware_concurrency()/ num_partitions_);
+    //    active_tile_groups_[i].resize(std::thread::hardware_concurrency()/
+    // num_partitions_);
     for (size_t j = 0; j < active_tile_groups_[i].size(); ++j) {
-      // AddDefaultTileGroup?????
       AddDefaultTileGroup(j, i);
     }
   }
 
-//  for (size_t i = 0; i < active_tilegroup_count_; ++i) {
-//    AddDefaultTileGroup(i);
-//  }
+  //  for (size_t i = 0; i < active_tilegroup_count_; ++i) {
+  //    AddDefaultTileGroup(i);
+  //  }
 
   // Create indirection layers.
   for (size_t i = 0; i < active_indirection_array_count_; ++i) {
@@ -101,9 +103,9 @@ DataTable::~DataTable() {
 
   std::size_t tile_groups_itr;
 
-  for (std::size_t partition = 0; partition < num_partitions_; partition++){
+  for (std::size_t partition = 0; partition < num_partitions_; partition++) {
 
-    auto & part_tilegroup = tile_groups_[partition];
+    auto &part_tilegroup = tile_groups_[partition];
     std::size_t part_tilegroup_size = part_tilegroup.GetSize();
 
     for (tile_groups_itr = 0; tile_groups_itr < part_tilegroup_size;
@@ -166,7 +168,8 @@ bool DataTable::CheckConstraints(const storage::Tuple *tuple) const {
 // new tile group.
 // we just wait until a new tuple slot in the newly allocated tile group is
 // available.
-// when updating a tuple, we will invoke this function with the argument set to nullptr.
+// when updating a tuple, we will invoke this function with the argument set to
+// nullptr.
 // this is because we want to minimize data copy overhead by performing
 // in-place update at executor level.
 // however, when performing insert, we have to copy data immediately,
@@ -180,16 +183,19 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple) {
   if (free_item_pointer.IsNull() == false) {
     // when inserting a tuple
     if (tuple != nullptr) {
-      auto tile_group = catalog::Manager::GetInstance().GetTileGroup(free_item_pointer.block);
+      auto tile_group =
+          catalog::Manager::GetInstance().GetTileGroup(free_item_pointer.block);
       tile_group->CopyTuple(tuple, free_item_pointer.offset);
     }
     return free_item_pointer;
   }
   //====================================================
-//  size_t active_tile_group_id = number_of_tuples_ % active_tilegroup_count_;
+  //  size_t active_tile_group_id = number_of_tuples_ % active_tilegroup_count_;
 
-  int current_partition = numa_node_of_cpu(sched_getcpu()) % num_partitions_;
-  size_t active_tile_group_id = number_of_tuples_ % active_tile_groups_[current_partition].size();
+  int current_partition =
+      PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE()) % num_partitions_;
+  size_t active_tile_group_id =
+      number_of_tuples_ % active_tile_groups_[current_partition].size();
 
   std::shared_ptr<storage::TileGroup> tile_group;
   oid_t tuple_slot = INVALID_OID;
@@ -199,7 +205,7 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple) {
   while (true) {
     // get the last tile group.
 
-//    tile_group = active_tile_groups_[active_tile_group_id];
+    //    tile_group = active_tile_groups_[active_tile_group_id];
     tile_group = active_tile_groups_[current_partition][active_tile_group_id];
     tuple_slot = tile_group->InsertTuple(tuple);
 
@@ -350,16 +356,19 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
 
   int index_count = GetIndexCount();
 
-  size_t active_indirection_array_id = number_of_tuples_ % active_indirection_array_count_;
+  size_t active_indirection_array_id =
+      number_of_tuples_ % active_indirection_array_count_;
 
   size_t indirection_offset = INVALID_INDIRECTION_OFFSET;
-  
+
   while (true) {
-    auto active_indirection_array = active_indirection_arrays_[active_indirection_array_id];
+    auto active_indirection_array =
+        active_indirection_arrays_[active_indirection_array_id];
     indirection_offset = active_indirection_array->AllocateIndirection();
 
     if (indirection_offset != INVALID_INDIRECTION_OFFSET) {
-      *index_entry_ptr = active_indirection_array->GetIndirectionByOffset(indirection_offset);
+      *index_entry_ptr =
+          active_indirection_array->GetIndirectionByOffset(indirection_offset);
       break;
     }
   }
@@ -390,7 +399,7 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
     key->SetFromTuple(tuple, indexed_columns, index->GetPool());
 
     switch (index->GetIndexType()) {
-      case INDEX_CONSTRAINT_TYPE_PRIMARY_KEY: 
+      case INDEX_CONSTRAINT_TYPE_PRIMARY_KEY:
       case INDEX_CONSTRAINT_TYPE_UNIQUE: {
         // get unique tuple from primary/unique index.
         // if in this index there has been a visible or uncommitted
@@ -407,7 +416,8 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
     // Handle failure
     if (res == false) {
       // If some of the indexes have been inserted,
-      // the pointer has a chance to be dereferenced by readers and it cannot be deleted
+      // the pointer has a chance to be dereferenced by readers and it cannot be
+      // deleted
       *index_entry_ptr = nullptr;
       return false;
     } else {
@@ -587,8 +597,7 @@ void DataTable::ResetDirty() { dirty_ = false; }
 //===--------------------------------------------------------------------===//
 
 TileGroup *DataTable::GetTileGroupWithLayout(
-    const column_map_type &partitioning,
-    const int &partition) {
+    const column_map_type &partitioning, const int &partition) {
   std::vector<catalog::Schema> schemas;
   oid_t tile_group_id = INVALID_OID;
 
@@ -647,8 +656,8 @@ column_map_type DataTable::GetTileGroupLayout(LayoutType layout_type) {
   return column_map;
 }
 
-
-oid_t DataTable::AddDefaultIndirectionArray(const size_t &active_indirection_array_id) {
+oid_t DataTable::AddDefaultIndirectionArray(
+    const size_t &active_indirection_array_id) {
   std::shared_ptr<IndirectionArray> indirection_array(new IndirectionArray());
 
   auto &manager = catalog::Manager::GetInstance();
@@ -664,13 +673,16 @@ oid_t DataTable::AddDefaultIndirectionArray(const size_t &active_indirection_arr
 }
 
 oid_t DataTable::AddDefaultTileGroup() {
-//  size_t active_tile_group_id = number_of_tuples_ % active_tilegroup_count_;
-  int current_partition = numa_node_of_cpu(sched_getcpu()) % num_partitions_;
-  size_t active_tile_group_id = number_of_tuples_ % active_tile_groups_[current_partition].size();
+  //  size_t active_tile_group_id = number_of_tuples_ % active_tilegroup_count_;
+  int current_partition =
+      PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE()) % num_partitions_;
+  size_t active_tile_group_id =
+      number_of_tuples_ % active_tile_groups_[current_partition].size();
   return AddDefaultTileGroup(active_tile_group_id, current_partition);
 }
 
-oid_t DataTable::AddDefaultTileGroup(const size_t &active_tile_group_id, const int &partition) {
+oid_t DataTable::AddDefaultTileGroup(const size_t &active_tile_group_id,
+                                     const int &partition) {
   column_map_type column_map;
   oid_t tile_group_id = INVALID_OID;
 
@@ -678,7 +690,8 @@ oid_t DataTable::AddDefaultTileGroup(const size_t &active_tile_group_id, const i
   column_map = GetTileGroupLayout((LayoutType)peloton_layout_mode);
 
   // Create a tile group with that partitioning
-  std::shared_ptr<TileGroup> tile_group(GetTileGroupWithLayout(column_map, partition));
+  std::shared_ptr<TileGroup> tile_group(
+      GetTileGroupWithLayout(column_map, partition));
   PL_ASSERT(tile_group.get());
 
   tile_group_id = tile_group->GetTileGroupId();
@@ -689,14 +702,15 @@ oid_t DataTable::AddDefaultTileGroup(const size_t &active_tile_group_id, const i
 
   // add tile group metadata in locator
   catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
-  
+
   COMPILER_MEMORY_FENCE;
   int tmp_partition = partition;
   if (tmp_partition == LOCAL_NUMA_REGION) {
-    tmp_partition = numa_node_of_cpu(sched_getcpu()) % num_partitions_;
+    tmp_partition =
+        PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE()) % num_partitions_;
   }
 
-//  active_tile_groups_[active_tile_group_id] = tile_group;
+  //  active_tile_groups_[active_tile_group_id] = tile_group;
   active_tile_groups_[tmp_partition][active_tile_group_id] = tile_group;
 
   // we must guarantee that the compiler always add tile group before adding
@@ -730,8 +744,8 @@ void DataTable::AddTileGroupWithOidForRecovery(const oid_t &tile_group_id) {
 
   auto tile_groups_exists = false;
 
-  for (std::size_t partition = 0; partition < num_partitions_; partition++){
-    if (tile_groups_[partition].Contains(tile_group_id)){
+  for (std::size_t partition = 0; partition < num_partitions_; partition++) {
+    if (tile_groups_[partition].Contains(tile_group_id)) {
       tile_groups_exists = true;
       break;
     }
@@ -739,7 +753,8 @@ void DataTable::AddTileGroupWithOidForRecovery(const oid_t &tile_group_id) {
 
   if (tile_groups_exists == false) {
 
-    // TODO: we should find out what partition this should go in for now, just be lazy
+    // TODO: we should find out what partition this should go in for now, just
+    // be lazy
     tile_groups_[0].Append(tile_group_id);
 
     LOG_TRACE("Added a tile group ");
@@ -759,11 +774,14 @@ void DataTable::AddTileGroupWithOidForRecovery(const oid_t &tile_group_id) {
 
 // NOTE: This function is only used in test cases.
 void DataTable::AddTileGroup(const std::shared_ptr<TileGroup> &tile_group) {
-  int current_partition = numa_node_of_cpu(sched_getcpu()) % num_partitions_;
-  size_t active_tile_group_id = number_of_tuples_ % active_tile_groups_[current_partition].size();
-//  size_t active_tile_group_id = number_of_tuples_ % active_tilegroup_count_;
+  int current_partition =
+      PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE()) % num_partitions_;
 
-//  active_tile_groups_[active_tile_group_id] = tile_group;
+  size_t active_tile_group_id =
+      number_of_tuples_ % active_tile_groups_[current_partition].size();
+  //  size_t active_tile_group_id = number_of_tuples_ % active_tilegroup_count_;
+
+  //  active_tile_groups_[active_tile_group_id] = tile_group;
   active_tile_groups_[current_partition][active_tile_group_id] = tile_group;
 
   oid_t tile_group_id = tile_group->GetTileGroupId();
@@ -782,23 +800,21 @@ void DataTable::AddTileGroup(const std::shared_ptr<TileGroup> &tile_group) {
   LOG_TRACE("Recording tile group : %u ", tile_group_id);
 }
 
-size_t DataTable::GetPartitionCount() const{
-  return num_partitions_;
-}
+size_t DataTable::GetPartitionCount() const { return num_partitions_; }
 
-size_t DataTable::GetPartitionTileGroupCount(size_t partition) const{
+size_t DataTable::GetPartitionTileGroupCount(size_t partition) const {
   PL_ASSERT(partition < num_partitions_);
   return tile_groups_.at(partition).GetSize();
 }
 
 // Offset is a 0-based number local to the table
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupFromPartition(
-const std::size_t partition, const std::size_t &tile_group_offset) const{
+    const std::size_t partition, const std::size_t &tile_group_offset) const {
   PL_ASSERT(partition < num_partitions_);
   PL_ASSERT(tile_group_offset < GetPartitionTileGroupCount(partition));
 
-  auto tile_group_id =
-      tile_groups_.at(partition).FindValid(tile_group_offset, invalid_tile_group_id);
+  auto tile_group_id = tile_groups_.at(partition)
+                           .FindValid(tile_group_offset, invalid_tile_group_id);
 
   return GetTileGroupById(tile_group_id);
 }
@@ -810,7 +826,6 @@ std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
   PL_ASSERT(tile_group_offset < GetTileGroupCount());
   // if not we have to pass in partitions
   PL_ASSERT(num_partitions_ == 1);
-
 
   // TODO: obviously this is broken but is it used anywhere?
   // for now just assume we are on the same socket
@@ -832,7 +847,7 @@ void DataTable::DropTileGroups() {
 
   std::size_t tile_groups_itr;
 
-  for (std::size_t partition = 0; partition < num_partitions_; partition++){
+  for (std::size_t partition = 0; partition < num_partitions_; partition++) {
     auto tile_groups_size = tile_groups_[partition].GetSize();
     for (tile_groups_itr = 0; tile_groups_itr < tile_groups_size;
          tile_groups_itr++) {
@@ -844,10 +859,8 @@ void DataTable::DropTileGroups() {
       }
     }
     // Clear array
-      tile_groups_[partition].Clear(invalid_tile_group_id);
+    tile_groups_[partition].Clear(invalid_tile_group_id);
   }
-
-
 
   tile_group_count_ = 0;
 }
