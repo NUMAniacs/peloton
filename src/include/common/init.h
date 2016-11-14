@@ -12,7 +12,7 @@
 
 #pragma once
 #include "common/thread_pool.h"
-#include "common/numa_thread_pool.h"
+#include "common/partition_thread_pool.h"
 
 namespace peloton {
 
@@ -22,7 +22,7 @@ extern ThreadPool thread_pool;
 
 extern ThreadPool executor_thread_pool;
 
-extern NumaThreadPool partitioned_executor_thread_pool;
+extern PartitionThreadPool partitioned_executor_thread_pool;
 
 //===--------------------------------------------------------------------===//
 // Global Setup and Teardown
