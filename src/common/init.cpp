@@ -32,7 +32,7 @@ ThreadPool thread_pool;
 PartitionThreadPool partitioned_executor_thread_pool;
 
 // partitioned thread pool (currently based on NUMA regions)
-NumaThreadPool partitioned_executor_thread_pool;
+PartitionThreadPool partitioned_executor_thread_pool;
 
 void PelotonInit::Initialize() {
 

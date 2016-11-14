@@ -30,8 +30,10 @@
 
 #include <google/protobuf/stubs/common.h>
 #include <gflags/gflags.h>
+
 #include "common/thread_pool.h"
 #include "common/partition_thread_pool.h"
+
 
 namespace peloton {
 
