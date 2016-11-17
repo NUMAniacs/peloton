@@ -222,7 +222,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     std::shared_ptr<bridge::ExchangeParams> exchg_params(
         new bridge::ExchangeParams(txn, statement, params, num_tasks, tasks[i],
                                    result_format, init_failure, &wait));
-    exchg_params->self = exchg_params.get();
     exchg_params_list.push_back(exchg_params);
 
     if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_INSERT) {

@@ -22,7 +22,7 @@ namespace peloton {
 // core/partition node correspond to a partition
 #define SIMULATE_NUMA_PARTITION 0
 
-#if SIMULATE_NUMA_PARTITION
+#if SIMULATE_NUMA_PARTITION == 0
 // Get total number of partitions
 #define PL_NUM_PARTITIONS() (numa_max_node() + 1)
 
