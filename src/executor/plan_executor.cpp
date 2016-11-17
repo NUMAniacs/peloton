@@ -131,7 +131,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   // clean up executor tree
   CleanExecutorTree(executor_tree.get());
 
-  exchg_params->p.set_value(p_status);
+  exchg_params->TaskComplete(p_status);
 }
 
 /**
