@@ -206,12 +206,13 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
   std::vector<std::shared_ptr<bridge::ExchangeParams>> exchg_params_list;
   final_status.m_processed = 0;
+  bridge::BlockingWait wait(num_tasks);
 
   for (int i = 0; i < num_tasks; i++) {
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(
         new bridge::ExchangeParams(txn, statement, params, num_tasks, tasks[i],
-                                   result_format, init_failure));
+                                   result_format, init_failure, &wait));
     exchg_params->self = exchg_params.get();
     exchg_params_list.push_back(exchg_params);
 
@@ -226,10 +227,11 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
                                       &exchg_params->self);
     }
   }
-
+  // wait for tasks to complete
+  wait.WaitForCompletion();
   for (int i = 0; i < num_tasks; i++) {
     // wait for executor thread to return result
-    auto temp_status = exchg_params_list[i]->f.get();
+    auto temp_status = exchg_params_list[i]->p_status;
     init_failure &= exchg_params_list[i]->init_failure;
     if (init_failure == false) {
       // proceed only if none of the threads so far have failed
