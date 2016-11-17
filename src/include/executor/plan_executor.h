@@ -54,7 +54,9 @@ struct ExchangeParams;
 */
 class Notifiable {
 public:
+  virtual ~Notifiable(){}
   virtual void TaskComplete(ExchangeParams * params) = 0;
+
 };
 
 /*
@@ -62,13 +64,15 @@ public:
 */
 class BlockingWait : public Notifiable {
 public:
-  BlockingWait(int total_tasks) : Notifiable(), total_tasks_(total_tasks), tasks_complete_(0) {}
+  BlockingWait(int total_tasks) : Notifiable(), total_tasks_(total_tasks), tasks_complete_(0), all_done(false) {}
+
+  ~BlockingWait(){}
 
   //when a task completes it will call this
-  virtual void TaskComplete(UNUSED_ATTRIBUTE ExchangeParams * params) override {
+  void TaskComplete(UNUSED_ATTRIBUTE ExchangeParams * params) override {
     int task_num = tasks_complete_.fetch_add(1);
 
-    if (task_num == total_tasks_) {
+    if (task_num == total_tasks_ -1) {
       // we are the last task to complete
       std::unique_lock<std::mutex> lk(done_lock);
       all_done = true;
@@ -79,14 +83,10 @@ public:
   void WaitForCompletion() {
     std::unique_lock<std::mutex> lk(done_lock);
     while (!all_done) cv.wait(lk);
-    
   }
 
 private:
 
-  bool IsDone() {
-    return all_done;
-  }
   int total_tasks_;
   std::atomic<int> tasks_complete_;
   bool all_done;
@@ -129,6 +129,7 @@ struct ExchangeParams {
         result_format(result_format),
         init_failure(init_failure),
         callback_(callback){
+    self = this;
   }
 
   void TaskComplete(const bridge::peloton_status& p_status) {
