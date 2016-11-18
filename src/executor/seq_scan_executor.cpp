@@ -155,7 +155,6 @@ bool SeqScanExecutor::DExecute() {
           auto visibility = transaction_manager.IsVisible(current_txn,
                                                           tile_group_header,
                                                           tuple_id);
-
           // check transaction visibility
           if (visibility == VISIBILITY_OK) {
             // if the tuple is visible, then perform predicate evaluation.

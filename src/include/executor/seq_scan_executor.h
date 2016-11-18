@@ -14,6 +14,7 @@
 
 #include "planner/seq_scan_plan.h"
 #include "executor/abstract_scan_executor.h"
+#include "executor/abstract_task.h"
 
 namespace peloton {
 namespace executor {
@@ -35,10 +36,10 @@ class SeqScanExecutor : public AbstractScanExecutor {
 
   bool DExecute();
 
-  private:
-    //===--------------------------------------------------------------------===//
-    // Executor State
-    //===--------------------------------------------------------------------===//
+ private:
+  //===--------------------------------------------------------------------===//
+  // Executor State
+  //===--------------------------------------------------------------------===//
 
   /** @brief Keeps track of current tile group id within the current
    * partition being scanned. */

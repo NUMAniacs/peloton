@@ -190,6 +190,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       }
       break;
     }
+
     case PlanNodeType::PLAN_NODE_TYPE_PARALLEL_SEQSCAN: {
       planner::ParallelSeqScanPlan *parallel_seq_scan_plan =
           static_cast<planner::ParallelSeqScanPlan *>(plan_tree);
@@ -258,7 +259,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     // wait for executor thread to return result
     auto temp_status = exchg_params->p_status;
     init_failure &= exchg_params->init_failure;
-
     if (init_failure == false) {
       // proceed only if none of the threads so far have failed
       final_status.m_processed += temp_status.m_processed;
@@ -270,7 +270,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
       result.insert(result.end(), exchg_params->result.begin(),
                     exchg_params->result.end());
-
     }
   }
 

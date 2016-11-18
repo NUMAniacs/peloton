@@ -63,6 +63,11 @@ enum TaskType {
   TASK_HASHJOIN = 4,
 };
 
+/*
+ * Type for a list of pointers to tile groups
+ */
+typedef std::vector<std::shared_ptr<storage::TileGroup>> TileGroupPtrList;
+
 class AbstractTask {
  public:
   virtual ~AbstractTask() {}

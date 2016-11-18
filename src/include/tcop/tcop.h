@@ -37,6 +37,10 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/thread/future.hpp>
 
+// used to set number of parallel tasks relative to the number of
+// processing units available
+#define TASK_MULTIPLIER 4
+
 namespace peloton {
 namespace tcop {
 
