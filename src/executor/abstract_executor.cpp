@@ -28,8 +28,7 @@ namespace executor {
  */
 AbstractExecutor::AbstractExecutor(const planner::AbstractPlan *node,
                                    ExecutorContext *executor_context)
-    : node_(node), executor_context_(executor_context),
-      num_tasks_(1), partition_id_(0) {}
+    : node_(node), executor_context_(executor_context), task_(nullptr) {}
 
 void AbstractExecutor::SetOutput(LogicalTile *table) { output.reset(table); }
 
@@ -99,9 +98,8 @@ bool AbstractExecutor::Execute() {
   return status;
 }
 
-void AbstractExecutor::SetParallelism(int num_tasks, int partition_id) {
-  num_tasks_ = num_tasks;
-  partition_id_ = partition_id;
+void AbstractExecutor::SetTask(std::shared_ptr<AbstractTask> task) {
+  task_ = task;
 }
 
 void AbstractExecutor::SetContext(common::Value &value) {

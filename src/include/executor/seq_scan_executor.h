@@ -14,6 +14,7 @@
 
 #include "planner/seq_scan_plan.h"
 #include "executor/abstract_scan_executor.h"
+#include "executor/abstract_task.h"
 
 namespace peloton {
 namespace executor {
@@ -35,31 +36,26 @@ class SeqScanExecutor : public AbstractScanExecutor {
 
   bool DExecute();
 
-  private:
-    //===--------------------------------------------------------------------===//
-    // Executor State
-    //===--------------------------------------------------------------------===//
+ private:
+  //===--------------------------------------------------------------------===//
+  // Executor State
+  //===--------------------------------------------------------------------===//
 
-    /** @brief Keeps track of current tile group id being scanned. */
-    oid_t current_tile_group_offset_ = INVALID_OID;
+  /* iterator to traverse the list of tile groups embedded in the task */
+  TileGroupPtrList::iterator tile_group_itr_;
 
-    /** @brief Keeps track of the number of tile groups to scan. */
-    oid_t table_tile_group_count_ = INVALID_OID;
+  /* end iterator of the tile group list */
+  TileGroupPtrList::const_iterator tile_group_end_itr_;
 
-    // number of tile groups that this thread
-    // of execution will work on
-    int num_tile_groups_processed_ = 0;
+  /* ID of the task this executor runs */
+  int task_id_;
 
-    // number of sequential tile groups each
-    // thread of execution will work on
-    int num_tile_groups_per_thread_;
+  //===--------------------------------------------------------------------===//
+  // Plan Info
+  //===--------------------------------------------------------------------===//
 
-    //===--------------------------------------------------------------------===//
-    // Plan Info
-    //===--------------------------------------------------------------------===//
-
-    /** @brief Pointer to table to scan from. */
-    storage::DataTable *target_table_ = nullptr;
+  /** @brief Pointer to table to scan from. */
+  storage::DataTable *target_table_ = nullptr;
 };
 
 
