@@ -10,12 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #pragma once
 
 #include <vector>
 #include <memory>
-
+#include <boost/thread/future.hpp>
 #include "common/types.h"
 
 namespace peloton {
@@ -107,6 +106,9 @@ class ExecutorTestsUtil {
   /** Print the tuples from a vector of logical tiles */
   static void PrintTileVector(
       std::vector<std::unique_ptr<executor::LogicalTile>> &tile_vec);
+
+  static void Execute(executor::AbstractExecutor *executor,
+                      boost::promise<bool> *p);
 };
 
 }  // namespace test

@@ -23,6 +23,7 @@
 #include "parser/statement_insert.h"
 #include "parser/statement_select.h"
 #include "planner/insert_plan.h"
+#include "executor/executor_tests_util.h"
 
 namespace peloton {
 namespace test {
@@ -154,6 +155,14 @@ TEST_F(InsertTests, InsertRecord) {
 TEST_F(InsertTests, InsertPartitionedRecord) {
   catalog::Catalog::GetInstance();
 
+  // start executor pool
+  ExecutorPoolHarness::GetInstance();
+
+  // Set parallelism for data table
+  int parallelism = (std::thread::hardware_concurrency() + 1) / 2;
+  storage::DataTable::SetActiveTileGroupCount(parallelism);
+  storage::DataTable::SetActiveIndirectionArrayCount(parallelism);
+
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
   // Insert a table first
@@ -178,12 +187,13 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   auto table = catalog::Catalog::GetInstance()->GetTableWithName(
       DEFAULT_DB_NAME, "TEST_TABLE");
 
-  txn = txn_manager.BeginTransaction();
+  int num_partition = 2;
+  txn = txn_manager.BeginTransaction(num_partition);
 
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
 
-  std::unique_ptr<parser::InsertStatement> insert_node(
+  std::unique_ptr<parser::InsertStatement> insert_stmt(
       new parser::InsertStatement(INSERT_TYPE_VALUES));
 
   char *name = new char[11]();
@@ -197,18 +207,18 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   char *col_2 = new char[10]();
   strcpy(col_2, "dept_name");
 
-  insert_node->table_name = table_name;
+  insert_stmt->table_name = table_name;
 
-  insert_node->columns = new std::vector<char *>;
-  insert_node->columns->push_back(const_cast<char *>(col_1));
-  insert_node->columns->push_back(const_cast<char *>(col_2));
-  insert_node->select = new parser::SelectStatement();
+  insert_stmt->columns = new std::vector<char *>;
+  insert_stmt->columns->push_back(const_cast<char *>(col_1));
+  insert_stmt->columns->push_back(const_cast<char *>(col_2));
+  insert_stmt->select = new parser::SelectStatement();
 
   // Initialize the two tuples, each with two values
-  insert_node->insert_values =
+  insert_stmt->insert_values =
       new std::vector<std::vector<expression::AbstractExpression *> *>;
   auto values_ptr = new std::vector<expression::AbstractExpression *>;
-  insert_node->insert_values->push_back(values_ptr);
+  insert_stmt->insert_values->push_back(values_ptr);
   values_ptr->push_back(new expression::ConstantValueExpression(
       common::ValueFactory::GetIntegerValue(70)));
   values_ptr->push_back(new expression::ConstantValueExpression(
@@ -216,40 +226,43 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
 
   // Initialize the second one
   auto values_ptr2 = new std::vector<expression::AbstractExpression *>;
-  insert_node->insert_values->push_back(values_ptr2);
+  insert_stmt->insert_values->push_back(values_ptr2);
   values_ptr2->push_back(new expression::ConstantValueExpression(
       common::ValueFactory::GetIntegerValue(100)));
   values_ptr2->push_back(new expression::ConstantValueExpression(
       common::ValueFactory::GetVarcharValue("Hello")));
 
   // Construct insert plan
-  planner::InsertPlan node(insert_node.get());
+  planner::InsertPlan node(insert_stmt.get());
 
-  // Construct the first task
-  executor::InsertTask *insert_task0 =
-      new executor::InsertTask(&node, node.GetBulkInsertCount());
-  insert_task0->tuple_bitmap[0] = false;
-  std::shared_ptr<executor::AbstractTask> task0(insert_task0);
-  context->SetTask(task0);
-  executor::InsertExecutor executor0(context.get());
+  // Construct the task. Each partition has 1 tuple to insert
+  for (int partition = 0; partition < num_partition; partition++) {
+    executor::InsertTask *insert_task =
+        new executor::InsertTask(&node, node.GetBulkInsertCount(), partition);
+    insert_task->tuple_bitmap[partition] = false;
+    std::shared_ptr<executor::AbstractTask> task(insert_task);
+    context->SetTask(task);
+    executor::InsertExecutor executor(context.get());
 
-  EXPECT_TRUE(executor0.Init());
-  EXPECT_TRUE(executor0.Execute());
-  EXPECT_EQ(1, table->GetTupleCount());
+    // Setup promise future for partitioned thread execution
+    boost::promise<bool> p;
+    boost::unique_future<bool> execute_status = p.get_future();
 
-  // Construct the second task
-  executor::InsertTask *insert_task1 =
-      new executor::InsertTask(&node, node.GetBulkInsertCount());
-  insert_task1->tuple_bitmap[1] = false;
-  std::shared_ptr<executor::AbstractTask> task1(insert_task1);
-  context->SetTask(task1);
-  executor::InsertExecutor executor1(context.get());
+    EXPECT_TRUE(executor.Init());
+    partitioned_executor_thread_pool.SubmitTask(
+        partition, ExecutorTestsUtil::Execute, &executor, &p);
 
-  EXPECT_TRUE(executor1.Init());
-  EXPECT_TRUE(executor1.Execute());
-  EXPECT_EQ(2, table->GetTupleCount());
+    EXPECT_TRUE(execute_status.get());
+    EXPECT_EQ(partition + 1, (int)table->GetTupleCount());
+  }
 
   txn_manager.CommitTransaction(txn);
+
+  // Check if the tuples go to the correct partition
+  for (int partition = 0; partition < num_partition; partition++) {
+    auto tile_group = table->GetTileGroupFromPartition(partition, 0);
+    EXPECT_EQ(tile_group->GetActiveTupleCount(), 1);
+  }
 
   // free the database just created
   txn = txn_manager.BeginTransaction();
