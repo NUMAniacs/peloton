@@ -541,5 +541,6 @@ void TransactionTestsUtil::ThreadExecuteScan(ParallelScanArgs **args) {
   (*args)->p.set_value(true);
   return;
 }
+
 }
 }
