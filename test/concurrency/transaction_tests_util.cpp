@@ -150,8 +150,9 @@ storage::DataTable *TransactionTestsUtil::CreatePrimaryKeyUniqueKeyTable() {
 }
 
 storage::DataTable *TransactionTestsUtil::CreateTable(
-    int num_key, std::string table_name, oid_t database_id, oid_t relation_id,
-    oid_t index_oid, bool need_primary_index) {
+    int num_key, size_t tuples_per_tilegroup, std::string table_name,
+    oid_t database_id, oid_t relation_id, oid_t index_oid,
+    bool need_primary_index) {
   auto id_column = catalog::Column(
       common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
       "id", true);
@@ -163,7 +164,6 @@ storage::DataTable *TransactionTestsUtil::CreateTable(
   catalog::Schema *table_schema =
       new catalog::Schema({id_column, value_column});
 
-  size_t tuples_per_tilegroup = 100;
   auto table = storage::TableFactory::GetDataTable(
       database_id, relation_id, table_schema, table_name, tuples_per_tilegroup,
       true, NO_PARTITION_COLUMN, false);
@@ -450,5 +450,82 @@ bool TransactionTestsUtil::ExecuteScan(concurrency::Transaction *transaction,
   }
   return true;
 }
+
+bool TransactionTestsUtil::ExecuteParallelScan(concurrency::Transaction *transaction,
+                                               std::vector<int> &results,
+                                               storage::DataTable *table, int id,
+                                               bool select_for_update,
+                                               int num_tasks) {
+  bool status=true;
+  std::vector<std::vector<int>> local_results(num_tasks);
+  std::vector<bool> local_status(num_tasks);
+  std::vector<std::thread> executor_threads;
+
+  // spawn all the executors
+  for (int i=0; i <num_tasks; i++) {
+    executor_threads.push_back(std::thread(ThreadExecuteScan, &(*transaction),
+                                           std::ref(local_results.at(i)), table,
+                                           id, num_tasks, i, select_for_update,
+                                           std::ref(local_status)));
+  }
+
+  // join and coalesce the results
+  for (int i=0; i<num_tasks; i++) {
+    executor_threads[i].join();
+    // add result tiles
+    results.insert(results.end(), local_results[i].begin(),
+                   local_results[i].end());
+    // update status
+    status |= local_status[i];
+  }
+
+  return status;
+}
+
+void TransactionTestsUtil::ThreadExecuteScan(concurrency::Transaction *transaction,
+                                             std::vector<int> &results,
+                                             storage::DataTable *table, int id,
+                                             int num_tasks, int partition_id,
+                                             bool select_for_update,
+                                             std::vector<bool> &status) {
+  LOG_DEBUG("thread pid:%d", partition_id);
+  std::unique_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(transaction));
+
+  // Predicate, WHERE `id`>=id1
+  auto tup_val_exp =
+      new expression::TupleValueExpression(common::Type::INTEGER, 0, 0);
+  auto const_val_exp = new expression::ConstantValueExpression(
+      common::ValueFactory::GetIntegerValue(id));
+
+  auto predicate = new expression::ComparisonExpression(
+      EXPRESSION_TYPE_COMPARE_GREATERTHANOREQUALTO, tup_val_exp, const_val_exp);
+
+  // Seq scan
+  std::vector<oid_t> column_ids = {0, 1};
+  planner::SeqScanPlan seq_scan_node(table, predicate, column_ids,
+                                     select_for_update);
+  executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
+
+  seq_scan_executor.SetParallelism(num_tasks, partition_id);
+
+  EXPECT_TRUE(seq_scan_executor.Init());
+  if (seq_scan_executor.Execute() == false) {
+    status[partition_id] = false;
+    return;
+  }
+
+  std::unique_ptr<executor::LogicalTile> result_tile(
+      seq_scan_executor.GetOutput());
+
+  for (size_t i = 0; i < result_tile->GetTupleCount(); i++) {
+    common::Value val = (result_tile->GetValue(i, 1));
+    results.push_back(val.GetAs<int32_t>());
+  }
+
+  status[partition_id] = true;
+  return;
+}
+
 }
 }

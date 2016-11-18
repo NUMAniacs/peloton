@@ -210,5 +210,23 @@ TEST_F(TransactionTests, AbortTest) {
   }
 }
 
+TEST_F(TransactionTests, ParallelScanSingleTileTest) {
+  for (auto test_type : TEST_TYPES) {
+    concurrency::TransactionManagerFactory::Configure(test_type);
+    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+    std::unique_ptr<storage::DataTable> table(
+        TransactionTestsUtil::CreateTable(39,10));
+    {
+      TransactionScheduler scheduler(1, table.get(), &txn_manager, true);
+      scheduler.Txn(0).ParallelScan(0);
+      scheduler.Txn(0).Commit();
+
+      scheduler.Run();
+      EXPECT_EQ(RESULT_SUCCESS, scheduler.schedules[0].txn_result);
+      EXPECT_EQ(39, scheduler.schedules[0].results.size());
+    }
+  }
+}
+
 }  // End test namespace
 }  // End peloton namespace
