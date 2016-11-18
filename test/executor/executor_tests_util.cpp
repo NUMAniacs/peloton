@@ -456,5 +456,11 @@ void ExecutorTestsUtil::PrintTileVector(
   }
 }
 
+void ExecutorTestsUtil::Execute(executor::AbstractExecutor *executor,
+                                boost::promise<bool> *p) {
+  auto status = executor->Execute();
+  p->set_value(status);
+}
+
 }  // namespace test
 }  // namespace peloton
