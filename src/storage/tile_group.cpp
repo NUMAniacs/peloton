@@ -17,12 +17,14 @@
 #include "common/platform.h"
 #include "catalog/manager.h"
 #include "common/logger.h"
+#include "common/partition_macros.h"
 #include "common/types.h"
 #include "storage/abstract_table.h"
 #include "storage/tile.h"
 #include "storage/tuple.h"
 #include "storage/tile_group_header.h"
 #include "common/container_tuple.h"
+#include <numa.h>
 
 namespace peloton {
 namespace storage {
@@ -431,6 +433,17 @@ const std::string TileGroup::GetInfo() const {
   os << "=============================================================\n";
 
   return os.str().c_str();
+}
+
+void *TileGroup::operator new(size_t size, int numa_region) {
+  if (numa_region == LOCAL_NUMA_REGION) {
+    numa_region = PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE());
+  }
+  return PL_PARTITION_ALLOC(size, numa_region);
+}
+
+void TileGroup::operator delete(void *ptr, size_t size) {
+  PL_PARTITION_FREE(ptr, size);
 }
 
 }  // End storage namespace

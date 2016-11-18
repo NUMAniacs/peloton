@@ -703,9 +703,9 @@ oid_t DataTable::AddDefaultTileGroup(const size_t &active_tile_group_id,
 
   tile_group_id = tile_group->GetTileGroupId();
 
-  LOG_TRACE("Added a tile group ");
-
   tile_groups_[partition].Append(tile_group_id);
+  LOG_DEBUG("Added a tile group %d to partition %d", (int)tile_group_id,
+            (int)partition);
 
   // add tile group metadata in locator
   catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
@@ -832,14 +832,20 @@ std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
     const std::size_t &tile_group_offset) const {
   PL_ASSERT(tile_group_offset < GetTileGroupCount());
   // if not we have to pass in partitions
-  PL_ASSERT(num_partitions_ == 1);
+  //   PL_ASSERT(num_partitions_ == 1);
 
-  // TODO: obviously this is broken but is it used anywhere?
-  // for now just assume we are on the same socket
-  auto tile_group_id =
-      tile_groups_.at(0).FindValid(tile_group_offset, invalid_tile_group_id);
+  LOG_DEBUG("GetTileGroup %d", (int)tile_group_offset);
 
-  return GetTileGroupById(tile_group_id);
+  auto tile_group_id = invalid_tile_group_id;
+  for (size_t partition = 0; partition < num_partitions_; partition++) {
+    tile_group_id = tile_groups_.at(partition)
+                        .FindValid(tile_group_offset, invalid_tile_group_id);
+    if (tile_group_id != invalid_tile_group_id) {
+      return GetTileGroupById(tile_group_id);
+    }
+  }
+  PL_ASSERT(tile_group_id != invalid_tile_group_id);
+  return nullptr;
 }
 
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupById(
