@@ -107,7 +107,8 @@ enum txn_op_t {
   TXN_OP_ABORT,
   TXN_OP_COMMIT,
   TXN_OP_READ_STORE,
-  TXN_OP_UPDATE_BY_VALUE
+  TXN_OP_UPDATE_BY_VALUE,
+  TXN_OP_PARALLEL_SCAN
 };
 
 #define TXN_STORED_VALUE -10000
@@ -118,6 +119,7 @@ class TransactionTestsUtil {
   // Further add a unique index on the id column. The table has one tuple (0, 0)
   // when created
   static storage::DataTable *CreateTable(int num_key = 10,
+                                         size_t tuples_per_tilegroup = 100,
                                          std::string table_name = "TEST_TABLE",
                                          oid_t database_id = INVALID_OID,
                                          oid_t relation_id = INVALID_OID,
@@ -145,6 +147,14 @@ class TransactionTestsUtil {
   static bool ExecuteScan(concurrency::Transaction *txn,
                           std::vector<int> &results, storage::DataTable *table,
                           int id, bool select_for_update = false);
+  static bool ExecuteParallelScan(concurrency::Transaction *transaction,
+                                  std::vector<int> &results,
+                                  storage::DataTable *table, int id,
+                                  bool select_for_update, int num_tasks);
+  static void ThreadExecuteScan(concurrency::Transaction *transaction,
+                                std::vector<int> &results, storage::DataTable
+                                *table, int id, int num_tasks, int partition_id,
+                                bool select_for_update, std::vector<bool> &final_status);
 
   static std::unique_ptr<const planner::ProjectInfo> MakeProjectInfoFromTuple(
       const storage::Tuple *tuple);
@@ -184,13 +194,25 @@ struct TransactionSchedule {
 // A thread wrapper that runs a transaction
 class TransactionThread {
  public:
+  TransactionSchedule *schedule;
+  concurrency::TransactionManager *txn_manager;
+  storage::DataTable *table;
+  int cur_seq, num_tasks;
+  bool go;
+  bool is_parallel;
+  concurrency::Transaction *txn;
+
+ public:
   TransactionThread(TransactionSchedule *sched, storage::DataTable *table_,
-                    concurrency::TransactionManager *txn_manager_)
+                    concurrency::TransactionManager *txn_manager_,
+                    bool is_parallel_ = false)
       : schedule(sched),
         txn_manager(txn_manager_),
         table(table_),
         cur_seq(0),
-        go(false) {
+        num_tasks(1),
+        go(false),
+        is_parallel(is_parallel_) {
     LOG_TRACE("Thread has %d ops", (int)sched->operations.size());
   }
 
@@ -218,7 +240,8 @@ class TransactionThread {
     }
   }
 
-  std::thread Run(bool no_wait = false) {
+  std::thread Run(bool is_parallel, bool no_wait = false) {
+    this->is_parallel = is_parallel;
     if (!no_wait)
       return std::thread(&TransactionThread::RunLoop, this);
     else
@@ -285,6 +308,12 @@ class TransactionThread {
             txn, schedule->results, table, id, is_for_update);
         break;
       }
+      case TXN_OP_PARALLEL_SCAN: {
+        LOG_TRACE("Executing parallel scan");
+        execute_result = TransactionTestsUtil::ExecuteParallelScan(
+            txn,schedule->results, table, id, is_for_update, num_tasks);
+        break;
+      }
       case TXN_OP_UPDATE_BY_VALUE: {
         int old_value = id;
         int new_value = value;
@@ -328,25 +357,30 @@ class TransactionThread {
       schedule->txn_result = RESULT_ABORTED;
     }
   }
-
-  TransactionSchedule *schedule;
-  concurrency::TransactionManager *txn_manager;
-  storage::DataTable *table;
-  int cur_seq;
-  bool go;
-  concurrency::Transaction *txn;
 };
 
 // Transaction scheduler, to make life easier writting txn test
 class TransactionScheduler {
  public:
+  concurrency::TransactionManager *txn_manager;
+  storage::DataTable *table;
+  int time;
+  std::vector<TransactionSchedule> schedules;
+  std::vector<TransactionThread> tthreads;
+  std::map<int, int> sequence;
+  int cur_txn_id;
+  bool concurrent;
+  bool is_parallel; // are we running intra-query parallel txns?
+
+ public:
   TransactionScheduler(size_t num_txn, storage::DataTable *datatable_,
                        concurrency::TransactionManager *txn_manager_,
-                       bool first_as_ro = false)
+                       bool first_as_ro, bool is_parallel_)
       : txn_manager(txn_manager_),
         table(datatable_),
         time(0),
-        concurrent(false) {
+        concurrent(false),
+        is_parallel(is_parallel_) {
     for (size_t i = 0; i < num_txn; i++) {
       if (first_as_ro && i == 0) {
         schedules.emplace_back(i, true);
@@ -363,7 +397,7 @@ class TransactionScheduler {
     }
     if (!concurrent) {
       for (int i = 0; i < (int)schedules.size(); i++) {
-        std::thread t = tthreads[i].Run();
+        std::thread t = tthreads[i].Run(is_parallel);
         t.detach();
       }
       for (auto itr = sequence.begin(); itr != sequence.end(); itr++) {
@@ -379,7 +413,7 @@ class TransactionScheduler {
       // Run the txns concurrently
       std::vector<std::thread> threads(schedules.size());
       for (int i = 0; i < (int)schedules.size(); i++) {
-        threads[i] = tthreads[i].Run(true);
+        threads[i] = tthreads[i].Run(true, is_parallel);
       }
       for (auto &thread : threads) {
         thread.join();
@@ -414,6 +448,11 @@ class TransactionScheduler {
     schedules[cur_txn_id].operations.emplace_back(TXN_OP_SCAN, id, 0, is_for_update);
     sequence[time++] = cur_txn_id;
   }
+  void ParallelScan(int id, bool is_for_update = false) {
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_PARALLEL_SCAN, id, 0,
+                                                  is_for_update);
+    sequence[time++] = cur_txn_id;
+  }
   void Abort() {
     schedules[cur_txn_id].operations.emplace_back(TXN_OP_ABORT, 0, 0);
     sequence[time++] = cur_txn_id;
@@ -438,14 +477,6 @@ class TransactionScheduler {
 
   void SetConcurrent(bool flag) { concurrent = flag; }
 
-  concurrency::TransactionManager *txn_manager;
-  storage::DataTable *table;
-  int time;
-  std::vector<TransactionSchedule> schedules;
-  std::vector<TransactionThread> tthreads;
-  std::map<int, int> sequence;
-  int cur_txn_id;
-  bool concurrent;
 };
 }
 }
