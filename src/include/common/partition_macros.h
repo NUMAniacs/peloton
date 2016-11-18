@@ -41,6 +41,10 @@ namespace peloton {
 #define PL_PARTITION_ALLOC(size, partition) \
   numa_alloc_onnode(size, numa_node_of_cpu(partition));
 
+// Get the number of parallel units in each partition
+// (Assume homogeneous architecture)
+#define PL_GET_PARTITION_SIZE() (int)(std::thread::hardware_concurrency() / PL_NUM_PARTITIONS())
+
 #else
 // Get total number of partitions
 #define PL_NUM_PARTITIONS() (numa_max_node() + 1)
@@ -53,6 +57,10 @@ namespace peloton {
 
 // Allocate a partition
 #define PL_PARTITION_ALLOC(size, partition) numa_alloc_onnode(size, partition);
+
+// Get the number of parallel units in each partition
+// (Assume homogeneous architecture)
+#define PL_GET_PARTITION_SIZE() 2
 
 #endif
 

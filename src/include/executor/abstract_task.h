@@ -15,6 +15,7 @@
 #include <memory>
 #include <vector>
 #include "executor/logical_tile.h"
+#include "storage/data_table.h"
 
 // TODO move me to type.h
 #define DEFAULT_PARTITION_ID 0
@@ -30,6 +31,11 @@ class AbstractPlan;
 }
 
 namespace executor {
+
+/*
+ * Type for a list of pointers to tile groups
+ */
+typedef std::vector<std::shared_ptr<storage::TileGroup>> TileGroupPtrList;
 
 class AbstractTask {
  public:
@@ -67,6 +73,22 @@ class InsertTask : public AbstractTask {
 
   // The bitmap of tuples to insert
   std::vector<bool> tuple_bitmap;
+};
+
+class SeqScanTask : public AbstractTask {
+ public:
+  // The list of pointers to the tile groups managed by this task
+  TileGroupPtrList tile_group_ptrs;
+  // ID of this task
+  size_t task_id;
+ public:
+  /**
+   * @brief Constructor for seqscan Task.
+   * @param node Sequential scan node corresponding to this Task.
+   */
+  explicit SeqScanTask(const planner::AbstractPlan *node, size_t task_id,
+                       int partition_id = DEFAULT_PARTITION_ID)
+      : AbstractTask(node, partition_id), task_id(task_id){}
 };
 
 }  // namespace executor

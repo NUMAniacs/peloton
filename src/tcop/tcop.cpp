@@ -20,9 +20,9 @@
 #include "common/portal.h"
 #include "common/type.h"
 #include "common/types.h"
+#include "common/partition_macros.h"
 
 #include "expression/parser_expression.h"
-
 #include "parser/parser.h"
 
 #include "catalog/catalog.h"
@@ -149,7 +149,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         std::vector<std::vector<bool>> tuple_bitmaps(
             num_partitions, std::vector<bool>(bulk_insert_count, false));
 
-        // Iterate through tht tuples and compute the partition
+        // Iterate through that tuples and compute the partition
         for (oid_t tuple_itr = 0; tuple_itr < bulk_insert_count; tuple_itr++) {
           auto tuple = insert_plan->GetTuple(tuple_itr);
           auto partition_val = tuple->GetValue(partition_cols);
@@ -176,14 +176,40 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       break;
     }
     case PlanNodeType::PLAN_NODE_TYPE_SEQSCAN: {
-      // provide intra-query parallelism for sequential scans
-      num_tasks = std::thread::hardware_concurrency();
-      LOG_DEBUG("create %d dummy tasks for seq scan stmt", num_tasks);
-      // FIXME currently seq scan partition id is not the actual partition id,
-      // but to make the code still work, we assign the thread id here
-      for (int i = 0; i < num_tasks; i++) {
-        tasks.push_back(std::shared_ptr<executor::AbstractTask>(
-            new executor::AbstractTask(plan_tree, i)));
+      planner::SeqScanPlan *seq_scan_plan = static_cast<planner::SeqScanPlan *>(plan_tree);
+      size_t max_tasks_per_partition = TASK_MULTIPLIER*PL_GET_PARTITION_SIZE();
+      auto target_table = seq_scan_plan->GetTable();
+      auto partition_count = target_table->GetPartitionCount();
+
+      // Assuming that we always have at least one partition,
+      // deploy partitioned seq scan
+      for (size_t i=0; i<partition_count; i++) {
+        auto num_tile_groups = target_table->GetPartitionTileGroupCount(i);
+        size_t num_tile_groups_per_task;
+        // check if we have more tile groups than multiplier times the number
+        // of processing units
+        if (num_tile_groups > max_tasks_per_partition) {
+          // cap it at max_tasks_per_partition
+          num_tile_groups_per_task = (num_tile_groups +
+                  max_tasks_per_partition - 1)/max_tasks_per_partition;
+        } else {
+          // maximize the number of tasks by having
+          // one tile group per task
+          num_tile_groups_per_task = 1;
+        }
+        for (size_t j=0; j<num_tile_groups; j+=num_tile_groups_per_task) {
+          // create a new task
+          executor::SeqScanTask *seq_scan_task =
+              new executor::SeqScanTask(plan_tree, tasks.size(), i);
+          for (size_t k=j;
+               k<j+num_tile_groups_per_task && k<num_tile_groups; k++) {
+            // append the next tile group
+            seq_scan_task->tile_group_ptrs.push_back(
+                target_table->GetTileGroupFromPartition(i, k));
+          }
+          tasks.push_back(
+              std::shared_ptr<executor::AbstractTask>(seq_scan_task));
+        }
       }
       break;
     }
@@ -209,30 +235,36 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   final_status.m_processed = 0;
   bridge::BlockingWait wait(num_tasks);
 
-  for (int i = 0; i < num_tasks; i++) {
+  for (auto task : tasks) {
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(
-        new bridge::ExchangeParams(txn, statement, params, num_tasks, tasks[i],
+        new bridge::ExchangeParams(txn, statement, params, task,
                                    result_format, init_failure, &wait));
     exchg_params_list.push_back(exchg_params);
 
-    if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_INSERT) {
-      // Only use the partitioned_executor_pool for insert queries for now
-      partitioned_executor_thread_pool.SubmitTask(
-          tasks[i]->partition_id, bridge::PlanExecutor::ExecutePlanLocal,
-          &exchg_params->self);
-    } else {
-      // Use normal executor pool for other queries
-      executor_thread_pool.SubmitTask(bridge::PlanExecutor::ExecutePlanLocal,
-                                      &exchg_params->self);
+    switch(plan_tree->GetPlanNodeType()) {
+      case PLAN_NODE_TYPE_SEQSCAN:
+      case PLAN_NODE_TYPE_INSERT:
+        // Only use the partitioned_executor_pool for insert queries for now
+        partitioned_executor_thread_pool.SubmitTask(
+            task->partition_id, bridge::PlanExecutor::ExecutePlanLocal,
+            &exchg_params->self);
+        break;
+      default: {
+        // Use normal executor pool for other queries
+        executor_thread_pool.SubmitTask(bridge::PlanExecutor::ExecutePlanLocal,
+                                        &exchg_params->self);
+        break;
+      }
     }
   }
+
   // wait for tasks to complete
   wait.WaitForCompletion();
-  for (int i = 0; i < num_tasks; i++) {
+  for (auto exchg_params : exchg_params_list) {
     // wait for executor thread to return result
-    auto temp_status = exchg_params_list[i]->p_status;
-    init_failure &= exchg_params_list[i]->init_failure;
+    auto temp_status = exchg_params->p_status;
+    init_failure &= exchg_params->init_failure;
     if (init_failure == false) {
       // proceed only if none of the threads so far have failed
       final_status.m_processed += temp_status.m_processed;
@@ -242,8 +274,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         final_status.m_result = temp_status.m_result;
       final_status.m_result_slots = nullptr;
 
-      result.insert(result.end(), exchg_params_list[i]->result.begin(),
-                    exchg_params_list[i]->result.end());
+      result.insert(result.end(), exchg_params->result.begin(),
+                    exchg_params->result.end());
     }
   }
 
