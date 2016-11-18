@@ -515,13 +515,16 @@ void TransactionTestsUtil::ThreadExecuteScan(concurrency::Transaction *transacti
     return;
   }
 
-  std::unique_ptr<executor::LogicalTile> result_tile(
-      seq_scan_executor.GetOutput());
+  do {
+    std::unique_ptr<executor::LogicalTile> result_tile(
+        seq_scan_executor.GetOutput());
 
-  for (size_t i = 0; i < result_tile->GetTupleCount(); i++) {
-    common::Value val = (result_tile->GetValue(i, 1));
-    results.push_back(val.GetAs<int32_t>());
-  }
+    for (size_t i = 0; i < result_tile->GetTupleCount(); i++) {
+      common::Value val = (result_tile->GetValue(i, 1));
+      results.push_back(val.GetAs<int32_t>());
+    }
+
+  } while(seq_scan_executor.Execute() == true);
 
   status[partition_id] = true;
   return;

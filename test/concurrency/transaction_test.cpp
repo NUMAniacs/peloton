@@ -235,7 +235,8 @@ TEST_F(TransactionTests, ParallelScanSingleTileTest) {
     concurrency::TransactionManagerFactory::Configure(test_type);
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     std::unique_ptr<storage::DataTable> table(
-        TransactionTestsUtil::CreateTable(39,10));
+        TransactionTestsUtil::CreateTable(35,10));
+    // simple scan
     {
       TransactionScheduler scheduler(1, table.get(), &txn_manager, true);
       scheduler.Txn(0).ParallelScan(0);
@@ -243,7 +244,116 @@ TEST_F(TransactionTests, ParallelScanSingleTileTest) {
 
       scheduler.Run();
       EXPECT_EQ(RESULT_SUCCESS, scheduler.schedules[0].txn_result);
-      EXPECT_EQ(39, scheduler.schedules[0].results.size());
+      EXPECT_EQ(35, scheduler.schedules[0].results.size());
+    }
+
+    /*
+     * txn 0 : Parallel Scan
+     * txn 1 : Read
+     * txn 0 : Read
+     * txn 1 : Parallel Scan
+     * txn 0 : Commit (Success)
+     * txn 1 : Commit (Success)
+     */
+    {
+      TransactionScheduler scheduler(2, table.get(), &txn_manager, true);
+      scheduler.Txn(0).ParallelScan(0);
+      scheduler.Txn(1).Read(0);
+      scheduler.Txn(0).Read(0);
+      scheduler.Txn(1).ParallelScan(0);
+      scheduler.Txn(0).Commit();
+      scheduler.Txn(1).Commit();
+
+      scheduler.Run();
+      EXPECT_EQ(RESULT_SUCCESS, scheduler.schedules[0].txn_result);
+      EXPECT_EQ(RESULT_SUCCESS, scheduler.schedules[1].txn_result);
+      EXPECT_EQ(36, scheduler.schedules[0].results.size()); // one row + scan
+      EXPECT_EQ(36, scheduler.schedules[1].results.size()); // one row + scan
+    }
+  }
+}
+
+TEST_F(TransactionTests, ParallelScanAbortTest) {
+  for (auto test_type : TEST_TYPES) {
+    concurrency::TransactionManagerFactory::Configure(test_type);
+    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+    std::unique_ptr<storage::DataTable> table(
+        TransactionTestsUtil::CreateTable(35,10));
+
+    // simple scan
+    {
+      TransactionScheduler scheduler(1, table.get(), &txn_manager, true);
+      scheduler.Txn(0).ParallelScan(0);
+      scheduler.Txn(0).Abort();
+
+      scheduler.Run();
+      EXPECT_EQ(RESULT_ABORTED, scheduler.schedules[0].txn_result);
+    }
+
+    /*
+    * txn 0 : Parallel Scan
+    * txn 1 : Read
+    * txn 0 : Read
+    * txn 1 : Parallel Scan
+    * txn 0 : Commit (Success)
+    * txn 1 : Commit (Success)
+    */
+    {
+      TransactionScheduler scheduler(2, table.get(), &txn_manager, true);
+      scheduler.Txn(0).ParallelScan(0);
+      scheduler.Txn(1).Read(0);
+      scheduler.Txn(0).Read(0);
+      scheduler.Txn(1).ParallelScan(0);
+      scheduler.Txn(0).Abort();
+      scheduler.Txn(1).Commit();
+
+      scheduler.Run();
+      EXPECT_EQ(RESULT_ABORTED, scheduler.schedules[0].txn_result);
+      EXPECT_EQ(RESULT_SUCCESS, scheduler.schedules[1].txn_result);
+      EXPECT_EQ(36, scheduler.schedules[1].results.size()); // one row + scan
+    }
+  }
+}
+
+TEST_F(TransactionTests, ParallelScanMultiTileList) {
+  for (auto test_type : TEST_TYPES) {
+    concurrency::TransactionManagerFactory::Configure(test_type);
+    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+    std::unique_ptr<storage::DataTable> table(
+        TransactionTestsUtil::CreateTable(75,10));
+    // simple scan
+    {
+      TransactionScheduler scheduler(1, table.get(), &txn_manager, true);
+      scheduler.Txn(0).ParallelScan(0);
+      scheduler.Txn(0).Commit();
+
+      scheduler.Run();
+      EXPECT_EQ(RESULT_SUCCESS, scheduler.schedules[0].txn_result);
+      EXPECT_EQ(75, scheduler.schedules[0].results.size());
+    }
+
+    /*
+     * txn 0 : Parallel Scan
+     * txn 1 : Read
+     * txn 0 : Read
+     * txn 1 : Parallel Scan
+     * txn 0 : Commit (Success)
+     * txn 1 : Commit (Success)
+     */
+    {
+      TransactionScheduler scheduler(2, table.get(), &txn_manager, true);
+      scheduler.Txn(0).ParallelScan(0);
+      scheduler.Txn(1).Read(0);
+      scheduler.Txn(0).Read(0);
+      scheduler.Txn(1).ParallelScan(0);
+      scheduler.Txn(0).Commit();
+      scheduler.Txn(1).Commit();
+
+      scheduler.Run();
+      EXPECT_EQ(RESULT_SUCCESS, scheduler.schedules[0].txn_result);
+      EXPECT_EQ(RESULT_SUCCESS, scheduler.schedules[1].txn_result);
+      EXPECT_EQ(76, scheduler.schedules[0].results.size()); // one row + scan
+      EXPECT_EQ(76, scheduler.schedules[1].results.size()); // one row + scan
     }
   }
 }
