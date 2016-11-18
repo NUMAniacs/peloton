@@ -697,7 +697,7 @@ oid_t DataTable::AddDefaultTileGroup(const size_t &active_tile_group_id,
   tile_group_id = tile_group->GetTileGroupId();
 
   tile_groups_[partition].Append(tile_group_id);
-  LOG_DEBUG("Added a tile group %d to partition %d", (int)tile_group_id,
+  LOG_TRACE("Added a tile group %d to partition %d", (int)tile_group_id,
             (int)partition);
 
   // add tile group metadata in locator
@@ -824,10 +824,8 @@ size_t DataTable::GetTileGroupCount() const { return tile_group_count_; }
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
     const std::size_t &tile_group_offset) const {
   PL_ASSERT(tile_group_offset < GetTileGroupCount());
-  // if not we have to pass in partitions
-  //   PL_ASSERT(num_partitions_ == 1);
 
-  LOG_DEBUG("GetTileGroup %d", (int)tile_group_offset);
+  LOG_TRACE("GetTileGroup %d", (int)tile_group_offset);
 
   auto tile_group_id = invalid_tile_group_id;
   for (size_t partition = 0; partition < num_partitions_; partition++) {

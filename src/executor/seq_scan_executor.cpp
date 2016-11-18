@@ -139,8 +139,8 @@ bool SeqScanExecutor::DExecute() {
     while (current_tile_group_offset_ < table_tile_group_count_ &&
            num_tile_groups_processed_ < num_tile_groups_per_thread_) {
 
-      auto tile_group =
-          target_table_->GetTileGroup(current_tile_group_offset_);
+      // Should be using GetTileGroupFromPartition instead
+      auto tile_group = target_table_->GetTileGroup(current_tile_group_offset_);
 
       // move to next offset
       current_tile_group_offset_++;
