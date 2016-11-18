@@ -122,7 +122,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     const std::vector<common::Value> &params, std::vector<ResultType> &result,
     const std::vector<int> &result_format) {
 
-  int num_tasks = 1;
   bridge::peloton_status final_status;
 
   if (statement->GetPlanTree().get() == nullptr) {
@@ -149,10 +148,9 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       if (partition_cols != NO_PARTITION_COLUMN) {
 
         // One task is created for each partition now.
-        // We could create more fine-graind tasks and exploit more parallelism
+        // We could create more fine-grained tasks and exploit more parallelism
         // We should also avoid creating a task if no tuple is assigned to that
         // partition
-        num_tasks = num_partitions;
 
         // Set default value for bitmap to false
         std::vector<std::vector<bool>> tuple_bitmaps(
@@ -237,7 +235,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   bool single_statement_txn = true;
   bool init_failure = false;
 
-  auto txn = txn_manager.BeginTransaction(num_tasks);
+  auto txn = txn_manager.BeginTransaction(tasks.size());
   PL_ASSERT(txn);
 
   std::vector<std::shared_ptr<bridge::ExchangeParams>> exchg_params_list;
