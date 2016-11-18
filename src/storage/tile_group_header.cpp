@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -19,6 +18,7 @@
 #include "common/platform.h"
 #include "common/printable.h"
 #include "common/macros.h"
+#include "common/partition_macros.h"
 #include "concurrency/transaction_manager_factory.h"
 #include "common/container_tuple.h"
 #include "gc/gc_manager.h"
@@ -196,6 +196,17 @@ oid_t TileGroupHeader::GetActiveTupleCount() {
   }
 
   return active_tuple_slots;
+}
+
+void *TileGroupHeader::operator new(size_t size, int numa_region) {
+  if (numa_region == LOCAL_NUMA_REGION) {
+    numa_region = PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE());
+  }
+  return PL_PARTITION_ALLOC(size, numa_region);
+}
+
+void TileGroupHeader::operator delete(void *ptr, size_t size) {
+  PL_PARTITION_FREE(ptr, size);
 }
 
 }  // End storage namespace

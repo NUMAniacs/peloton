@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #pragma once
 
 #include <atomic>
@@ -22,6 +21,7 @@
 #include "common/printable.h"
 #include "common/types.h"
 #include "common/macros.h"
+#include "common/partition_macros.h"
 #include "common/platform.h"
 
 namespace peloton {
@@ -84,24 +84,18 @@ class TileGroupHeader : public Printable {
 
   ~TileGroupHeader();
 
-  // override new / delete operator for NUMA-aware memory allocation
-  void* operator new (size_t size, int numa_region) {
-    if (numa_region == LOCAL_NUMA_REGION) {
-      numa_region = numa_node_of_cpu(sched_getcpu());
-    }
-    return numa_alloc_onnode(size, numa_region);
-  }
+  // override new operator for NUMA-aware memory allocation
+  void *operator new(size_t size, int numa_region);
 
-  void operator delete(void *ptr, size_t size) {
-    numa_free(ptr, size);
-  }
+  // override delete operator for NUMA-aware memory allocation
+  void operator delete(void *ptr, size_t size);
 
   // this function is only called by DataTable::GetEmptyTupleSlot().
   oid_t GetNextEmptyTupleSlot() {
     if (next_tuple_slot >= num_tuple_slots) {
       return INVALID_OID;
     }
-    
+
     oid_t tuple_slot_id =
         next_tuple_slot.fetch_add(1, std::memory_order_relaxed);
 
