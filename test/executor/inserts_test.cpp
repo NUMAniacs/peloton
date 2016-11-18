@@ -260,7 +260,9 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
 
   // Check if the tuples go to the correct partition
   for (int partition = 0; partition < num_partition; partition++) {
-    auto tile_group = table->GetTileGroupFromPartition(partition, 0);
+    // XXX Hard code the tile_group offset here
+    int num_tuples = partition;
+    auto tile_group = table->GetTileGroupFromPartition(partition, num_tuples);
     EXPECT_EQ(tile_group->GetActiveTupleCount(), 1);
   }
 
