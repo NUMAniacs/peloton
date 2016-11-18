@@ -16,6 +16,7 @@
 #include "common/config.h"
 #include "common/logger.h"
 #include "common/macros.h"
+#include "common/partition_macros.h"
 #include "common/portal.h"
 #include "common/type.h"
 #include "common/types.h"
@@ -129,7 +130,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   }
 
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
-  int num_partitions = numa_max_node() + 1;
+  int num_partitions = PL_NUM_PARTITIONS();
 
   auto plan_tree = statement->GetPlanTree().get();
   switch (plan_tree->GetPlanNodeType()) {
@@ -308,7 +309,8 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     bridge::PlanExecutor::PrintPlan(statement->GetPlanTree().get(), "Plan");
     LOG_DEBUG("Statement Prepared!");
     return std::move(statement);
-  } catch (Exception &e) {
+  }
+  catch (Exception &e) {
     error_message = e.what();
     return nullptr;
   }
