@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/seq_scan_executor.h"
+#include "executor/parallel_seq_scan_executor.h"
 
 #include <memory>
 #include <utility>
@@ -31,13 +31,13 @@
 #include "index/index.h"
 
 namespace peloton {
-  namespace executor {
+namespace executor {
 
 /**
  * @brief Constructor for seqscan executor.
  * @param node Seqscan node corresponding to this executor.
  */
-SeqScanExecutor::SeqScanExecutor(const planner::AbstractPlan *node,
+ParallelSeqScanExecutor::ParallelSeqScanExecutor(const planner::AbstractPlan *node,
                                  ExecutorContext *executor_context)
     : AbstractScanExecutor(node, executor_context) {}
 
@@ -45,7 +45,7 @@ SeqScanExecutor::SeqScanExecutor(const planner::AbstractPlan *node,
  * @brief Let base class DInit() first, then do mine.
  * @return true on success, false otherwise.
  */
-bool SeqScanExecutor::DInit() {
+bool ParallelSeqScanExecutor::DInit() {
   auto status = AbstractScanExecutor::DInit();
 
   if (!status) return false;
@@ -55,8 +55,13 @@ bool SeqScanExecutor::DInit() {
 
   target_table_ = node.GetTable();
 
-  table_partition_count_ = target_table_->GetPartitionCount();
-  current_partition_offset_ = 0;
+  // the task should be set in a previous step
+  PL_ASSERT(task_.get() != nullptr);
+
+  auto seq_scan_task = std::dynamic_pointer_cast<SeqScanTask>(task_);
+  tile_group_itr_ = seq_scan_task->tile_group_ptrs.begin();
+  tile_group_end_itr_ = seq_scan_task->tile_group_ptrs.end();
+  task_id_ = seq_scan_task->task_id;
 
   if (target_table_ != nullptr) {
     if (column_ids_.empty()) {
@@ -72,7 +77,7 @@ bool SeqScanExecutor::DInit() {
  * @brief Creates logical tile from tile group and applies scan predicate.
  * @return true on success, false otherwise.
  */
-bool SeqScanExecutor::DExecute() {
+bool ParallelSeqScanExecutor::DExecute() {
   // Scanning over a logical tile.
   if (children_.size() == 1) {
     // FIXME Check all requirements for children_.size() == 0 case.
@@ -121,85 +126,73 @@ bool SeqScanExecutor::DExecute() {
     bool acquire_owner = GetPlanNode<planner::AbstractScan>().IsForUpdate();
     auto current_txn = executor_context_->GetTransaction();
 
-    while (current_partition_offset_ < table_partition_count_) {
-      // load the next partition
-      current_tile_group_offset_ = 0;
-      partition_tile_group_count_ =
-          target_table_->GetPartitionTileGroupCount(current_partition_offset_++);
+    // Retrieve next tile group.
+    while (tile_group_itr_ != tile_group_end_itr_) {
+      auto tile_group = *tile_group_itr_;
 
-      // Retrieve next tile group.
-      while (current_tile_group_offset_ < partition_tile_group_count_) {
-        auto tile_group =
-            target_table_->GetTileGroup(current_tile_group_offset_++);
-        auto tile_group_header = tile_group->GetHeader();
+      // move to next tile group
+      tile_group_itr_++;
 
-        oid_t active_tuple_count = tile_group->GetNextTupleSlot();
+      auto tile_group_header = tile_group->GetHeader();
 
-        // Construct position list by looping through tile group
-        // and applying the predicate.
-        std::vector<oid_t> position_list;
-        for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
-          ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
+      oid_t active_tuple_count = tile_group->GetNextTupleSlot();
+
+      // Construct position list by looping through tile group
+      // and applying the predicate.
+      std::vector<oid_t> position_list;
+      for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
+        ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
 
 
-          auto visibility = transaction_manager.IsVisible(current_txn,
-                                                          tile_group_header,
-                                                          tuple_id);
+        auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, tuple_id);
 
-          // check transaction visibility
-          if (visibility == VISIBILITY_OK) {
-            // if the tuple is visible, then perform predicate evaluation.
-            if (predicate_ == nullptr) {
+        // check transaction visibility
+        if (visibility == VISIBILITY_OK) {
+          // if the tuple is visible, then perform predicate evaluation.
+          if (predicate_ == nullptr) {
+            position_list.push_back(tuple_id);
+            auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
+                                                       task_id_);
+            if (!res) {
+              transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
+              return res;
+            }
+          } else {
+            expression::ContainerTuple<storage::TileGroup> tuple(
+                tile_group.get(), tuple_id);
+            LOG_TRACE("Evaluate predicate for a tuple");
+            auto eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
+            LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
+            if (eval.IsTrue()) {
               position_list.push_back(tuple_id);
-              auto res = transaction_manager.PerformRead(current_txn,
-                                                         location,
-                                                         acquire_owner);
+              auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
+                                                         task_id_);
               if (!res) {
-                transaction_manager.SetTransactionResult(current_txn,
-                                                         RESULT_FAILURE);
+                transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
                 return res;
-              }
-            } else {
-              expression::ContainerTuple<storage::TileGroup> tuple(
-                  tile_group.get(), tuple_id);
-              LOG_TRACE("Evaluate predicate for a tuple");
-              auto eval = predicate_->Evaluate(&tuple, nullptr,
-                                               executor_context_);
-              LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
-              if (eval.IsTrue()) {
-                position_list.push_back(tuple_id);
-                auto res = transaction_manager.PerformRead(current_txn,
-                                                           location,
-                                                           acquire_owner);
-                if (!res) {
-                  transaction_manager.SetTransactionResult(current_txn,
-                                                           RESULT_FAILURE);
-                  return res;
-                } else {
-                  LOG_TRACE("Sequential Scan Predicate Satisfied");
-                }
+              } else {
+                LOG_TRACE("Sequential Scan Predicate Satisfied");
               }
             }
           }
         }
-
-        // Don't return empty tiles
-        if (position_list.size() == 0) {
-          continue;
-        }
-
-        // Construct logical tile.
-        std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-        logical_tile->AddColumns(tile_group, column_ids_);
-        logical_tile->AddPositionList(std::move(position_list));
-
-        LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
-        SetOutput(logical_tile.release());
-        return true;
       }
+
+      // Don't return empty tiles
+      if (position_list.size() == 0) {
+        continue;
+      }
+
+      // Construct logical tile.
+      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+      logical_tile->AddColumns(tile_group, column_ids_);
+      logical_tile->AddPositionList(std::move(position_list));
+
+      LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
+      SetOutput(logical_tile.release());
+      return true;
     }
   }
-
   return false;
 }
 

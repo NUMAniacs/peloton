@@ -415,6 +415,7 @@ enum PlanNodeType {
   PLAN_NODE_TYPE_ABSTRACT_SCAN = 10,
   PLAN_NODE_TYPE_SEQSCAN = 11,
   PLAN_NODE_TYPE_INDEXSCAN = 12,
+  PLAN_NODE_TYPE_PARALLEL_SEQSCAN = 13,
 
   // Join Nodes
   PLAN_NODE_TYPE_NESTLOOP = 20,
@@ -863,6 +864,14 @@ extern size_t EPOCH_THREAD_COUNT;
 
 // For Table Paritioning
 static const int NO_PARTITION_COLUMN = -1;
+
+//===--------------------------------------------------------------------===//
+// Seq Scan Macros
+//===--------------------------------------------------------------------===//
+/* Minimum number of tule groups required for switching
+ * to a parallel scan plan
+ */
+#define PARALLEL_SCAN_THRESHOLD 100
 
 //===--------------------------------------------------------------------===//
 // TupleMetadata

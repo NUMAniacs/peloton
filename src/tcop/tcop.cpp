@@ -182,9 +182,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       }
       break;
     }
-    case PlanNodeType::PLAN_NODE_TYPE_SEQSCAN: {
+    case PlanNodeType::PLAN_NODE_TYPE_PARALLEL_SEQSCAN: {
       planner::SeqScanPlan *seq_scan_plan = static_cast<planner::SeqScanPlan *>(plan_tree);
-      size_t max_tasks_per_partition = TASK_MULTIPLIER*PL_GET_PARTITION_SIZE();
       auto target_table = seq_scan_plan->GetTable();
       auto partition_count = target_table->GetPartitionCount();
 
@@ -192,18 +191,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       // deploy partitioned seq scan
       for (size_t i=0; i<partition_count; i++) {
         auto num_tile_groups = target_table->GetPartitionTileGroupCount(i);
-        size_t num_tile_groups_per_task;
-        // check if we have more tile groups than multiplier times the number
-        // of processing units
-        if (num_tile_groups > max_tasks_per_partition) {
-          // cap it at max_tasks_per_partition
-          num_tile_groups_per_task = (num_tile_groups +
-                  max_tasks_per_partition - 1)/max_tasks_per_partition;
-        } else {
-          // maximize the number of tasks by having
-          // one tile group per task
-          num_tile_groups_per_task = 1;
-        }
+        size_t num_tile_groups_per_task =
+            (num_tile_groups+TASK_TILEGROUP_COUNT-1)/TASK_TILEGROUP_COUNT;
         for (size_t j=0; j<num_tile_groups; j+=num_tile_groups_per_task) {
           // create a new task
           executor::SeqScanTask *seq_scan_task =
@@ -240,7 +229,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
   std::vector<std::shared_ptr<bridge::ExchangeParams>> exchg_params_list;
   final_status.m_processed = 0;
-  bridge::BlockingWait wait(num_tasks);
+  bridge::BlockingWait wait(tasks.size());
 
   for (auto task : tasks) {
     // in first pass make the exch params list
@@ -250,7 +239,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     exchg_params_list.push_back(exchg_params);
 
     switch(plan_tree->GetPlanNodeType()) {
-      case PLAN_NODE_TYPE_SEQSCAN:
+      case PLAN_NODE_TYPE_PARALLEL_SEQSCAN:
       case PLAN_NODE_TYPE_INSERT:
         // Only use the partitioned_executor_pool for insert queries for now
         partitioned_executor_thread_pool.SubmitTask(

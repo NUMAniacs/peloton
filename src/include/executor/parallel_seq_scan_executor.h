@@ -10,25 +10,25 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #pragma once
 
 #include "planner/seq_scan_plan.h"
 #include "executor/abstract_scan_executor.h"
+#include "executor/abstract_task.h"
 
 namespace peloton {
 namespace executor {
 
-class SeqScanExecutor : public AbstractScanExecutor {
+class ParallelSeqScanExecutor : public AbstractScanExecutor {
  public:
-  SeqScanExecutor(const SeqScanExecutor &) = delete;
-  SeqScanExecutor &operator=(const SeqScanExecutor &) = delete;
-  SeqScanExecutor(SeqScanExecutor &&) = delete;
-  SeqScanExecutor &operator=(SeqScanExecutor &&) = delete;
+  ParallelSeqScanExecutor(const ParallelSeqScanExecutor &) = delete;
+  ParallelSeqScanExecutor &operator=(const ParallelSeqScanExecutor &) = delete;
+  ParallelSeqScanExecutor(ParallelSeqScanExecutor &&) = delete;
+  ParallelSeqScanExecutor &operator=(ParallelSeqScanExecutor &&) = delete;
 
-  explicit SeqScanExecutor(const planner::AbstractPlan *node,
+  explicit ParallelSeqScanExecutor(const planner::AbstractPlan *node,
                            ExecutorContext *executor_context);
-
-  void ResetState() { current_tile_group_offset_ = START_OID; }
 
  protected:
   bool DInit();
@@ -40,19 +40,14 @@ class SeqScanExecutor : public AbstractScanExecutor {
   // Executor State
   //===--------------------------------------------------------------------===//
 
-  /** @brief Keeps track of current tile group id within the current
-   * partition being scanned. */
-  size_t current_tile_group_offset_ = INVALID_OID;
+  /* iterator to traverse the list of tile groups embedded in the task */
+  TileGroupPtrList::iterator tile_group_itr_;
 
-  /** @brief Keeps track of the current partition being accessed */
-  size_t current_partition_offset_ = INVALID_OID;
+  /* end iterator of the tile group list */
+  TileGroupPtrList::const_iterator tile_group_end_itr_;
 
-  /** @brief Keeps track of the number of partitions to scan. */
-  size_t table_partition_count_ = 0;
-
-  /** @brief Keep track of the number of tile groups
-   * in the current partition */
-  size_t partition_tile_group_count_ = 0;
+  /* ID of the task this executor runs */
+  int task_id_;
 
   //===--------------------------------------------------------------------===//
   // Plan Info
@@ -61,6 +56,7 @@ class SeqScanExecutor : public AbstractScanExecutor {
   /** @brief Pointer to table to scan from. */
   storage::DataTable *target_table_ = nullptr;
 };
+
 
 }  // namespace executor
 }  // namespace peloton
