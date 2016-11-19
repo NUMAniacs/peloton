@@ -207,7 +207,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   }
 
   LOG_DEBUG("Generated %ld tasks", tasks.size());
-
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   // This happens for single statement queries in PG
   bool single_statement_txn = true;

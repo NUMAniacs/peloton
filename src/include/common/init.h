@@ -22,8 +22,6 @@ extern ThreadPool thread_pool;
 
 extern PartitionThreadPool partitioned_executor_thread_pool;
 
-extern PartitionThreadPool partitioned_executor_thread_pool;
-
 //===--------------------------------------------------------------------===//
 // Global Setup and Teardown
 //===--------------------------------------------------------------------===//

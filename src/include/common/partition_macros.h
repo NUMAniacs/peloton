@@ -47,7 +47,6 @@ namespace peloton {
 #define PL_GET_PARTITION_SIZE() 2
 
 #else
-
 // Get total number of partitions
 #define PL_NUM_PARTITIONS() (int)(std::thread::hardware_concurrency() / 2)
 

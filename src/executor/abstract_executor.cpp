@@ -28,7 +28,7 @@ namespace executor {
  */
 AbstractExecutor::AbstractExecutor(const planner::AbstractPlan *node,
                                    ExecutorContext *executor_context)
-    : node_(node), executor_context_(executor_context), task_(nullptr) {}
+    : node_(node), executor_context_(executor_context) {}
 
 void AbstractExecutor::SetOutput(LogicalTile *table) { output.reset(table); }
 
@@ -96,10 +96,6 @@ bool AbstractExecutor::Execute() {
   bool status = DExecute();
 
   return status;
-}
-
-void AbstractExecutor::SetTask(std::shared_ptr<AbstractTask> task) {
-  task_ = task;
 }
 
 void AbstractExecutor::SetContext(common::Value &value) {
