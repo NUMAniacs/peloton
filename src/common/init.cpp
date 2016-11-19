@@ -28,9 +28,6 @@ namespace peloton {
 
 ThreadPool thread_pool;
 
-// decouple client handling from query execution
-ThreadPool executor_thread_pool;
-
 // partitioned thread pool (currently based on NUMA regions)
 PartitionThreadPool partitioned_executor_thread_pool;
 
@@ -50,10 +47,6 @@ void PelotonInit::Initialize() {
   // Initialize partitioned thread pool
   partitioned_executor_thread_pool.Initialize(
       (int)std::thread::hardware_concurrency());
-
-  // FIXME: Find a way to balance client threads with execution
-  // threads. Too many active clients might starve execution.
-  executor_thread_pool.Initialize(std::thread::hardware_concurrency(), 0);
 
   int parallelism = (std::thread::hardware_concurrency() + 1) / 2;
   storage::DataTable::SetActiveTileGroupCount(parallelism);
@@ -75,7 +68,6 @@ void PelotonInit::Shutdown() {
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();
 
   thread_pool.Shutdown();
-  executor_thread_pool.Shutdown();
 
   // Terminate CDS library
   cds::Terminate();

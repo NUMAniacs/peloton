@@ -115,7 +115,7 @@ struct ExchangeParams {
   inline ExchangeParams(concurrency::Transaction *txn,
                         const std::shared_ptr<Statement> &statement,
                         const std::vector<common::Value> &params,
-                        std::shared_ptr<executor::AbstractTask> task,
+                        const std::shared_ptr<executor::AbstractTask> &task,
                         const std::vector<int> &result_format,
                         const bool &init_failure, Notifiable *callback)
       : txn(txn),
