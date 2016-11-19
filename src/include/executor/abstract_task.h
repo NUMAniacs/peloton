@@ -14,11 +14,16 @@
 
 #include <memory>
 #include <vector>
+#include "executor/logical_tile.h"
 
 // TODO move me to type.h
 #define DEFAULT_PARTITION_ID 0
 
 namespace peloton {
+
+namespace bridge {
+class Notifiable;
+}
 
 namespace planner {
 class AbstractPlan;
@@ -39,6 +44,12 @@ class AbstractTask {
 
   // The target partition's id
   int partition_id = DEFAULT_PARTITION_ID;
+
+  // The callback to call after task completes
+  bridge::Notifiable *callback = nullptr;
+
+  // The results
+  std::vector<std::unique_ptr<executor::LogicalTile>> results;
 };
 
 class InsertTask : public AbstractTask {
@@ -54,7 +65,6 @@ class InsertTask : public AbstractTask {
     tuple_bitmap.resize(bulk_insert_count, true);
   }
 
-  // TODO use bitset instead to save space
   // The bitmap of tuples to insert
   std::vector<bool> tuple_bitmap;
 };
