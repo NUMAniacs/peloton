@@ -28,23 +28,6 @@ namespace peloton {
 
 #if SIMULATE_NUMA_PARTITION
   // Get total number of partitions
-#define PL_NUM_PARTITIONS() (numa_max_node() + 1)
-
-// Get the partition node id of current worker
-#define PL_GET_PARTITION_NODE() sched_getcpu()
-
-// Get the partition id
-#define PL_GET_PARTITION_ID(x) numa_node_of_cpu(x)
-
-// Allocate a partition
-#define PL_PARTITION_ALLOC(size, partition) numa_alloc_onnode(size, partition);
-
-// Get the number of parallel units in each partition
-// (Assume homogeneous architecture)
-#define PL_GET_PARTITION_SIZE() 2
-#else
-
-// Get total number of partitions
 #define PL_NUM_PARTITIONS() (int)(std::thread::hardware_concurrency() / 2)
 
 // Get the partition node id of current worker (= core id)
@@ -60,6 +43,23 @@ namespace peloton {
 // Get the number of parallel units in each partition
 // (Assume homogeneous architecture)
 #define PL_GET_PARTITION_SIZE() (int)(std::thread::hardware_concurrency() / PL_NUM_PARTITIONS())
+
+#else
+  // Get total number of partitions
+#define PL_NUM_PARTITIONS() (numa_max_node() + 1)
+
+// Get the partition node id of current worker
+#define PL_GET_PARTITION_NODE() sched_getcpu()
+
+// Get the partition id
+#define PL_GET_PARTITION_ID(x) numa_node_of_cpu(x)
+
+// Allocate a partition
+#define PL_PARTITION_ALLOC(size, partition) numa_alloc_onnode(size, partition);
+
+// Get the number of parallel units in each partition
+// (Assume homogeneous architecture)
+#define PL_GET_PARTITION_SIZE() 2
 
 #endif
 

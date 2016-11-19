@@ -2,9 +2,9 @@
 //
 //                         Peloton
 //
-// seq_scan_executor.h
+// parallel_seq_scan_executor.h
 //
-// Identification: src/include/executor/seq_scan_executor.h
+// Identification: src/include/executor/parallel_seq_scan_executor.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //

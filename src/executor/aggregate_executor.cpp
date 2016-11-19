@@ -188,14 +188,17 @@ bool AggregateExecutor::DExecute() {
 
   if (tile_group_count == 0) return false;
 
-  for (oid_t tile_group_itr = 0; tile_group_itr < tile_group_count;
-       tile_group_itr++) {
-    auto tile_group = output_table->GetTileGroup(tile_group_itr);
+  for (size_t p=0; p < output_table->GetPartitionCount(); p++) {
+    for (size_t tile_group_itr = 0;
+         tile_group_itr < output_table->GetPartitionTileGroupCount(p);
+         tile_group_itr++) {
+      auto tile_group = output_table->GetTileGroupFromPartition(p, tile_group_itr);
 
-    // Get the logical tiles corresponding to the given tile group
-    auto logical_tile = LogicalTileFactory::WrapTileGroup(tile_group);
+      // Get the logical tiles corresponding to the given tile group
+      auto logical_tile = LogicalTileFactory::WrapTileGroup(tile_group);
 
-    result.push_back(logical_tile);
+      result.push_back(logical_tile);
+    }
   }
 
   done = true;
