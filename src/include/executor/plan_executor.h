@@ -53,40 +53,42 @@ struct ExchangeParams;
 * This class can be notified when a task completes
 */
 class Notifiable {
-public:
-  virtual ~Notifiable(){}
-  virtual void TaskComplete(ExchangeParams * params) = 0;
-
+ public:
+  virtual ~Notifiable() {}
+  virtual void TaskComplete(ExchangeParams *params) = 0;
 };
 
 /*
 * This class can be notified when a task completes
 */
 class BlockingWait : public Notifiable {
-public:
-  BlockingWait(int total_tasks) : Notifiable(), total_tasks_(total_tasks), tasks_complete_(0), all_done(false) {}
+ public:
+  BlockingWait(int total_tasks)
+      : Notifiable(),
+        total_tasks_(total_tasks),
+        tasks_complete_(0),
+        all_done(false) {}
 
-  ~BlockingWait(){}
+  ~BlockingWait() {}
 
-  //when a task completes it will call this
-  void TaskComplete(UNUSED_ATTRIBUTE ExchangeParams * params) override {
+  // when a task completes it will call this
+  void TaskComplete(UNUSED_ATTRIBUTE ExchangeParams *params) override {
     int task_num = tasks_complete_.fetch_add(1);
 
-    if (task_num == total_tasks_ -1) {
+    if (task_num == total_tasks_ - 1) {
       // we are the last task to complete
       std::unique_lock<std::mutex> lk(done_lock);
       all_done = true;
       cv.notify_all();
     }
   }
-  //wait for all tasks to be complete
+  // wait for all tasks to be complete
   void WaitForCompletion() {
     std::unique_lock<std::mutex> lk(done_lock);
     while (!all_done) cv.wait(lk);
   }
 
-private:
-
+ private:
   int total_tasks_;
   std::atomic<int> tasks_complete_;
   bool all_done;
@@ -94,7 +96,6 @@ private:
   // dirty mutex is okay for now since this class will be removed
   std::mutex done_lock;
   std::condition_variable cv;
-
 };
 
 /*
@@ -111,7 +112,6 @@ struct ExchangeParams {
   const std::vector<int> result_format;
   bool init_failure;
   ExchangeParams *self;
-  Notifiable * callback_;
 
   inline ExchangeParams(concurrency::Transaction *txn,
                         const std::shared_ptr<Statement> &statement,
@@ -119,22 +119,21 @@ struct ExchangeParams {
                         const int num_tasks,
                         std::shared_ptr<executor::AbstractTask> task,
                         const std::vector<int> &result_format,
-                        const bool &init_failure,
-                        Notifiable * callback)
+                        const bool &init_failure, Notifiable *callback)
       : txn(txn),
         statement(statement),
         params(params),
         num_tasks(num_tasks),
         task(task),
         result_format(result_format),
-        init_failure(init_failure),
-        callback_(callback){
+        init_failure(init_failure) {
     self = this;
+    this->task->callback = callback;
   }
 
-  void TaskComplete(const bridge::peloton_status& p_status) {
+  void TaskComplete(const bridge::peloton_status &p_status) {
     this->p_status = p_status;
-    callback_->TaskComplete(this);
+    task->callback->TaskComplete(this);
   }
 };
 
