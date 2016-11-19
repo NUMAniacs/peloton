@@ -64,6 +64,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   // network
   std::unique_ptr<executor::ExecutorContext> executor_context(
       BuildExecutorContext(exchg_params->params, exchg_params->txn));
+
   PL_ASSERT(exchg_params->task != nullptr);
   executor_context->SetTask(exchg_params->task);
 
@@ -73,8 +74,6 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
                         executor_context.get()));
 
   LOG_TRACE("Initializing the executor tree");
-
-  executor_tree->SetTask(exchg_params->task);
 
   // Initialize the executor tree
   status = executor_tree->Init();
@@ -291,84 +290,89 @@ executor::AbstractExecutor *BuildExecutorTree(
       break;
 
     case PLAN_NODE_TYPE_SEQSCAN:
-      LOG_TRACE("Adding Sequential Scan Executer");
+      LOG_TRACE("Adding Sequential Scan Executor");
       child_executor = new executor::SeqScanExecutor(plan, executor_context);
       break;
 
+    case PLAN_NODE_TYPE_PARALLEL_SEQSCAN:
+      LOG_TRACE("Adding Parallel Sequential Scan Executor");
+      child_executor = new executor::ParallelSeqScanExecutor(plan, executor_context);
+      break;
+
     case PLAN_NODE_TYPE_INDEXSCAN:
-      LOG_TRACE("Adding Index Scan Executer");
+      LOG_TRACE("Adding Index Scan Executor");
       child_executor = new executor::IndexScanExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_INSERT: {
-      LOG_TRACE("Adding Insert Executer");
+      LOG_TRACE("Adding Insert Executor");
       child_executor = new executor::InsertExecutor(executor_context);
       break;
     }
     case PLAN_NODE_TYPE_DELETE:
-      LOG_TRACE("Adding Delete Executer");
+      LOG_TRACE("Adding Delete Executor");
       child_executor = new executor::DeleteExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_UPDATE:
-      LOG_TRACE("Adding Update Executer");
+      LOG_TRACE("Adding Update Executor");
       child_executor = new executor::UpdateExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_LIMIT:
-      LOG_TRACE("Adding Limit Executer");
+      LOG_TRACE("Adding Limit Executor");
       child_executor = new executor::LimitExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_NESTLOOP:
-      LOG_TRACE("Adding Nested Loop Joing Executer");
+      LOG_TRACE("Adding Nested Loop Joing Executor");
       child_executor =
           new executor::NestedLoopJoinExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_MERGEJOIN:
-      LOG_TRACE("Adding Merge Join Executer");
+      LOG_TRACE("Adding Merge Join Executor");
       child_executor = new executor::MergeJoinExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_HASH:
-      LOG_TRACE("Adding Hash Executer");
+      LOG_TRACE("Adding Hash Executor");
       child_executor = new executor::HashExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_HASHJOIN:
-      LOG_TRACE("Adding Hash Join Executer");
+      LOG_TRACE("Adding Hash Join Executor");
       child_executor = new executor::HashJoinExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_PROJECTION:
-      LOG_TRACE("Adding Projection Executer");
+      LOG_TRACE("Adding Projection Executor");
       child_executor = new executor::ProjectionExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_MATERIALIZE:
-      LOG_TRACE("Adding Materialization Executer");
+      LOG_TRACE("Adding Materialization Executor");
       child_executor =
           new executor::MaterializationExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_AGGREGATE_V2:
-      LOG_TRACE("Adding Aggregate Executer");
+      LOG_TRACE("Adding Aggregate Executor");
       child_executor = new executor::AggregateExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_ORDERBY:
-      LOG_TRACE("Adding Order By Executer");
+      LOG_TRACE("Adding Order By Executor");
       child_executor = new executor::OrderByExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_DROP:
-      LOG_TRACE("Adding Drop Executer");
+      LOG_TRACE("Adding Drop Executor");
       child_executor = new executor::DropExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_CREATE:
-      LOG_TRACE("Adding Create Executer");
+      LOG_TRACE("Adding Create Executor");
       child_executor = new executor::CreateExecutor(plan, executor_context);
       break;
 

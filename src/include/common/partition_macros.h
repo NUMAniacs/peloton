@@ -45,7 +45,7 @@ namespace peloton {
 #define PL_GET_PARTITION_SIZE() (int)(std::thread::hardware_concurrency() / PL_NUM_PARTITIONS())
 
 #else
-  // Get total number of partitions
+// Get total number of partitions
 #define PL_NUM_PARTITIONS() (numa_max_node() + 1)
 
 // Get the partition node id of current worker

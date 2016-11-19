@@ -53,9 +53,6 @@ class AbstractExecutor {
 
   const std::vector<AbstractExecutor *> &GetChildren() const;
 
-  virtual void SetTask(std::shared_ptr<AbstractTask> task);
-
-
   //===--------------------------------------------------------------------===//
   // Accessors
   //===--------------------------------------------------------------------===//
@@ -114,10 +111,6 @@ class AbstractExecutor {
  protected:
   // Executor context
   ExecutorContext *executor_context_ = nullptr;
-
-  // The task executed by this query
-  // (for intra-query parallelism support)
-  std::shared_ptr<AbstractTask> task_;
 };
 
 }  // namespace executor

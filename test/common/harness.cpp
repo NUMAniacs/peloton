@@ -63,15 +63,13 @@ ExecutorPoolHarness& ExecutorPoolHarness::GetInstance() {
 }
 
 ExecutorPoolHarness::ExecutorPoolHarness() {
-  // Start the executor thread pool
-  executor_thread_pool.Initialize(std::thread::hardware_concurrency(), 0);
+  // Start the thread pool
   partitioned_executor_thread_pool.Initialize(
       std::thread::hardware_concurrency());
 }
 
 ExecutorPoolHarness::~ExecutorPoolHarness() {
-  // Shutdown the executor thread pool
-  executor_thread_pool.Shutdown();
+  // Shutdown the thread pool
   partitioned_executor_thread_pool.Shutdown();
 }
 

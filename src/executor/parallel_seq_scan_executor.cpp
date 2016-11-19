@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 #include <numeric>
+#include <include/planner/parallel_seq_scan_plan.h>
 
 #include "common/types.h"
 #include "executor/logical_tile.h"
@@ -51,17 +52,18 @@ bool ParallelSeqScanExecutor::DInit() {
   if (!status) return false;
 
   // Grab data from plan node.
-  const planner::SeqScanPlan &node = GetPlanNode<planner::SeqScanPlan>();
+  const planner::ParallelSeqScanPlan &node = GetPlanNode<planner::ParallelSeqScanPlan>();
 
   target_table_ = node.GetTable();
 
   // the task should be set in a previous step
-  PL_ASSERT(task_.get() != nullptr);
+  PL_ASSERT(executor_context_->GetTask().get() != nullptr);
 
-  auto seq_scan_task = std::dynamic_pointer_cast<SeqScanTask>(task_);
+  auto seq_scan_task = std::dynamic_pointer_cast<SeqScanTask>(executor_context_->GetTask());
   tile_group_itr_ = seq_scan_task->tile_group_ptrs.begin();
   tile_group_end_itr_ = seq_scan_task->tile_group_ptrs.end();
-  task_id_ = seq_scan_task->task_id;
+  // TODO: Remove after changing txn system
+  task_id_ = PL_GET_PARTITION_NODE();
 
   if (target_table_ != nullptr) {
     if (column_ids_.empty()) {

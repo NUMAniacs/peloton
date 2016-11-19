@@ -373,9 +373,9 @@ void PelotonService::QueryPlan(::google::protobuf::RpcController* controller,
         ss_plan->DeserializeFrom(input);
 
         std::vector<std::unique_ptr<executor::LogicalTile>> logical_tile_list;
-        executor_thread_pool.SubmitTask(bridge::PlanExecutor::ExecutePlanRemote,
-                                        ss_plan.get(), std::ref(params),
-                                        std::ref(logical_tile_list), std::ref(p));
+        partitioned_executor_thread_pool.SubmitTaskRandom(
+            bridge::PlanExecutor::ExecutePlanRemote, ss_plan.get(), std::ref(params),
+            std::ref(logical_tile_list), std::ref(p));
 
         // wait for the executor thread to produce results
         int tuple_count = f.get();

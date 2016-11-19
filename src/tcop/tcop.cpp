@@ -12,8 +12,10 @@
 
 #include "tcop/tcop.h"
 
+#include "catalog/catalog.h"
 #include "common/abstract_tuple.h"
 #include "common/config.h"
+#include "common/init.h"
 #include "common/logger.h"
 #include "common/macros.h"
 #include "common/partition_macros.h"
@@ -21,20 +23,19 @@
 #include "common/type.h"
 #include "common/types.h"
 #include "common/partition_macros.h"
+#include "common/thread_pool.h"
+
+#include "executor/plan_executor.h"
+#include "executor/abstract_task.h"
 
 #include "expression/parser_expression.h"
-#include "parser/parser.h"
-
-#include "catalog/catalog.h"
-#include "executor/plan_executor.h"
 #include "optimizer/simple_optimizer.h"
+#include "parser/parser.h"
+#include "planner/parallel_seq_scan_plan.h"
 
-#include "common/thread_pool.h"
-#include <include/common/init.h>
+
 #include <tuple>
-#include <include/tcop/tcop.h>
 #include <numa.h>
-#include "executor/abstract_task.h"
 
 namespace peloton {
 namespace tcop {
@@ -174,8 +175,9 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       break;
     }
     case PlanNodeType::PLAN_NODE_TYPE_PARALLEL_SEQSCAN: {
-      planner::SeqScanPlan *seq_scan_plan = static_cast<planner::SeqScanPlan *>(plan_tree);
-      auto target_table = seq_scan_plan->GetTable();
+      planner::ParallelSeqScanPlan *parallel_seq_scan_plan =
+          static_cast<planner::ParallelSeqScanPlan *>(plan_tree);
+      auto target_table = parallel_seq_scan_plan->GetTable();
       auto partition_count = target_table->GetPartitionCount();
 
       // Assuming that we always have at least one partition,
@@ -210,6 +212,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     }
   }
 
+  LOG_DEBUG("Generated %ld tasks", tasks.size());
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   // This happens for single statement queries in PG
   bool single_statement_txn = true;
@@ -239,8 +242,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         break;
       default: {
         // Use normal executor pool for other queries
-        executor_thread_pool.SubmitTask(bridge::PlanExecutor::ExecutePlanLocal,
-                                        &exchg_params->self);
+        partitioned_executor_thread_pool.SubmitTaskRandom(
+            bridge::PlanExecutor::ExecutePlanLocal, &exchg_params->self);
         break;
       }
     }
