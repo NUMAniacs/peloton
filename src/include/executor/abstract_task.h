@@ -19,6 +19,7 @@
 
 // TODO move me to type.h
 #define DEFAULT_PARTITION_ID 0
+#define TASK_TILEGROUP_COUNT 100
 
 namespace peloton {
 

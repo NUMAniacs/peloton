@@ -32,6 +32,7 @@
 #include "planner/limit_plan.h"
 #include "planner/order_by_plan.h"
 #include "planner/seq_scan_plan.h"
+#include "planner/parallel_seq_scan_plan.h"
 #include "planner/update_plan.h"
 #include "storage/data_table.h"
 
@@ -590,9 +591,14 @@ std::unique_ptr<planner::AbstractScan> SimpleOptimizer::CreateScanPlan(
                             key_column_ids, expr_types, values, index_id)) {
     // Create sequential scan plan
     LOG_TRACE("Creating a sequential scan plan");
-    std::unique_ptr<planner::SeqScanPlan> child_SelectPlan(
-        new planner::SeqScanPlan(select_stmt));
-    LOG_TRACE("Sequential scan plan created");
+    std::unique_ptr<planner::AbstractScan> child_SelectPlan;
+    if (target_table->GetTileGroupCount() < PARALLEL_SCAN_THRESHOLD) {
+      child_SelectPlan.reset(new planner::SeqScanPlan(select_stmt));
+      LOG_TRACE("Sequential scan plan created");
+    } else {
+      child_SelectPlan.reset(new planner::ParallelSeqScanPlan(select_stmt));
+      LOG_TRACE("Parallel Sequential scan plan created");
+    }
     return std::move(child_SelectPlan);
   }
 

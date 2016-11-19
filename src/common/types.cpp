@@ -575,6 +575,7 @@ std::string PlanNodeTypeToString(PlanNodeType type) {
     case PLAN_NODE_TYPE_INVALID: { return "INVALID"; }
     case PLAN_NODE_TYPE_ABSTRACT_SCAN: { return "ABSTRACT_SCAN"; }
     case PLAN_NODE_TYPE_SEQSCAN: { return "SEQSCAN"; }
+    case PLAN_NODE_TYPE_PARALLEL_SEQSCAN: { return "PARALLELSEQSCAN"; }
     case PLAN_NODE_TYPE_INDEXSCAN: { return "INDEXSCAN"; }
     case PLAN_NODE_TYPE_NESTLOOP: { return "NESTLOOP"; }
     case PLAN_NODE_TYPE_NESTLOOPINDEX: { return "NESTLOOPINDEX"; }
