@@ -41,6 +41,7 @@ namespace executor {
 ParallelSeqScanExecutor::ParallelSeqScanExecutor(
     const planner::AbstractPlan *node, ExecutorContext *executor_context)
     : AbstractScanExecutor(node, executor_context) {}
+    : AbstractScanExecutor(node, executor_context) {}
 
 /**
  * @brief Let base class DInit() first, then do mine.
@@ -159,6 +160,7 @@ bool ParallelSeqScanExecutor::DExecute() {
             position_list.push_back(tuple_id);
             auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
                                                        txn_partition_id_);
+                                                       task_id_);
             if (!res) {
               transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
               return res;

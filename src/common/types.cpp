@@ -907,7 +907,6 @@ std::string PlanNodeTypeToString(PlanNodeType type) {
     default: {
       throw ConversionException("No conversion from PlanNodeType");  // FIXME
     }
-
   }
   return "INVALID";
 }

@@ -239,7 +239,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         // Use the partitioned_executor_pool for partition aware queries
         auto partition_aware_task =
             static_cast<executor::PartitionAwareTask *>(task.get());
-        partitioned_executor_thread_pool.SubmitTask(
+      partitioned_executor_thread_pool.SubmitTask(
             partition_aware_task->partition_id,
             bridge::PlanExecutor::ExecutePlanLocal, &exchg_params->self);
         break;

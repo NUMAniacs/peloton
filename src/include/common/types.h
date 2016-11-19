@@ -872,6 +872,14 @@ extern size_t EPOCH_THREAD_COUNT;
 static const int NO_PARTITION_COLUMN = -1;
 
 //===--------------------------------------------------------------------===//
+// Seq Scan Macros
+//===--------------------------------------------------------------------===//
+/* Minimum number of tule groups required for switching
+ * to a parallel scan plan
+ */
+#define PARALLEL_SCAN_THRESHOLD 100
+
+//===--------------------------------------------------------------------===//
 // TupleMetadata
 //===--------------------------------------------------------------------===//
 struct TupleMetadata {

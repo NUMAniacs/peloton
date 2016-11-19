@@ -14,7 +14,6 @@
 
 #include "planner/seq_scan_plan.h"
 #include "executor/abstract_scan_executor.h"
-#include "executor/abstract_task.h"
 
 namespace peloton {
 namespace executor {
@@ -70,7 +69,6 @@ class SeqScanExecutor : public AbstractScanExecutor {
   /** @brief Pointer to table to scan from. */
   storage::DataTable *target_table_ = nullptr;
 };
-
 
 }  // namespace executor
 }  // namespace peloton
