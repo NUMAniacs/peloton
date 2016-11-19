@@ -2,9 +2,9 @@
 //
 //                         Peloton
 //
-// seq_scan_plan.cpp
+// parallel_seq_scan_plan.cpp
 //
-// Identification: src/planner/seq_scan_plan.cpp
+// Identification: src/planner/parallel_seq_scan_plan.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //

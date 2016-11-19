@@ -26,6 +26,7 @@
 #include "storage/tile.h"
 #include "storage/database.h"
 #include "catalog/catalog.h"
+#include "common/macros.h"
 
 namespace peloton {
 namespace executor {
@@ -485,7 +486,7 @@ bool TransactionTestsUtil::ExecuteParallelScan(concurrency::Transaction *transac
 void TransactionTestsUtil::ThreadExecuteScan(concurrency::Transaction *transaction,
                                              std::vector<int> &results,
                                              storage::DataTable *table, int id,
-                                             int num_tasks, int partition_id,
+                                             UNUSED_ATTRIBUTE int num_tasks, int partition_id,
                                              bool select_for_update,
                                              std::vector<bool> &status) {
   LOG_DEBUG("thread pid:%d", partition_id);
@@ -507,7 +508,8 @@ void TransactionTestsUtil::ThreadExecuteScan(concurrency::Transaction *transacti
                                      select_for_update);
   executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
 
-  seq_scan_executor.SetParallelism(num_tasks, partition_id);
+  // TODO: Modify seq scan test to include new task system
+  //  seq_scan_executor.SetParallelism(num_tasks, partition_id);
 
   EXPECT_TRUE(seq_scan_executor.Init());
   if (seq_scan_executor.Execute() == false) {

@@ -55,10 +55,12 @@ bool SeqScanExecutor::DInit() {
 
   target_table_ = node.GetTable();
 
-  table_partition_count_ = target_table_->GetPartitionCount();
   current_partition_offset_ = 0;
+  current_tile_group_offset_ = 0;
 
   if (target_table_ != nullptr) {
+    table_partition_count_ = target_table_->GetPartitionCount();
+
     if (column_ids_.empty()) {
       column_ids_.resize(target_table_->GetSchema()->GetColumnCount());
       std::iota(column_ids_.begin(), column_ids_.end(), 0);
@@ -122,15 +124,14 @@ bool SeqScanExecutor::DExecute() {
     auto current_txn = executor_context_->GetTransaction();
 
     while (current_partition_offset_ < table_partition_count_) {
-      // load the next partition
-      current_tile_group_offset_ = 0;
       partition_tile_group_count_ =
-          target_table_->GetPartitionTileGroupCount(current_partition_offset_++);
+          target_table_->GetPartitionTileGroupCount(current_partition_offset_);
 
       // Retrieve next tile group.
       while (current_tile_group_offset_ < partition_tile_group_count_) {
         auto tile_group =
-            target_table_->GetTileGroup(current_tile_group_offset_++);
+            target_table_->GetTileGroupFromPartition(
+                current_partition_offset_, current_tile_group_offset_++);
         auto tile_group_header = tile_group->GetHeader();
 
         oid_t active_tuple_count = tile_group->GetNextTupleSlot();
@@ -197,6 +198,10 @@ bool SeqScanExecutor::DExecute() {
         SetOutput(logical_tile.release());
         return true;
       }
+
+      // load the next partition
+      current_tile_group_offset_ = 0;
+      current_partition_offset_++;
     }
   }
 
