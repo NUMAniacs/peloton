@@ -50,7 +50,7 @@ bool ParallelHashJoinExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool ParallelHashJoinExecutor::DExecute() {
-  LOG_TRACE("********** Hash Join executor :: 2 children \n");
+  LOG_DEBUG("********** Hash Join executor :: 2 children \n");
 
   // Loop until we have non-empty result tile or exit
   for (;;) {
@@ -81,16 +81,16 @@ bool ParallelHashJoinExecutor::DExecute() {
 
     // Get next tile from LEFT child
     if (children_[0]->Execute() == false) {
-      LOG_TRACE("Did not get left tile \n");
+      LOG_DEBUG("Did not get left tile \n");
       left_child_done_ = true;
       continue;
     }
 
     BufferLeftTile(children_[0]->GetOutput());
-    LOG_TRACE("Got left tile \n");
+    LOG_DEBUG("Got left tile \n");
 
     if (right_result_tiles_.size() == 0) {
-      LOG_TRACE("Did not get any right tiles \n");
+      LOG_DEBUG("Did not get any right tiles \n");
       return BuildOuterJoinOutput();
     }
 
@@ -126,7 +126,7 @@ bool ParallelHashJoinExecutor::DExecute() {
           if (prev_tile != location.first) {
             // Check if we have any join tuples
             if (pos_lists_builder.Size() > 0) {
-              LOG_TRACE("Join tile size : %lu \n", pos_lists_builder.Size());
+              LOG_DEBUG("Join tile size : %lu \n", pos_lists_builder.Size());
               output_tile->SetPositionListsAndVisibility(
                   pos_lists_builder.Release());
               buffered_output_tiles.push_back(output_tile.release());
@@ -159,7 +159,7 @@ bool ParallelHashJoinExecutor::DExecute() {
 
     // Check if we have any join tuples
     if (pos_lists_builder.Size() > 0) {
-      LOG_TRACE("Join tile size : %lu \n", pos_lists_builder.Size());
+      LOG_DEBUG("Join tile size : %lu \n", pos_lists_builder.Size());
       output_tile->SetPositionListsAndVisibility(pos_lists_builder.Release());
       buffered_output_tiles.push_back(output_tile.release());
     }
