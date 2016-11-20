@@ -44,7 +44,10 @@ using ::testing::InSequence;
 namespace peloton {
 namespace test {
 
-class JoinTests : public PelotonTest {};
+// XXX This is simply a copy of join test. Not tested in parallel.
+// TODO Refactor the util functions with join test
+
+class ParallelJoinTests : public PelotonTest {};
 
 std::shared_ptr<const peloton::catalog::Schema> CreateJoinSchema() {
   return std::shared_ptr<const peloton::catalog::Schema>(
@@ -85,7 +88,7 @@ enum JOIN_TEST_TYPE {
   RIGHT_TABLE_EMPTY = 5,
 };
 
-TEST_F(JoinTests, BasicTest) {
+TEST_F(ParallelJoinTests, BasicTest) {
   // Go over all join algorithms
   for (auto join_algorithm : join_algorithms) {
     LOG_INFO("JOIN ALGORITHM :: %s",
@@ -94,7 +97,7 @@ TEST_F(JoinTests, BasicTest) {
   }
 }
 
-TEST_F(JoinTests, EmptyTablesTest) {
+TEST_F(ParallelJoinTests, EmptyTablesTest) {
   // Go over all join algorithms
   for (auto join_algorithm : join_algorithms) {
     LOG_INFO("JOIN ALGORITHM :: %s",
@@ -103,7 +106,7 @@ TEST_F(JoinTests, EmptyTablesTest) {
   }
 }
 
-TEST_F(JoinTests, JoinTypesTest) {
+TEST_F(ParallelJoinTests, JoinTypesTest) {
   // Go over all join algorithms
   for (auto join_algorithm : join_algorithms) {
     LOG_INFO("JOIN ALGORITHM :: %s",
@@ -117,7 +120,7 @@ TEST_F(JoinTests, JoinTypesTest) {
   }
 }
 
-TEST_F(JoinTests, LeftTableEmptyTest) {
+TEST_F(ParallelJoinTests, LeftTableEmptyTest) {
   // Go over all join algorithms
   for (auto join_algorithm : join_algorithms) {
     LOG_INFO("JOIN ALGORITHM :: %s",
@@ -131,7 +134,7 @@ TEST_F(JoinTests, LeftTableEmptyTest) {
   }
 }
 
-TEST_F(JoinTests, RightTableEmptyTest) {
+TEST_F(ParallelJoinTests, RightTableEmptyTest) {
   // Go over all join algorithms
   for (auto join_algorithm : join_algorithms) {
     LOG_INFO("JOIN ALGORITHM :: %s",
@@ -145,7 +148,7 @@ TEST_F(JoinTests, RightTableEmptyTest) {
   }
 }
 
-TEST_F(JoinTests, JoinPredicateTest) {
+TEST_F(ParallelJoinTests, JoinPredicateTest) {
   oid_t join_test_types = 1;
 
   // Go over all join test types
@@ -167,7 +170,7 @@ TEST_F(JoinTests, JoinPredicateTest) {
   }
 }
 
-TEST_F(JoinTests, SpeedTest) {
+TEST_F(ParallelJoinTests, SpeedTest) {
   ExecuteJoinTest(PLAN_NODE_TYPE_HASHJOIN, JOIN_TYPE_OUTER, SPEED_TEST);
 }
 
