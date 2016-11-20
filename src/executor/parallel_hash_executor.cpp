@@ -87,8 +87,17 @@ bool ParallelHashExecutor::DExecute() {
       for (oid_t tuple_id : *tile) {
         // Key : container tuple with a subset of tuple attributes
         // Value : < child_tile offset, tuple offset >
-        hash_table_[HashMapType::key_type(tile, tuple_id, &column_ids_)]
-            .insert(std::make_pair(child_tile_itr, tuple_id));
+
+        // FIXME This is not thread safe at all
+        auto key = ParallelHashMapType::key_type(tile, tuple_id, &column_ids_);
+        std::shared_ptr<HashSet> value;
+        auto status = hash_table_.find(key, value);
+        // Not found
+        if (status == false) {
+          value.reset(new HashSet());
+        }
+        value->insert(std::make_pair(child_tile_itr, tuple_id));
+        hash_table_.update(key, value);
       }
     }
 

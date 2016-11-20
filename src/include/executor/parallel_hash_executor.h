@@ -19,8 +19,8 @@
 #include "executor/abstract_executor.h"
 #include "executor/logical_tile.h"
 #include "common/container_tuple.h"
-
 #include <boost/functional/hash.hpp>
+#include "libcuckoo/cuckoohash_map.hh"
 
 namespace peloton {
 namespace executor {
@@ -40,14 +40,17 @@ class ParallelHashExecutor : public AbstractExecutor {
                                 ExecutorContext *executor_context);
 
   /** @brief Type definitions for hash table */
-  typedef std::unordered_map<
-      expression::ContainerTuple<LogicalTile>,
-      std::unordered_set<std::pair<size_t, oid_t>,
-                         boost::hash<std::pair<size_t, oid_t>>>,
-      expression::ContainerTupleHasher<LogicalTile>,
-      expression::ContainerTupleComparator<LogicalTile>> HashMapType;
+  typedef std::unordered_set<std::pair<size_t, oid_t>,
+                             boost::hash<std::pair<size_t, oid_t>>> HashSet;
 
-  inline HashMapType &GetHashTable() { return this->hash_table_; }
+  typedef cuckoohash_map<
+      expression::ContainerTuple<LogicalTile>,           // Key
+      std::shared_ptr<HashSet>,                          // T
+      expression::ContainerTupleHasher<LogicalTile>,     // Hash
+      expression::ContainerTupleComparator<LogicalTile>  // Pred
+      > ParallelHashMapType;
+
+  inline ParallelHashMapType &GetHashTable() { return this->hash_table_; }
 
   inline const std::vector<oid_t> &GetHashKeyIds() const {
     return this->column_ids_;
@@ -60,7 +63,7 @@ class ParallelHashExecutor : public AbstractExecutor {
 
  private:
   /** @brief Hash table */
-  HashMapType hash_table_;
+  ParallelHashMapType hash_table_;
 
   /** @brief Input tiles from child node */
   std::vector<std::unique_ptr<LogicalTile>> child_tiles_;
