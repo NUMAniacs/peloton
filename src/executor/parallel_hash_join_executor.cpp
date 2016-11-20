@@ -114,13 +114,14 @@ bool ParallelHashJoinExecutor::DExecute() {
           left_tile, left_tile_itr, &hashed_col_ids);
 
       // Find matching tuples in the hash table built on top of the right table
-      auto right_tuples = hash_table.find(left_tuple);
+      std::shared_ptr<ParallelHashExecutor::HashSet> right_tuples;
+      auto success = hash_table.find(left_tuple, right_tuples);
 
-      if (right_tuples != hash_table.end()) {
+      if (success) {
         RecordMatchedLeftRow(left_result_tiles_.size() - 1, left_tile_itr);
 
         // Go over the matching right tuples
-        for (auto &location : right_tuples->second) {
+        for (auto &location : *(right_tuples.get())) {
           // Check if we got a new right tile itr
           if (prev_tile != location.first) {
             // Check if we have any join tuples
