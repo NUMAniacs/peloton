@@ -338,7 +338,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
       // Create hash plan node
       planner::HashPlan hash_plan_node(hash_keys);
 
-      // Construct the hash executor
+      // Construct one instance of the hash executor
       executor::ParallelHashExecutor hash_executor(&hash_plan_node, nullptr);
 
       // Create hash join plan node.

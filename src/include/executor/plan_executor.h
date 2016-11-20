@@ -117,7 +117,7 @@ struct ExchangeParams {
                         const std::vector<common::Value> &params,
                         const std::shared_ptr<executor::AbstractTask> &task,
                         const std::vector<int> &result_format,
-                        const bool &init_failure, Notifiable *callback)
+                        const bool &init_failure)
       : txn(txn),
         statement(statement),
         params(params),
@@ -125,11 +125,11 @@ struct ExchangeParams {
         result_format(result_format),
         init_failure(init_failure) {
     self = this;
-    this->task->callback = callback;
   }
 
   void TaskComplete(const bridge::peloton_status &p_status) {
     this->p_status = p_status;
+    PL_ASSERT(task->callback != nullptr);
     task->callback->TaskComplete(this);
   }
 };
