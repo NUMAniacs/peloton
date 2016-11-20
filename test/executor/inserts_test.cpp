@@ -187,56 +187,48 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   auto table = catalog::Catalog::GetInstance()->GetTableWithName(
       DEFAULT_DB_NAME, "TEST_TABLE");
 
-  int num_partition = 2;
+  int num_partition = PL_NUM_PARTITIONS();
   txn = txn_manager.BeginTransaction(num_partition);
 
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
-
   std::unique_ptr<parser::InsertStatement> insert_stmt(
       new parser::InsertStatement(INSERT_TYPE_VALUES));
 
+  // Expression for columns and table names
   char *name = new char[11]();
   strcpy(name, "TEST_TABLE");
   expression::ParserExpression *table_name = new expression::ParserExpression(
       EXPRESSION_TYPE_TABLE_REF, name, nullptr);
-
   char *col_1 = new char[8]();
   strcpy(col_1, "dept_id");
-
   char *col_2 = new char[10]();
   strcpy(col_2, "dept_name");
 
   insert_stmt->table_name = table_name;
-
   insert_stmt->columns = new std::vector<char *>;
   insert_stmt->columns->push_back(const_cast<char *>(col_1));
   insert_stmt->columns->push_back(const_cast<char *>(col_2));
   insert_stmt->select = new parser::SelectStatement();
-
-  // Initialize the two tuples, each with two values
   insert_stmt->insert_values =
       new std::vector<std::vector<expression::AbstractExpression *> *>;
-  auto values_ptr = new std::vector<expression::AbstractExpression *>;
-  insert_stmt->insert_values->push_back(values_ptr);
-  values_ptr->push_back(new expression::ConstantValueExpression(
-      common::ValueFactory::GetIntegerValue(70)));
-  values_ptr->push_back(new expression::ConstantValueExpression(
-      common::ValueFactory::GetVarcharValue("Hello")));
 
-  // Initialize the second one
-  auto values_ptr2 = new std::vector<expression::AbstractExpression *>;
-  insert_stmt->insert_values->push_back(values_ptr2);
-  values_ptr2->push_back(new expression::ConstantValueExpression(
-      common::ValueFactory::GetIntegerValue(100)));
-  values_ptr2->push_back(new expression::ConstantValueExpression(
-      common::ValueFactory::GetVarcharValue("Hello")));
+  for (int partition = 0; partition < num_partition; partition++) {
+    // Initialize the two tuples, each with two values
+    auto values_ptr = new std::vector<expression::AbstractExpression *>;
+    insert_stmt->insert_values->push_back(values_ptr);
+    values_ptr->push_back(new expression::ConstantValueExpression(
+        common::ValueFactory::GetIntegerValue(70)));
+    values_ptr->push_back(new expression::ConstantValueExpression(
+        common::ValueFactory::GetVarcharValue("Hello")));
+  }
 
   // Construct insert plan
   planner::InsertPlan node(insert_stmt.get());
 
   // Construct the task. Each partition has 1 tuple to insert
   for (int partition = 0; partition < num_partition; partition++) {
+    LOG_INFO("Execute insert task on partition %d", partition);
     executor::InsertTask *insert_task =
         new executor::InsertTask(&node, node.GetBulkInsertCount(), partition);
     insert_task->tuple_bitmap[partition] = false;
@@ -245,6 +237,7 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
     executor::InsertExecutor executor(context.get());
 
     // Setup promise future for partitioned thread execution
+    // XXX We should use callbacks instead
     boost::promise<bool> p;
     boost::unique_future<bool> execute_status = p.get_future();
 
