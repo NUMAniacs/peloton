@@ -188,12 +188,8 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
       DEFAULT_DB_NAME, "TEST_TABLE");
 
   int num_partition = PL_NUM_PARTITIONS();
+  LOG_DEBUG("Total number of partitions: %d", num_partition);
   txn = txn_manager.BeginTransaction(num_partition);
-
-  std::unique_ptr<executor::ExecutorContext> context(
-      new executor::ExecutorContext(txn));
-  std::unique_ptr<parser::InsertStatement> insert_stmt(
-      new parser::InsertStatement(INSERT_TYPE_VALUES));
 
   // Expression for columns and table names
   char *name = new char[11]();
@@ -205,6 +201,9 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   char *col_2 = new char[10]();
   strcpy(col_2, "dept_name");
 
+  // Build an insert stmt
+  std::unique_ptr<parser::InsertStatement> insert_stmt(
+      new parser::InsertStatement(INSERT_TYPE_VALUES));
   insert_stmt->table_name = table_name;
   insert_stmt->columns = new std::vector<char *>;
   insert_stmt->columns->push_back(const_cast<char *>(col_1));
@@ -213,8 +212,8 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   insert_stmt->insert_values =
       new std::vector<std::vector<expression::AbstractExpression *> *>;
 
+  // Initialize one tuple per partition
   for (int partition = 0; partition < num_partition; partition++) {
-    // Initialize the two tuples, each with two values
     auto values_ptr = new std::vector<expression::AbstractExpression *>;
     insert_stmt->insert_values->push_back(values_ptr);
     values_ptr->push_back(new expression::ConstantValueExpression(
@@ -225,13 +224,18 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
 
   // Construct insert plan
   planner::InsertPlan node(insert_stmt.get());
+  // Construct the executor context
+  std::unique_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(txn));
 
   // Construct the task. Each partition has 1 tuple to insert
   for (int partition = 0; partition < num_partition; partition++) {
     LOG_INFO("Execute insert task on partition %d", partition);
     executor::InsertTask *insert_task =
         new executor::InsertTask(&node, node.GetBulkInsertCount(), partition);
-    insert_task->tuple_bitmap[partition] = false;
+    insert_task->tuple_bitmap.resize(node.GetBulkInsertCount(), false);
+    // Only insert the tuple in this partition
+    insert_task->tuple_bitmap[partition] = true;
     std::shared_ptr<executor::AbstractTask> task(insert_task);
     context->SetTask(task);
     executor::InsertExecutor executor(context.get());
