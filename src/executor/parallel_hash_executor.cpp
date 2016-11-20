@@ -100,6 +100,7 @@ bool ParallelHashExecutor::DExecute() {
           value->insert(std::make_pair(child_tile_itr, tuple_id));
           auto success = hash_table_.insert(key, value);
           PL_ASSERT(success);
+          (void)success;
         } else {
           // Found
           LOG_TRACE("key found %d", (int)tuple_id);
