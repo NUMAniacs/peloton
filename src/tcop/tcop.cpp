@@ -36,7 +36,6 @@
 #include "parser/parser.h"
 #include "planner/parallel_seq_scan_plan.h"
 
-
 #include <tuple>
 #include <numa.h>
 
@@ -190,18 +189,22 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       auto target_table = parallel_seq_scan_plan->GetTable();
       auto partition_count = target_table->GetPartitionCount();
 
+      // The result of the logical tiles after seq scan
+      std::shared_ptr<executor::ResultTileLists> result_tiles(
+          new executor::ResultTileLists());
+
       // Assuming that we always have at least one partition,
       // deploy partitioned seq scan
-      for (size_t i=0; i<partition_count; i++) {
+      for (size_t i = 0; i < partition_count; i++) {
         auto num_tile_groups = target_table->GetPartitionTileGroupCount(i);
         size_t num_tile_groups_per_task =
-            (num_tile_groups+TASK_TILEGROUP_COUNT-1)/TASK_TILEGROUP_COUNT;
-        for (size_t j=0; j<num_tile_groups; j+=num_tile_groups_per_task) {
+            (num_tile_groups + TASK_TILEGROUP_COUNT - 1) / TASK_TILEGROUP_COUNT;
+        for (size_t j = 0; j < num_tile_groups; j += num_tile_groups_per_task) {
           // create a new task
-          executor::SeqScanTask *seq_scan_task =
-              new executor::SeqScanTask(plan_tree, tasks.size(), i);
-          for (size_t k=j;
-               k<j+num_tile_groups_per_task && k<num_tile_groups; k++) {
+          executor::SeqScanTask *seq_scan_task = new executor::SeqScanTask(
+              plan_tree, tasks.size(), i, result_tiles);
+          for (size_t k = j;
+               k < j + num_tile_groups_per_task && k < num_tile_groups; k++) {
             // append the next tile group
             seq_scan_task->tile_group_ptrs.push_back(
                 target_table->GetTileGroupFromPartition(i, k));
@@ -215,9 +218,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     default: {
       // Populate default task for other queries
       LOG_DEBUG("Created default task for other stmt");
-      auto partition_id = rand() % num_partitions;
       tasks.push_back(std::shared_ptr<executor::AbstractTask>(
-          new executor::AbstractTask(plan_tree, partition_id)));
+          new executor::DefaultTask(plan_tree, num_partitions)));
       break;
     }
   }
@@ -236,13 +238,16 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   bridge::BlockingWait wait(tasks.size());
 
   for (auto task : tasks) {
+    // We create the callbacks only after we know the total number of tasks
+    task->Init(&wait, tasks.size());
+
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(
-        new bridge::ExchangeParams(txn, statement, params, task,
-                                   result_format, init_failure, &wait));
+        new bridge::ExchangeParams(txn, statement, params, task, result_format,
+                                   init_failure));
     exchg_params_list.push_back(exchg_params);
 
-    switch(plan_tree->GetPlanNodeType()) {
+    switch (plan_tree->GetPlanNodeType()) {
       case PLAN_NODE_TYPE_PARALLEL_SEQSCAN:
       case PLAN_NODE_TYPE_INSERT:
         // Only use the partitioned_executor_pool for insert queries for now

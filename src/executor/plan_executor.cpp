@@ -90,6 +90,9 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
     while (status == true) {
       status = executor_tree->Execute();
 
+      // FIXME We should push the logical tile to the result field in the tasks
+      // instead of being processed here immediately
+
       std::unique_ptr<executor::LogicalTile> logical_tile(
           executor_tree->GetOutput());
       // Some executors don't return logical tiles (e.g., Update).
@@ -298,7 +301,8 @@ executor::AbstractExecutor *BuildExecutorTree(
 
     case PLAN_NODE_TYPE_PARALLEL_SEQSCAN:
       LOG_TRACE("Adding Parallel Sequential Scan Executor");
-      child_executor = new executor::ParallelSeqScanExecutor(plan, executor_context);
+      child_executor =
+          new executor::ParallelSeqScanExecutor(plan, executor_context);
       break;
 
     case PLAN_NODE_TYPE_INDEXSCAN:

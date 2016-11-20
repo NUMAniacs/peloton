@@ -43,6 +43,8 @@ class ParallelHashExecutor : public AbstractExecutor {
   typedef std::unordered_set<std::pair<size_t, oid_t>,
                              boost::hash<std::pair<size_t, oid_t>>> HashSet;
 
+  // TODO We should reserve the size of the cuckoomap if we know the number of
+  // tuples to insert
   typedef cuckoohash_map<
       expression::ContainerTuple<LogicalTile>,           // Key
       std::shared_ptr<HashSet>,                          // T
