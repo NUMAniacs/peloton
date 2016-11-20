@@ -130,7 +130,10 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   }
 
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
-  int num_partitions = PL_NUM_PARTITIONS();
+  size_t num_partitions = PL_NUM_PARTITIONS();
+  // The result of the logical tiles for all tasks
+  std::shared_ptr<executor::ResultTileLists> result_tiles(
+      new executor::ResultTileLists());
 
   auto plan_tree = statement->GetPlanTree().get();
   switch (plan_tree->GetPlanNodeType()) {
@@ -149,7 +152,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       if (partition_cols != NO_PARTITION_COLUMN) {
 
         // One task is created for each partition now.
-        // We could create more fine-grained tasks and exploit more parallelism
         // We should also avoid creating a task if no tuple is assigned to that
         // partition
 
@@ -165,21 +167,25 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
           tuple_bitmaps[partition_id][tuple_itr] = true;
         }
 
-        // Populate the tasks
-        for (int i = 0; i < num_partitions; i++) {
-          executor::InsertTask *insert_task =
-              new executor::InsertTask(plan_tree, bulk_insert_count, i);
-          insert_task->tuple_bitmap = tuple_bitmaps[i];
+        // Populate the tasks, one for each partition
+        // TODO We could create more fine-grained tasks and exploit more
+        // parallelism
+        for (size_t task_id = 0; task_id < num_partitions; task_id++) {
+          size_t partition = task_id;
+          executor::InsertTask *insert_task = new executor::InsertTask(
+              plan_tree, insert_plan->GetBulkInsertCount(), task_id, partition);
+          insert_task->tuple_bitmap = tuple_bitmaps[partition];
           tasks.push_back(std::shared_ptr<executor::AbstractTask>(insert_task));
         }
       } else {
-        // No partition specified, populate a default random task
-        auto partition_id = rand() % num_partitions;
-        std::shared_ptr<executor::AbstractTask> default_task(
-            new executor::InsertTask(plan_tree, bulk_insert_count,
-                                     partition_id));
-        tasks.push_back(default_task);
-        LOG_DEBUG("Created default task for insert stmt");
+        // No partition specified, populate a task with random partition id
+        size_t partition_id = rand() % num_partitions;
+        std::shared_ptr<executor::AbstractTask> insert_task(
+            new executor::InsertTask(plan_tree,
+                                     insert_plan->GetBulkInsertCount(),
+                                     INVALID_TASK_ID, partition_id));
+        tasks.push_back(insert_task);
+        LOG_DEBUG("Created task with random partition for insert stmt");
       }
       break;
     }
@@ -188,10 +194,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
           static_cast<planner::ParallelSeqScanPlan *>(plan_tree);
       auto target_table = parallel_seq_scan_plan->GetTable();
       auto partition_count = target_table->GetPartitionCount();
-
-      // The result of the logical tiles after seq scan
-      std::shared_ptr<executor::ResultTileLists> result_tiles(
-          new executor::ResultTileLists());
 
       // Assuming that we always have at least one partition,
       // deploy partitioned seq scan
@@ -217,9 +219,9 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     }
     default: {
       // Populate default task for other queries
-      LOG_DEBUG("Created default task for other stmt");
+      LOG_DEBUG("Created partition unaware task for other stmt");
       tasks.push_back(std::shared_ptr<executor::AbstractTask>(
-          new executor::DefaultTask(plan_tree, num_partitions)));
+          new executor::PartitionUnawareTask(plan_tree, result_tiles)));
       break;
     }
   }
@@ -249,12 +251,15 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
     switch (plan_tree->GetPlanNodeType()) {
       case PLAN_NODE_TYPE_PARALLEL_SEQSCAN:
-      case PLAN_NODE_TYPE_INSERT:
-        // Only use the partitioned_executor_pool for insert queries for now
+      case PLAN_NODE_TYPE_INSERT: {
+        // Use the partitioned_executor_pool for partition aware queries
+        auto partition_aware_task =
+            static_cast<executor::PartitionAwareTask *>(task.get());
         partitioned_executor_thread_pool.SubmitTask(
-            task->partition_id, bridge::PlanExecutor::ExecutePlanLocal,
-            &exchg_params->self);
+            partition_aware_task->partition_id,
+            bridge::PlanExecutor::ExecutePlanLocal, &exchg_params->self);
         break;
+      }
       default: {
         // Use normal executor pool for other queries
         partitioned_executor_thread_pool.SubmitTaskRandom(

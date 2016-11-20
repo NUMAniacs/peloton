@@ -19,9 +19,7 @@
 
 // TODO move me to type.h
 
-// Default partition id
-#define DEFAULT_PARTITION_ID 0
-
+#define INVALID_PARTITION_ID -1
 #define INVALID_TASK_ID -1
 
 // Should we set the granularity by number of tile groups or number of tuples??
@@ -48,97 +46,119 @@ typedef std::vector<std::shared_ptr<storage::TileGroup>> TileGroupPtrList;
 typedef std::vector<std::unique_ptr<executor::LogicalTile>> ResultTileList;
 typedef std::vector<ResultTileList> ResultTileLists;
 
+enum TaskType {
+  TASK_PARTITION_UNAWARE = 0,
+  TASK_INSERT = 1,
+  TASK_SEQ_SCAN_TASK = 2,
+};
+
+// The abstract task class
 class AbstractTask {
  public:
   virtual ~AbstractTask() {}
 
-  explicit AbstractTask(const planner::AbstractPlan *node, int partition_id,
-                        size_t task_id,
-                        std::shared_ptr<ResultTileLists> result_tiles)
-      : node(node),
-        partition_id(partition_id),
-        task_id(task_id),
-        result_tiles(result_tiles) {}
+  virtual TaskType GetTaskType() = 0;
 
+  explicit AbstractTask(const planner::AbstractPlan *node,
+                        std::shared_ptr<ResultTileLists> result_tiles)
+      : node(node), result_tiles(result_tiles) {}
+
+  // Initialize the task with callbacks
   inline void Init(bridge::Notifiable *callback, int num_tasks) {
     this->callback = callback;
-    result_tiles->resize(num_tasks);
+    if (result_tiles != nullptr) {
+      result_tiles->resize(num_tasks);
+    }
     initialized = true;
   }
 
-  inline void Init() { initialized = true; }
-
- public:
-  /** @brief Plan node corresponding to this Task. */
-  const planner::AbstractPlan *node = nullptr;
-
-  // The target partition's id
-  int partition_id;
-
-  // ID of this task
-  size_t task_id;
-
-  // The callback to call after task completes
-  bridge::Notifiable *callback = nullptr;
+  // Plan node corresponding to this task.
+  const planner::AbstractPlan *node;
 
   // The shared result vector for each task. All the intermediate result are
   // buffered here. (further used by joins)
-
-  // TODO Logical tiles should also be NUMA aware, we should also keep the
-  // partition id in logical tile, too
   std::shared_ptr<ResultTileLists> result_tiles;
+
+  // The callback to call after task completes
+  bridge::Notifiable *callback = nullptr;
 
   // Whether the task is initialized
   bool initialized = false;
 };
 
-class InsertTask : public AbstractTask {
+// The *abstract* task class for partition-aware / parallel tasks
+class PartitionAwareTask : public AbstractTask {
  public:
-  /**
-   * @brief Constructor for insert Task.
-   * @param node Insert node corresponding to this Task.
+  virtual ~PartitionAwareTask() {}
+
+  explicit PartitionAwareTask(const planner::AbstractPlan *node, size_t task_id,
+                              size_t partition_id,
+                              std::shared_ptr<ResultTileLists> result_tiles)
+      : AbstractTask(node, result_tiles),
+        task_id(task_id),
+        partition_id(partition_id) {}
+
+  // The id of this task
+  size_t task_id;
+
+  // The target partition's id
+  size_t partition_id;
+};
+
+// The default task class for queries which don't need parallelism
+class PartitionUnawareTask : public AbstractTask {
+ public:
+  ~PartitionUnawareTask() {}
+
+  TaskType GetTaskType() { return TASK_PARTITION_UNAWARE; }
+
+  explicit PartitionUnawareTask(const planner::AbstractPlan *node,
+                                std::shared_ptr<ResultTileLists> result_tiles)
+      : AbstractTask(node, result_tiles) {}
+};
+
+// The class for insert tasks
+class InsertTask : public PartitionAwareTask {
+ public:
+  ~InsertTask() {}
+
+  TaskType GetTaskType() { return TASK_INSERT; }
+
+  /*
+   * @param bulk_insert_count: The total bulk insert count in insert plan node
    */
-  explicit InsertTask(const planner::AbstractPlan *node, int bulk_insert_count,
-                      int partition_id = DEFAULT_PARTITION_ID)
-      : AbstractTask(node, partition_id, INVALID_TASK_ID, nullptr) {
+  explicit InsertTask(const planner::AbstractPlan *node,
+                      size_t bulk_insert_count,
+                      size_t task_id = INVALID_TASK_ID,
+                      size_t partition_id = INVALID_PARTITION_ID)
+      : PartitionAwareTask(node, task_id, partition_id, nullptr) {
     // By default we insert all the tuples
     tuple_bitmap.resize(bulk_insert_count, true);
-    // We don't care about the intermediate result of inserts
-    Init();
   }
 
- public:
   // The bitmap of tuples to insert
   std::vector<bool> tuple_bitmap;
 };
 
-class DefaultTask : public AbstractTask {
-
- public:
-  /**
-   * @brief Constructor for default tasks.
-   * @param node Sequential scan node corresponding to this Task.
-   */
-  explicit DefaultTask(const planner::AbstractPlan *node, size_t num_partitions)
-      : AbstractTask(node, rand() % num_partitions, INVALID_TASK_ID, nullptr) {
-    Init();
-  }
-};
-
-class SeqScanTask : public AbstractTask {
+// The class for parallel seq scan tasks
+class SeqScanTask : public PartitionAwareTask {
  public:
   // The list of pointers to the tile groups managed by this task
   TileGroupPtrList tile_group_ptrs;
 
  public:
+  ~SeqScanTask() {}
+
+  TaskType GetTaskType() { return TASK_INSERT; }
+
   /**
    * @brief Constructor for seqscan Task.
    * @param node Sequential scan node corresponding to this Task.
    */
   explicit SeqScanTask(const planner::AbstractPlan *node, size_t task_id,
-                       int partition_id,
+                       size_t partition_id,
                        std::shared_ptr<ResultTileLists> result_tiles)
-      : AbstractTask(node, partition_id, task_id, result_tiles) {}
+      : PartitionAwareTask(node, task_id, partition_id, result_tiles) {}
 };
 
 }  // namespace executor
