@@ -18,10 +18,8 @@
 #include "executor/logical_tile.h"
 #include "executor/logical_tile_factory.h"
 
-#include "executor/hash_join_executor.h"
-#include "executor/hash_executor.h"
-#include "executor/merge_join_executor.h"
-#include "executor/nested_loop_join_executor.h"
+#include "executor/parallel_hash_join_executor.h"
+#include "executor/parallel_hash_executor.h"
 
 #include "expression/abstract_expression.h"
 #include "expression/tuple_value_expression.h"
@@ -29,8 +27,6 @@
 
 #include "planner/hash_join_plan.h"
 #include "planner/hash_plan.h"
-#include "planner/merge_join_plan.h"
-#include "planner/nested_loop_join_plan.h"
 
 #include "storage/data_table.h"
 #include "storage/tile.h"
@@ -343,15 +339,15 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
       planner::HashPlan hash_plan_node(hash_keys);
 
       // Construct the hash executor
-      executor::HashExecutor hash_executor(&hash_plan_node, nullptr);
+      executor::ParallelHashExecutor hash_executor(&hash_plan_node, nullptr);
 
       // Create hash join plan node.
       planner::HashJoinPlan hash_join_plan_node(join_type, std::move(predicate),
                                                 std::move(projection), schema);
 
       // Construct the hash join executor
-      executor::HashJoinExecutor hash_join_executor(&hash_join_plan_node,
-                                                    nullptr);
+      executor::ParallelHashJoinExecutor hash_join_executor(
+          &hash_join_plan_node, nullptr);
 
       // Construct the executor tree
       hash_join_executor.AddChild(&left_table_scan_executor);

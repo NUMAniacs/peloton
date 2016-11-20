@@ -81,6 +81,7 @@ bool ParallelHashExecutor::DExecute() {
     // hashing
     for (size_t child_tile_itr = 0; child_tile_itr < child_tiles_.size();
          child_tile_itr++) {
+      LOG_DEBUG("Advance to next tile");
       auto tile = child_tiles_[child_tile_itr].get();
 
       // Go over all tuples in the logical tile
@@ -89,15 +90,22 @@ bool ParallelHashExecutor::DExecute() {
         // Value : < child_tile offset, tuple offset >
 
         // FIXME This is not thread safe at all
-        auto key = ParallelHashMapType::key_type(tile, tuple_id, &column_ids_);
+        ParallelHashMapType::key_type key(tile, tuple_id, &column_ids_);
         std::shared_ptr<HashSet> value;
         auto status = hash_table_.find(key, value);
         // Not found
         if (status == false) {
+          LOG_TRACE("key not found %d", (int)tuple_id);
           value.reset(new HashSet());
+          value->insert(std::make_pair(child_tile_itr, tuple_id));
+          auto success = hash_table_.insert(key, value);
+          PL_ASSERT(success);
+        } else {
+          // Found
+          LOG_TRACE("key found %d", (int)tuple_id);
+          value->insert(std::make_pair(child_tile_itr, tuple_id));
         }
-        value->insert(std::make_pair(child_tile_itr, tuple_id));
-        hash_table_.update(key, value);
+        PL_ASSERT(hash_table_.contains(key));
       }
     }
 
@@ -111,12 +119,12 @@ bool ParallelHashExecutor::DExecute() {
       continue;
     } else {
       SetOutput(child_tiles_[result_itr++].release());
-      LOG_TRACE("Hash Executor : true -- return tile one at a time ");
+      LOG_DEBUG("Hash Executor : true -- return tile one at a time ");
       return true;
     }
   }
 
-  LOG_TRACE("Hash Executor : false -- done ");
+  LOG_DEBUG("Hash Executor : false -- done ");
   return false;
 }
 
