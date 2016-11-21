@@ -232,7 +232,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   bool single_statement_txn = true;
   bool init_failure = false;
 
-  auto txn = txn_manager.BeginTransaction(tasks.size());
+  auto txn = txn_manager.BeginTransaction();
   PL_ASSERT(txn);
 
   std::vector<std::shared_ptr<bridge::ExchangeParams>> exchg_params_list;

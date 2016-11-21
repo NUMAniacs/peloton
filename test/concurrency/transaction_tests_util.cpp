@@ -16,13 +16,17 @@
 #include "executor/delete_executor.h"
 #include "executor/insert_executor.h"
 #include "executor/seq_scan_executor.h"
+#include "executor/parallel_seq_scan_executor.h"
 #include "executor/index_scan_executor.h"
 #include "executor/update_executor.h"
 #include "executor/logical_tile_factory.h"
+#include "executor/executor_tests_util.h"
+#include "executor/abstract_task.h"
 #include "expression/expression_util.h"
 #include "executor/mock_executor.h"
 #include "planner/delete_plan.h"
 #include "planner/insert_plan.h"
+#include "planner/parallel_seq_scan_plan.h"
 #include "storage/tile.h"
 #include "storage/database.h"
 #include "catalog/catalog.h"
@@ -455,43 +459,10 @@ bool TransactionTestsUtil::ExecuteScan(concurrency::Transaction *transaction,
 bool TransactionTestsUtil::ExecuteParallelScan(concurrency::Transaction *transaction,
                                                std::vector<int> &results,
                                                storage::DataTable *table, int id,
-                                               bool select_for_update,
-                                               int num_tasks) {
+                                               bool select_for_update) {
   bool status=true;
-  std::vector<std::vector<int>> local_results(num_tasks);
-  std::vector<bool> local_status(num_tasks);
-  std::vector<std::thread> executor_threads;
-
-  // spawn all the executors
-  for (int i=0; i <num_tasks; i++) {
-    executor_threads.push_back(std::thread(ThreadExecuteScan, &(*transaction),
-                                           std::ref(local_results.at(i)), table,
-                                           id, num_tasks, i, select_for_update,
-                                           std::ref(local_status)));
-  }
-
-  // join and coalesce the results
-  for (int i=0; i<num_tasks; i++) {
-    executor_threads[i].join();
-    // add result tiles
-    results.insert(results.end(), local_results[i].begin(),
-                   local_results[i].end());
-    // update status
-    status |= local_status[i];
-  }
-
-  return status;
-}
-
-void TransactionTestsUtil::ThreadExecuteScan(concurrency::Transaction *transaction,
-                                             std::vector<int> &results,
-                                             storage::DataTable *table, int id,
-                                             UNUSED_ATTRIBUTE int num_tasks, int partition_id,
-                                             bool select_for_update,
-                                             std::vector<bool> &status) {
-  LOG_DEBUG("thread pid:%d", partition_id);
-  std::unique_ptr<executor::ExecutorContext> context(
-      new executor::ExecutorContext(transaction));
+  std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
+  std::vector<std::shared_ptr<ParallelScanArgs>> args;
 
   // Predicate, WHERE `id`>=id1
   auto tup_val_exp =
@@ -504,31 +475,68 @@ void TransactionTestsUtil::ThreadExecuteScan(concurrency::Transaction *transacti
 
   // Seq scan
   std::vector<oid_t> column_ids = {0, 1};
-  planner::SeqScanPlan seq_scan_node(table, predicate, column_ids,
-                                     select_for_update);
-  executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
+
+  planner::ParallelSeqScanPlan
+      parallel_seq_scan_node(table, predicate, column_ids, select_for_update);
+
+  // spawn all the executors
+  for (size_t p=0; p<table->GetPartitionCount(); p++) {
+    for (size_t i = 0; i < table->GetPartitionTileGroupCount(p); i++) {
+      executor::SeqScanTask *task =
+          new executor::SeqScanTask(&parallel_seq_scan_node);
+      task->tile_group_ptrs.push_back(table->GetTileGroupFromPartition(p, i));
+      tasks.push_back(std::shared_ptr<executor::AbstractTask>(task));
+    }
+  }
+
+  for (size_t i=0; i<tasks.size(); i++) {
+    args.push_back(std::shared_ptr<ParallelScanArgs>(
+        new ParallelScanArgs(transaction, &parallel_seq_scan_node,
+                             tasks[i], select_for_update)));
+    partitioned_executor_thread_pool.SubmitTaskRandom(ThreadExecuteScan,
+                                                      &(args[i]->self));
+  }
+
+  // join and coalesce the results
+  for (size_t i=0; i<tasks.size(); i++) {
+    // update status
+    status |= args[i]->f.get();
+    results.insert(results.end(), args[i]->results.begin(),
+                   args[i]->results.end());
+  }
+
+  return status;
+}
+
+void TransactionTestsUtil::ThreadExecuteScan(ParallelScanArgs **args) {
+  LOG_DEBUG("thread pid:%d", (*args)->task->partition_id);
+  std::unique_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext((*args)->txn));
+
+  executor::ParallelSeqScanExecutor
+      parallel_seq_scan_executor((*args)->node, context.get());
 
   // TODO: Modify seq scan test to include new task system
   //  seq_scan_executor.SetParallelism(num_tasks, partition_id);
 
-  EXPECT_TRUE(seq_scan_executor.Init());
-  if (seq_scan_executor.Execute() == false) {
-    status[partition_id] = false;
+  EXPECT_TRUE(parallel_seq_scan_executor.Init());
+  if (parallel_seq_scan_executor.Execute() == false) {
+    (*args)->p.set_value(false);
     return;
   }
 
   do {
     std::unique_ptr<executor::LogicalTile> result_tile(
-        seq_scan_executor.GetOutput());
+        parallel_seq_scan_executor.GetOutput());
 
     for (size_t i = 0; i < result_tile->GetTupleCount(); i++) {
       common::Value val = (result_tile->GetValue(i, 1));
-      results.push_back(val.GetAs<int32_t>());
+      (*args)->results.push_back(val.GetAs<int32_t>());
     }
 
-  } while(seq_scan_executor.Execute() == true);
+  } while(parallel_seq_scan_executor.Execute() == true);
 
-  status[partition_id] = true;
+  (*args)->p.set_value(true);
   return;
 }
 

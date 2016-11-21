@@ -102,7 +102,7 @@ class TimestampOrderingTransactionManager : public TransactionManager {
 
   virtual Result AbortTransaction(Transaction *const current_txn);
 
-  virtual Transaction *BeginTransaction(const int num_parallel_task=1);
+  virtual Transaction *BeginTransaction();
 
   virtual Transaction *BeginReadonlyTransaction();
 

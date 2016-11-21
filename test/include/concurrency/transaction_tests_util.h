@@ -68,6 +68,7 @@
 #include "concurrency/transaction.h"
 #include "common/types.h"
 #include "expression/comparison_expression.h"
+#include "executor/executor_tests_util.h"
 
 #pragma once
 
@@ -150,11 +151,8 @@ class TransactionTestsUtil {
   static bool ExecuteParallelScan(concurrency::Transaction *transaction,
                                   std::vector<int> &results,
                                   storage::DataTable *table, int id,
-                                  bool select_for_update, int num_tasks);
-  static void ThreadExecuteScan(concurrency::Transaction *transaction,
-                                std::vector<int> &results, storage::DataTable
-                                *table, int id, int num_tasks, int partition_id,
-                                bool select_for_update, std::vector<bool> &final_status);
+                                  bool select_for_update);
+  static void ThreadExecuteScan(ParallelScanArgs **args);
 
   static std::unique_ptr<const planner::ProjectInfo> MakeProjectInfoFromTuple(
       const storage::Tuple *tuple);
@@ -197,22 +195,18 @@ class TransactionThread {
   TransactionSchedule *schedule;
   concurrency::TransactionManager *txn_manager;
   storage::DataTable *table;
-  int cur_seq, num_tasks;
+  int cur_seq;
   bool go;
-  bool is_parallel;
   concurrency::Transaction *txn;
 
  public:
   TransactionThread(TransactionSchedule *sched, storage::DataTable *table_,
-                    concurrency::TransactionManager *txn_manager_,
-                    bool is_parallel_ = false)
+                    concurrency::TransactionManager *txn_manager_)
       : schedule(sched),
         txn_manager(txn_manager_),
         table(table_),
         cur_seq(0),
-        num_tasks(1),
-        go(false),
-        is_parallel(is_parallel_) {
+        go(false) {
     LOG_TRACE("Thread has %d ops", (int)sched->operations.size());
   }
 
@@ -240,8 +234,7 @@ class TransactionThread {
     }
   }
 
-  std::thread Run(bool is_parallel, bool no_wait = false) {
-    this->is_parallel = is_parallel;
+  std::thread Run(bool no_wait = false) {
     if (!no_wait)
       return std::thread(&TransactionThread::RunLoop, this);
     else
@@ -311,7 +304,7 @@ class TransactionThread {
       case TXN_OP_PARALLEL_SCAN: {
         LOG_TRACE("Executing parallel scan");
         execute_result = TransactionTestsUtil::ExecuteParallelScan(
-            txn,schedule->results, table, id, is_for_update, num_tasks);
+            txn,schedule->results, table, id, is_for_update);
         break;
       }
       case TXN_OP_UPDATE_BY_VALUE: {
@@ -370,17 +363,15 @@ class TransactionScheduler {
   std::map<int, int> sequence;
   int cur_txn_id;
   bool concurrent;
-  bool is_parallel; // are we running intra-query parallel txns?
 
  public:
   TransactionScheduler(size_t num_txn, storage::DataTable *datatable_,
                        concurrency::TransactionManager *txn_manager_,
-                       bool first_as_ro, bool is_parallel_)
+                       bool first_as_ro = false)
       : txn_manager(txn_manager_),
         table(datatable_),
         time(0),
-        concurrent(false),
-        is_parallel(is_parallel_) {
+        concurrent(false) {
     for (size_t i = 0; i < num_txn; i++) {
       if (first_as_ro && i == 0) {
         schedules.emplace_back(i, true);
@@ -397,7 +388,7 @@ class TransactionScheduler {
     }
     if (!concurrent) {
       for (int i = 0; i < (int)schedules.size(); i++) {
-        std::thread t = tthreads[i].Run(is_parallel);
+        std::thread t = tthreads[i].Run();
         t.detach();
       }
       for (auto itr = sequence.begin(); itr != sequence.end(); itr++) {
@@ -413,7 +404,7 @@ class TransactionScheduler {
       // Run the txns concurrently
       std::vector<std::thread> threads(schedules.size());
       for (int i = 0; i < (int)schedules.size(); i++) {
-        threads[i] = tthreads[i].Run(true, is_parallel);
+        threads[i] = tthreads[i].Run(true);
       }
       for (auto &thread : threads) {
         thread.join();
