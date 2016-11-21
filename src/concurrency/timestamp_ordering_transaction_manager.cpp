@@ -85,14 +85,13 @@ void TimestampOrderingTransactionManager::InitTupleReserved(
   *(cid_t *)(reserved_area + LAST_READER_OFFSET) = 0;
 }
 
-Transaction *TimestampOrderingTransactionManager::BeginTransaction(
-    const int num_parallel_tasks) {
+Transaction *TimestampOrderingTransactionManager::BeginTransaction() {
   auto &log_manager = logging::LogManager::GetInstance();
   log_manager.PrepareLogging();
 
   txn_id_t txn_id = GetNextTransactionId();
   cid_t begin_cid = GetNextCommitId();
-  Transaction *txn = new Transaction(txn_id, begin_cid, num_parallel_tasks);
+  Transaction *txn = new Transaction(txn_id, begin_cid);
 
   auto eid = EpochManagerFactory::GetInstance().EnterEpoch(begin_cid);
   txn->SetEpochId(eid);

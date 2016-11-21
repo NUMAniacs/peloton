@@ -37,6 +37,8 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor {
 
   bool DExecute();
 
+  LogicalTile* GetOutput();
+
  private:
   //===--------------------------------------------------------------------===//
   // Executor State

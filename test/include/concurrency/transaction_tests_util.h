@@ -201,15 +201,12 @@ class TransactionThread {
 
  public:
   TransactionThread(TransactionSchedule *sched, storage::DataTable *table_,
-                    concurrency::TransactionManager *txn_manager_,
-                    bool is_parallel_ = false)
+                    concurrency::TransactionManager *txn_manager_)
       : schedule(sched),
         txn_manager(txn_manager_),
         table(table_),
         cur_seq(0),
-        num_tasks(1),
-        go(false),
-        is_parallel(is_parallel_) {
+        go(false) {
     LOG_TRACE("Thread has %d ops", (int)sched->operations.size());
   }
 
@@ -237,8 +234,7 @@ class TransactionThread {
     }
   }
 
-  std::thread Run(bool is_parallel, bool no_wait = false) {
-    this->is_parallel = is_parallel;
+  std::thread Run(bool no_wait = false) {
     if (!no_wait)
       return std::thread(&TransactionThread::RunLoop, this);
     else
@@ -375,8 +371,7 @@ class TransactionScheduler {
       : txn_manager(txn_manager_),
         table(datatable_),
         time(0),
-        concurrent(false),
-        is_parallel(is_parallel_) {
+        concurrent(false) {
     for (size_t i = 0; i < num_txn; i++) {
       if (first_as_ro && i == 0) {
         schedules.emplace_back(i, true);
@@ -393,7 +388,7 @@ class TransactionScheduler {
     }
     if (!concurrent) {
       for (int i = 0; i < (int)schedules.size(); i++) {
-        std::thread t = tthreads[i].Run(is_parallel);
+        std::thread t = tthreads[i].Run();
         t.detach();
       }
       for (auto itr = sequence.begin(); itr != sequence.end(); itr++) {
@@ -409,7 +404,7 @@ class TransactionScheduler {
       // Run the txns concurrently
       std::vector<std::thread> threads(schedules.size());
       for (int i = 0; i < (int)schedules.size(); i++) {
-        threads[i] = tthreads[i].Run(true, is_parallel);
+        threads[i] = tthreads[i].Run(true);
       }
       for (auto &thread : threads) {
         thread.join();
