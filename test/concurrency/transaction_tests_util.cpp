@@ -512,12 +512,9 @@ void TransactionTestsUtil::ThreadExecuteScan(ParallelScanArgs **args) {
   LOG_DEBUG("thread pid:%d", (*args)->task->partition_id);
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext((*args)->txn));
-
+  context->SetTask((*args)->task);
   executor::ParallelSeqScanExecutor
       parallel_seq_scan_executor((*args)->node, context.get());
-
-  // TODO: Modify seq scan test to include new task system
-  //  seq_scan_executor.SetParallelism(num_tasks, partition_id);
 
   EXPECT_TRUE(parallel_seq_scan_executor.Init());
   if (parallel_seq_scan_executor.Execute() == false) {

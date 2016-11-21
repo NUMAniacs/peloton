@@ -162,19 +162,21 @@ namespace test {
 // */
 //void GenerateSingleTileGroupTasks(storage::DataTable *table,
 //                                  planner::AbstractPlan *node,
-//                                  std::vector<executor::AbstractTask> &tasks) {
+//                                  std::vector<std::shared_ptr<
+//                                      executor::AbstractTask>>& tasks) {
 //  for (size_t p=0; p<table->GetPartitionCount(); p++) {
 //    for (size_t tile_group_offset_=0;
 //         tile_group_offset_<table->GetPartitionTileGroupCount(p);
 //         tile_group_offset_++) {
 //      executor::SeqScanTask *seq_scan_task =
-//          new executor::SeqScanTask(node, tasks.size(), p);
+//          new executor::SeqScanTask(node, p);
 //      seq_scan_task->tile_group_ptrs.push_back(
 //          table->GetTileGroupFromPartition(p, tile_group_offset_));
 //      tasks.push_back(std::shared_ptr<executor::AbstractTask>(seq_scan_task));
 //    }
 //  }
 //}
+//
 ///**
 // * @brief Runs actual test as thread function
 // */
