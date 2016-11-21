@@ -163,10 +163,11 @@ bool InsertExecutor::DExecute() {
       // Check task bitmap before performing the insertion
       if (insert_task->tuple_bitmap[insert_itr] == false) {
         // If this is not a tuple assigned for this worker, skip it
+        LOG_DEBUG("Skip insert tuple %d", (int) insert_itr);
         continue;
       }
-      LOG_TRACE("partition %d insert tuple number %d",
-                insert_task->partition_id, insert_itr);
+      LOG_DEBUG("partition %d insert tuple number %d",
+              (int) insert_task->partition_id, (int) insert_itr);
       // if we are doing a bulk insert from values not project_info
       if (!project_info) {
         tuple = node.GetTuple(insert_itr);
