@@ -34,3 +34,4 @@
 #include "executor/projection_executor.h"
 #include "executor/copy_executor.h"
 #include "executor/parallel_seq_scan_executor.h"
+#include "executor/parallel_hash_executor.h"
