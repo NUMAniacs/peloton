@@ -162,9 +162,11 @@ extern int TEST_TUPLES_PER_TILEGROUP;
 #define VARCHAR_LENGTH_LONG 4096
 
 //===--------------------------------------------------------------------===//
-// NUMA Awareness Constants
+// Partition Awareness Constants
 //===--------------------------------------------------------------------===//
 #define LOCAL_NUMA_REGION -1
+#define INVALID_PARTITION_ID -1
+
 //===--------------------------------------------------------------------===//
 // Port to OSX
 //===---------------------------

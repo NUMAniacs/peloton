@@ -90,6 +90,8 @@ class LogicalTile : public Printable {
 
   size_t GetColumnCount();
 
+  inline size_t GetPartition() { return partition; }
+
   const std::vector<ColumnInfo> &GetSchema() const;
 
   const ColumnInfo &GetColumnInfo(const oid_t column_id) const;
@@ -362,6 +364,9 @@ class LogicalTile : public Printable {
 
   /** @brief Keeps track of the number of tuples that are still visible. */
   oid_t visible_tuples_ = 0;
+
+  /** @brief Keeps track of the partition this logical tile refers to */
+  size_t partition = INVALID_PARTITION_ID;
 };
 
 }  // namespace executor
