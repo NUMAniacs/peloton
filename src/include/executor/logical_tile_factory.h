@@ -37,6 +37,9 @@ class LogicalTileFactory {
  public:
   static LogicalTile *GetTile();
 
+  // TODO Logical tiles should also be allocated partition aware
+  // We should override the new and delete operator, too
+
   static LogicalTile *WrapTiles(
       const std::vector<std::shared_ptr<storage::Tile>> &base_tile_refs);
 

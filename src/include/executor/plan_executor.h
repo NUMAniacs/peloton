@@ -48,14 +48,13 @@ typedef struct peloton_status {
 
 } peloton_status;
 
-struct ExchangeParams;
 /*
 * This class can be notified when a task completes
 */
 class Notifiable {
  public:
   virtual ~Notifiable() {}
-  virtual void TaskComplete(ExchangeParams *params) = 0;
+  virtual void TaskComplete(std::shared_ptr<executor::AbstractTask> task) = 0;
 };
 
 /*
@@ -72,7 +71,8 @@ class BlockingWait : public Notifiable {
   ~BlockingWait() {}
 
   // when a task completes it will call this
-  void TaskComplete(UNUSED_ATTRIBUTE ExchangeParams *params) override {
+  void TaskComplete(
+      UNUSED_ATTRIBUTE std::shared_ptr<executor::AbstractTask> task) override {
     int task_num = tasks_complete_.fetch_add(1);
 
     if (task_num == total_tasks_ - 1) {
@@ -130,7 +130,7 @@ struct ExchangeParams {
   void TaskComplete(const bridge::peloton_status &p_status) {
     this->p_status = p_status;
     PL_ASSERT(task->callback != nullptr);
-    task->callback->TaskComplete(this);
+    task->callback->TaskComplete(task);
   }
 };
 

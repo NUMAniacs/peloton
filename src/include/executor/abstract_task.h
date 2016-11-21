@@ -17,9 +17,6 @@
 #include "executor/logical_tile.h"
 #include "storage/data_table.h"
 
-// TODO move me to type.h
-
-#define INVALID_PARTITION_ID -1
 #define INVALID_TASK_ID -1
 
 // Should we set the granularity by number of tile groups or number of tuples??
@@ -77,6 +74,7 @@ class AbstractTask {
 
   // The shared result vector for each task. All the intermediate result are
   // buffered here. (further used by joins)
+  // TODO store the partition information in the logical tile as well
   std::shared_ptr<ResultTileLists> result_tiles;
 
   // The callback to call after task completes

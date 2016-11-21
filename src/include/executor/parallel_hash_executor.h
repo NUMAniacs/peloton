@@ -58,6 +58,11 @@ class ParallelHashExecutor : public AbstractExecutor {
     return this->column_ids_;
   }
 
+  // DExecute Internal
+  static void DExecuteInt(ParallelHashMapType &hash_table,
+                          UNUSED_ATTRIBUTE size_t task_itr, size_t tile_itr,
+                          LogicalTile *tile, std::vector<oid_t> *column_ids);
+
  protected:
   bool DInit();
 

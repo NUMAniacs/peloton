@@ -44,6 +44,39 @@ bool ParallelHashExecutor::DInit() {
   return true;
 }
 
+// TODO The task itr is used to distinguish the result logical tiles from
+// different tasks
+void ParallelHashExecutor::DExecuteInt(ParallelHashMapType &hash_table,
+                                       UNUSED_ATTRIBUTE size_t task_itr,
+                                       size_t tile_itr, LogicalTile *tile,
+                                       std::vector<oid_t> *column_ids) {
+
+  // Go over all tuples in the logical tile
+  for (oid_t tuple_id : *tile) {
+    // Key : container tuple with a subset of tuple attributes
+    // Value : < child_tile offset, tuple offset >
+
+    // FIXME This is not thread safe at all
+    ParallelHashMapType::key_type key(tile, tuple_id, column_ids);
+    std::shared_ptr<HashSet> value;
+    auto status = hash_table.find(key, value);
+    // Not found
+    if (status == false) {
+      LOG_TRACE("key not found %d", (int)tuple_id);
+      value.reset(new HashSet());
+      value->insert(std::make_pair(tile_itr, tuple_id));
+      auto success = hash_table.insert(key, value);
+      PL_ASSERT(success);
+      (void)success;
+    } else {
+      // Found
+      LOG_TRACE("key found %d", (int)tuple_id);
+      value->insert(std::make_pair(tile_itr, tuple_id));
+    }
+    PL_ASSERT(hash_table.contains(key));
+  }
+}
+
 bool ParallelHashExecutor::DExecute() {
   LOG_TRACE("Hash Executor");
 
@@ -83,33 +116,8 @@ bool ParallelHashExecutor::DExecute() {
          child_tile_itr++) {
       LOG_DEBUG("Advance to next tile");
       auto tile = child_tiles_[child_tile_itr].get();
-
-      // Go over all tuples in the logical tile
-      for (oid_t tuple_id : *tile) {
-        // Key : container tuple with a subset of tuple attributes
-        // Value : < child_tile offset, tuple offset >
-
-        // FIXME This is not thread safe at all
-        ParallelHashMapType::key_type key(tile, tuple_id, &column_ids_);
-        std::shared_ptr<HashSet> value;
-        auto status = hash_table_.find(key, value);
-        // Not found
-        if (status == false) {
-          LOG_TRACE("key not found %d", (int)tuple_id);
-          value.reset(new HashSet());
-          value->insert(std::make_pair(child_tile_itr, tuple_id));
-          auto success = hash_table_.insert(key, value);
-          PL_ASSERT(success);
-          (void)success;
-        } else {
-          // Found
-          LOG_TRACE("key found %d", (int)tuple_id);
-          value->insert(std::make_pair(child_tile_itr, tuple_id));
-        }
-        PL_ASSERT(hash_table_.contains(key));
-      }
+      DExecuteInt(hash_table_, 0, child_tile_itr, tile, &column_ids_);
     }
-
     done_ = true;
   }
 
