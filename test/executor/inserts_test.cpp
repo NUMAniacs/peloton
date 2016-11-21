@@ -187,8 +187,8 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   auto table = catalog::Catalog::GetInstance()->GetTableWithName(
       DEFAULT_DB_NAME, "TEST_TABLE");
 
-  int num_partition = PL_NUM_PARTITIONS();
-  LOG_DEBUG("Total number of partitions: %d", num_partition);
+  size_t num_partition = PL_NUM_PARTITIONS();
+  LOG_DEBUG("Total number of partitions: %d",(int) num_partition);
   txn = txn_manager.BeginTransaction(num_partition);
 
   // Expression for columns and table names
@@ -213,7 +213,7 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
       new std::vector<std::vector<expression::AbstractExpression *> *>;
 
   // Initialize one tuple per partition
-  for (int partition = 0; partition < num_partition; partition++) {
+  for (size_t partition = 0; partition < num_partition; partition++) {
     auto values_ptr = new std::vector<expression::AbstractExpression *>;
     insert_stmt->insert_values->push_back(values_ptr);
     values_ptr->push_back(new expression::ConstantValueExpression(
@@ -229,10 +229,12 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
       new executor::ExecutorContext(txn));
 
   // Construct the task. Each partition has 1 tuple to insert
-  for (int partition = 0; partition < num_partition; partition++) {
-    LOG_INFO("Execute insert task on partition %d", partition);
+  for (size_t partition = 0; partition < num_partition; partition++) {
+    size_t task_id = partition;
+    LOG_INFO("Execute insert task on partition %d", (int) partition);
     executor::InsertTask *insert_task =
-        new executor::InsertTask(&node, node.GetBulkInsertCount(), partition);
+        new executor::InsertTask(&node, node.GetBulkInsertCount(), task_id, partition);
+    insert_task->tuple_bitmap.clear();
     insert_task->tuple_bitmap.resize(node.GetBulkInsertCount(), false);
     // Only insert the tuple in this partition
     insert_task->tuple_bitmap[partition] = true;
@@ -256,7 +258,7 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   txn_manager.CommitTransaction(txn);
 
   // Check if the tuples go to the correct partition
-  for (int partition = 0; partition < num_partition; partition++) {
+  for (size_t partition = 0; partition < num_partition; partition++) {
     // XXX Hard code the tile_group offset here
     int num_tuples = partition;
     auto tile_group = table->GetTileGroupFromPartition(partition, num_tuples);
