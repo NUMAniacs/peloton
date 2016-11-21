@@ -122,7 +122,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
   size_t num_partitions = PL_NUM_PARTITIONS();
   // The result of the logical tiles for all tasks
-  std::shared_ptr<executor::ResultTileLists> result_tiles(
+  std::shared_ptr<executor::ResultTileLists> result_tile_lists(
       new executor::ResultTileLists());
 
   auto plan_tree = statement->GetPlanTree().get();
@@ -194,7 +194,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         for (size_t j = 0; j < num_tile_groups; j += num_tile_groups_per_task) {
           // create a new task
           executor::SeqScanTask *seq_scan_task = new executor::SeqScanTask(
-              plan_tree, tasks.size(), i, result_tiles);
+              plan_tree, tasks.size(), i, result_tile_lists);
           for (size_t k = j;
                k < j + num_tile_groups_per_task && k < num_tile_groups; k++) {
             // append the next tile group
@@ -211,7 +211,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       // Populate default task for other queries
       LOG_DEBUG("Created partition unaware task for other stmt");
       tasks.push_back(std::shared_ptr<executor::AbstractTask>(
-          new executor::PartitionUnawareTask(plan_tree, result_tiles)));
+          new executor::PartitionUnawareTask(plan_tree, result_tile_lists)));
       break;
     }
   }
