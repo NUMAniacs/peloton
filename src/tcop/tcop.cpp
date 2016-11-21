@@ -122,8 +122,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
   size_t num_partitions = PL_NUM_PARTITIONS();
   // The result of the logical tiles for all tasks
-  std::shared_ptr<executor::ResultTileLists> result_tile_lists(
-      new executor::ResultTileLists());
+  std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
+      new executor::LogicalTileLists());
 
   auto plan_tree = statement->GetPlanTree().get();
   switch (plan_tree->GetPlanNodeType()) {

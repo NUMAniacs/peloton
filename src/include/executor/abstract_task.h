@@ -40,13 +40,14 @@ namespace executor {
 typedef std::vector<std::shared_ptr<storage::TileGroup>> TileGroupPtrList;
 
 // Type for a list of result logical tiles
-typedef std::vector<std::unique_ptr<executor::LogicalTile>> ResultTileList;
-typedef std::vector<ResultTileList> ResultTileLists;
+typedef std::vector<std::unique_ptr<executor::LogicalTile>> LogicalTileList;
+typedef std::vector<LogicalTileList> LogicalTileLists;
 
 enum TaskType {
   TASK_PARTITION_UNAWARE = 0,
   TASK_INSERT = 1,
   TASK_SEQ_SCAN_TASK = 2,
+  TASK_HASH = 3,
 };
 
 // The abstract task class
@@ -57,7 +58,7 @@ class AbstractTask {
   virtual TaskType GetTaskType() = 0;
 
   explicit AbstractTask(const planner::AbstractPlan *node,
-                        std::shared_ptr<ResultTileLists> result_tile_lists)
+                        std::shared_ptr<LogicalTileLists> result_tile_lists)
       : node(node), result_tile_lists(result_tile_lists) {}
 
   // Initialize the task with callbacks
@@ -75,7 +76,7 @@ class AbstractTask {
   // The shared result vector for each task. All the intermediate result are
   // buffered here. (further used by joins)
   // TODO store the partition information in the logical tile as well
-  std::shared_ptr<ResultTileLists> result_tile_lists;
+  std::shared_ptr<LogicalTileLists> result_tile_lists;
 
   // The callback to call after task completes
   bridge::Notifiable *callback = nullptr;
@@ -91,7 +92,7 @@ class PartitionAwareTask : public AbstractTask {
 
   explicit PartitionAwareTask(
       const planner::AbstractPlan *node, size_t task_id, size_t partition_id,
-      std::shared_ptr<ResultTileLists> result_tile_lists)
+      std::shared_ptr<LogicalTileLists> result_tile_lists)
       : AbstractTask(node, result_tile_lists),
         task_id(task_id),
         partition_id(partition_id) {}
@@ -112,7 +113,7 @@ class PartitionUnawareTask : public AbstractTask {
 
   explicit PartitionUnawareTask(
       const planner::AbstractPlan *node,
-      std::shared_ptr<ResultTileLists> result_tile_lists)
+      std::shared_ptr<LogicalTileLists> result_tile_lists)
       : AbstractTask(node, result_tile_lists) {}
 };
 
@@ -156,7 +157,7 @@ class SeqScanTask : public PartitionAwareTask {
    */
   explicit SeqScanTask(const planner::AbstractPlan *node, size_t task_id,
                        size_t partition_id,
-                       std::shared_ptr<ResultTileLists> result_tile_lists)
+                       std::shared_ptr<LogicalTileLists> result_tile_lists)
       : PartitionAwareTask(node, task_id, partition_id, result_tile_lists) {}
 };
 

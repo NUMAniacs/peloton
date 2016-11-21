@@ -21,6 +21,11 @@
 #include "boost/thread/future.hpp"
 
 namespace peloton {
+
+namespace executor {
+class ParallelHashExecutor;
+}
+
 namespace bridge {
 
 //===--------------------------------------------------------------------===//
