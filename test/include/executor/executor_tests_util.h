@@ -14,8 +14,10 @@
 
 #include <vector>
 #include <memory>
-#include <boost/thread/future.hpp>
+#include "boost/thread/future.hpp"
 #include "common/types.h"
+#include "executor/abstract_task.h"
+#include "planner/abstract_plan.h"
 
 namespace peloton {
 
@@ -109,6 +111,26 @@ class ExecutorTestsUtil {
 
   static void Execute(executor::AbstractExecutor *executor,
                       boost::promise<bool> *p);
+};
+
+struct ParallelScanArgs {
+  boost::promise<bool> p;
+  boost::unique_future<bool> f;
+  concurrency::Transaction *txn;
+  planner::AbstractPlan *node;
+  std::shared_ptr<executor::AbstractTask> task;
+  bool select_for_update;
+  std::vector<int> results;
+  ParallelScanArgs *self;
+
+  ParallelScanArgs(concurrency::Transaction *txn, planner::AbstractPlan *node,
+                   std::shared_ptr<executor::AbstractTask>& task,
+                   bool select_for_update) :
+      txn(txn), node(node), task(task),
+      select_for_update(select_for_update) {
+    f = p.get_future();
+    self = this;
+  }
 };
 
 }  // namespace test

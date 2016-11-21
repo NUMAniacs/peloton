@@ -35,6 +35,8 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor {
 
   bool DExecute();
 
+  LogicalTile* GetOutput();
+
  private:
   //===--------------------------------------------------------------------===//
   // Executor State
@@ -46,8 +48,12 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor {
   /* end iterator of the tile group list */
   TileGroupPtrList::const_iterator tile_group_end_itr_;
 
-  /* ID of the task this executor runs */
-  int task_id_;
+  /* Index of the RWSet this executor updates */
+  int txn_partition_id_;
+
+  std::shared_ptr<SeqScanTask> seq_scan_task_;
+
+  LogicalTileList::iterator result_tiles_itr_;
 
   //===--------------------------------------------------------------------===//
   // Plan Info

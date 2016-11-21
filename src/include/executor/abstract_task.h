@@ -101,6 +101,10 @@ class PartitionAwareTask : public AbstractTask {
         task_id(task_id),
         partition_id(partition_id) {}
 
+  inline LogicalTileList& GetResultTileList() {
+    return (*result_tile_lists)[task_id];
+  }
+
   // The id of this task
   size_t task_id;
 

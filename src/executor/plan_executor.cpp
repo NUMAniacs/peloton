@@ -91,8 +91,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
       status = executor_tree->Execute();
 
       // FIXME We should push the logical tile to the result field in the tasks
-      // instead of being processed here immediately
-
+      // instead of being processed here immediately)
       std::unique_ptr<executor::LogicalTile> logical_tile(
           executor_tree->GetOutput());
       // Some executors don't return logical tiles (e.g., Update).

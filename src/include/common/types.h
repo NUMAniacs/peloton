@@ -1016,6 +1016,7 @@ typedef std::unordered_map<oid_t, std::unordered_map<oid_t, RWType>> RWSetEle;
 
 struct ReadWriteSet {
   std::vector<RWSetEle> rw_list_;
+
   ReadWriteSet(int size=1) {
     resize(size);
   }

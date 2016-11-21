@@ -218,7 +218,7 @@ TEST_F(TransactionTests, ParallelScanSingleTileTest) {
         TransactionTestsUtil::CreateTable(35,10));
     // simple scan
     {
-      TransactionScheduler scheduler(1, table.get(), &txn_manager, true);
+      TransactionScheduler scheduler(1, table.get(), &txn_manager);
       scheduler.Txn(0).ParallelScan(0);
       scheduler.Txn(0).Commit();
 
@@ -236,7 +236,7 @@ TEST_F(TransactionTests, ParallelScanSingleTileTest) {
      * txn 1 : Commit (Success)
      */
     {
-      TransactionScheduler scheduler(2, table.get(), &txn_manager, true);
+      TransactionScheduler scheduler(2, table.get(), &txn_manager);
       scheduler.Txn(0).ParallelScan(0);
       scheduler.Txn(1).Read(0);
       scheduler.Txn(0).Read(0);
@@ -262,7 +262,7 @@ TEST_F(TransactionTests, ParallelScanAbortTest) {
 
     // simple scan
     {
-      TransactionScheduler scheduler(1, table.get(), &txn_manager, true);
+      TransactionScheduler scheduler(1, table.get(), &txn_manager);
       scheduler.Txn(0).ParallelScan(0);
       scheduler.Txn(0).Abort();
 
@@ -279,7 +279,7 @@ TEST_F(TransactionTests, ParallelScanAbortTest) {
     * txn 1 : Commit (Success)
     */
     {
-      TransactionScheduler scheduler(2, table.get(), &txn_manager, true);
+      TransactionScheduler scheduler(2, table.get(), &txn_manager);
       scheduler.Txn(0).ParallelScan(0);
       scheduler.Txn(1).Read(0);
       scheduler.Txn(0).Read(0);
@@ -303,7 +303,7 @@ TEST_F(TransactionTests, ParallelScanMultiTileList) {
         TransactionTestsUtil::CreateTable(75,10));
     // simple scan
     {
-      TransactionScheduler scheduler(1, table.get(), &txn_manager, true);
+      TransactionScheduler scheduler(1, table.get(), &txn_manager);
       scheduler.Txn(0).ParallelScan(0);
       scheduler.Txn(0).Commit();
 
@@ -321,7 +321,7 @@ TEST_F(TransactionTests, ParallelScanMultiTileList) {
      * txn 1 : Commit (Success)
      */
     {
-      TransactionScheduler scheduler(2, table.get(), &txn_manager, true);
+      TransactionScheduler scheduler(2, table.get(), &txn_manager);
       scheduler.Txn(0).ParallelScan(0);
       scheduler.Txn(1).Read(0);
       scheduler.Txn(0).Read(0);

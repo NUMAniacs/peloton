@@ -56,14 +56,16 @@ bool ParallelSeqScanExecutor::DInit() {
 
   target_table_ = node.GetTable();
 
+  seq_scan_task_ = std::dynamic_pointer_cast<SeqScanTask>(executor_context_->GetTask());
   // the task should be set in a previous step
-  PL_ASSERT(executor_context_->GetTask().get() != nullptr);
+  PL_ASSERT(seq_scan_task_.get() != nullptr);
 
-  auto seq_scan_task = std::dynamic_pointer_cast<SeqScanTask>(executor_context_->GetTask());
-  tile_group_itr_ = seq_scan_task->tile_group_ptrs.begin();
-  tile_group_end_itr_ = seq_scan_task->tile_group_ptrs.end();
-  // TODO: Remove after changing txn system
-  task_id_ = PL_GET_PARTITION_NODE();
+  tile_group_itr_ = seq_scan_task_->tile_group_ptrs.begin();
+  tile_group_end_itr_ = seq_scan_task_->tile_group_ptrs.end();
+
+  result_tiles_itr_ = seq_scan_task_->GetResultTileList().begin();
+
+  txn_partition_id_ = PL_GET_PARTITION_NODE();
 
   if (target_table_ != nullptr) {
     if (column_ids_.empty()) {
@@ -154,7 +156,7 @@ bool ParallelSeqScanExecutor::DExecute() {
           if (predicate_ == nullptr) {
             position_list.push_back(tuple_id);
             auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
-                                                       task_id_);
+                                                       txn_partition_id_);
             if (!res) {
               transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
               return res;
@@ -168,7 +170,7 @@ bool ParallelSeqScanExecutor::DExecute() {
             if (eval.IsTrue()) {
               position_list.push_back(tuple_id);
               auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
-                                                         task_id_);
+                                                         txn_partition_id_);
               if (!res) {
                 transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
                 return res;
@@ -192,11 +194,20 @@ bool ParallelSeqScanExecutor::DExecute() {
       logical_tile->AddPositionList(std::move(position_list));
 
       LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
-      SetOutput(logical_tile.release());
+      seq_scan_task_->GetResultTileList().push_back(std::move(logical_tile));
       return true;
     }
   }
   return false;
+}
+
+LogicalTile* ParallelSeqScanExecutor::GetOutput() {
+  if (result_tiles_itr_ == seq_scan_task_->GetResultTileList().end()) {
+    return nullptr;
+  }
+  auto result_tile = (*result_tiles_itr_).release();
+  result_tiles_itr_++;
+  return result_tile;
 }
 
 }  // namespace executor
