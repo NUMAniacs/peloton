@@ -54,7 +54,7 @@ class ExecutorContext {
 
   inline std::shared_ptr<AbstractTask> const GetTask() { return task_; }
 
-  inline void SetTask(std::shared_ptr<AbstractTask> task) { task_ = task; }
+  inline void SetTask(std::shared_ptr<AbstractTask>& task) { task_ = task; }
 
   // Get a varlen pool (will construct the pool only if needed)
   common::VarlenPool *GetExecutorContextPool();

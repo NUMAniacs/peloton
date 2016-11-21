@@ -231,6 +231,7 @@ TEST_F(TransactionTests, AbortTest) {
 }
 
 TEST_F(TransactionTests, ParallelScanSingleTileTest) {
+  ExecutorPoolHarness::GetInstance();
   for (auto test_type : TEST_TYPES) {
     concurrency::TransactionManagerFactory::Configure(test_type);
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
@@ -274,6 +275,7 @@ TEST_F(TransactionTests, ParallelScanSingleTileTest) {
 }
 
 TEST_F(TransactionTests, ParallelScanAbortTest) {
+  ExecutorPoolHarness::GetInstance();
   for (auto test_type : TEST_TYPES) {
     concurrency::TransactionManagerFactory::Configure(test_type);
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
@@ -316,6 +318,7 @@ TEST_F(TransactionTests, ParallelScanAbortTest) {
 }
 
 TEST_F(TransactionTests, ParallelScanMultiTileList) {
+  ExecutorPoolHarness::GetInstance();
   for (auto test_type : TEST_TYPES) {
     concurrency::TransactionManagerFactory::Configure(test_type);
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
