@@ -18,8 +18,12 @@
 #include "executor/logical_tile.h"
 #include "executor/logical_tile_factory.h"
 
+#include "executor/hash_join_executor.h"
+#include "executor/hash_executor.h"
 #include "executor/parallel_hash_join_executor.h"
 #include "executor/parallel_hash_executor.h"
+#include "executor/merge_join_executor.h"
+#include "executor/nested_loop_join_executor.h"
 
 #include "expression/abstract_expression.h"
 #include "expression/tuple_value_expression.h"
@@ -27,6 +31,8 @@
 
 #include "planner/hash_join_plan.h"
 #include "planner/hash_plan.h"
+#include "planner/merge_join_plan.h"
+#include "planner/nested_loop_join_plan.h"
 
 #include "storage/data_table.h"
 #include "storage/tile.h"
@@ -45,44 +51,27 @@ namespace peloton {
 namespace test {
 
 // XXX This is simply a copy of join test. Not tested in parallel.
-// TODO Refactor the util functions with join test
 
 class ParallelJoinTests : public PelotonTest {};
 
-std::shared_ptr<const peloton::catalog::Schema> CreateJoinSchema() {
-  return std::shared_ptr<const peloton::catalog::Schema>(
-      new catalog::Schema({ExecutorTestsUtil::GetColumnInfo(1),
-                           ExecutorTestsUtil::GetColumnInfo(1),
-                           ExecutorTestsUtil::GetColumnInfo(0),
-                           ExecutorTestsUtil::GetColumnInfo(0)}));
-}
+std::vector<PlanNodeType> join_algorithms = {  // PLAN_NODE_TYPE_MERGEJOIN,
+    PLAN_NODE_TYPE_HASHJOIN};
 
-std::vector<PlanNodeType> join_algorithms = {PLAN_NODE_TYPE_HASHJOIN};
-
-std::vector<PelotonJoinType> join_types = {JOIN_TYPE_INNER};
+std::vector<PelotonJoinType> join_types = {JOIN_TYPE_INNER, JOIN_TYPE_LEFT,
+                                           JOIN_TYPE_RIGHT, JOIN_TYPE_OUTER};
 
 void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
                      oid_t join_test_type);
 
-oid_t CountTuplesWithNullFields(executor::LogicalTile *logical_tile);
-
-void ValidateJoinLogicalTile(executor::LogicalTile *logical_tile);
-
-void ExpectEmptyTileResult(MockExecutor *table_scan_executor);
-
-void ExpectMoreThanOneTileResults(
-    MockExecutor *table_scan_executor,
-    std::vector<std::unique_ptr<executor::LogicalTile>> &
-        table_logical_tile_ptrs);
-
-void ExpectNormalTileResults(
-    size_t table_tile_group_count, MockExecutor *table_scan_executor,
-    std::vector<std::unique_ptr<executor::LogicalTile>> &
-        table_logical_tile_ptrs);
+void PopulateTileResults(
+    size_t tile_group_begin_itr, size_t tile_group_count,
+    std::shared_ptr<executor::LogicalTileLists> table_logical_tile_lists,
+    size_t task_id, executor::LogicalTileList &table_logical_tile_ptrs);
 
 enum JOIN_TEST_TYPE {
   BASIC_TEST = 0,
   BOTH_TABLES_EMPTY = 1,
+  COMPLICATED_TEST = 2,
   SPEED_TEST = 3,
   LEFT_TABLE_EMPTY = 4,
   RIGHT_TABLE_EMPTY = 5,
@@ -116,6 +105,20 @@ TEST_F(ParallelJoinTests, JoinTypesTest) {
       LOG_INFO("JOIN TYPE :: %d", join_type);
       // Execute the join test
       ExecuteJoinTest(join_algorithm, join_type, BASIC_TEST);
+    }
+  }
+}
+
+TEST_F(ParallelJoinTests, ComplicatedTest) {
+  // Go over all join algorithms
+  for (auto join_algorithm : join_algorithms) {
+    LOG_INFO("JOIN ALGORITHM :: %s",
+             PlanNodeTypeToString(join_algorithm).c_str());
+    // Go over all join types
+    for (auto join_type : join_types) {
+      LOG_INFO("JOIN TYPE :: %d", join_type);
+      // Execute the join test
+      ExecuteJoinTest(join_algorithm, join_type, COMPLICATED_TEST);
     }
   }
 }
@@ -170,9 +173,11 @@ TEST_F(ParallelJoinTests, JoinPredicateTest) {
   }
 }
 
-TEST_F(ParallelJoinTests, SpeedTest) {
-  ExecuteJoinTest(PLAN_NODE_TYPE_HASHJOIN, JOIN_TYPE_OUTER, SPEED_TEST);
-}
+// XXX We're not supposed to do performance test in unit tests..
+// TEST_F(ParallelJoinTests, SpeedTest) {
+//  ExecuteJoinTest(PLAN_NODE_TYPE_HASHJOIN, JOIN_TYPE_OUTER, SPEED_TEST);
+//  ExecuteJoinTest(PLAN_NODE_TYPE_MERGEJOIN, JOIN_TYPE_OUTER, SPEED_TEST);
+//}
 
 void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
                      oid_t join_test_type) {
@@ -209,6 +214,38 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   LOG_TRACE("%s", left_table->GetInfo().c_str());
   LOG_TRACE("%s", right_table->GetInfo().c_str());
 
+  if (join_test_type == COMPLICATED_TEST) {
+    // Modify some values in left and right tables for complicated test
+    auto left_source_tile = left_table->GetTileGroup(2)->GetTile(0);
+    auto right_dest_tile = right_table->GetTileGroup(1)->GetTile(0);
+    auto right_source_tile = left_table->GetTileGroup(0)->GetTile(0);
+
+    auto source_tile_tuple_count = left_source_tile->GetAllocatedTupleCount();
+    auto source_tile_column_count = left_source_tile->GetColumnCount();
+
+    // LEFT - 3 rd tile --> RIGHT - 2 nd tile
+    for (oid_t tuple_itr = 3; tuple_itr < source_tile_tuple_count;
+         tuple_itr++) {
+      for (oid_t col_itr = 0; col_itr < source_tile_column_count; col_itr++) {
+        common::Value val = (left_source_tile->GetValue(tuple_itr, col_itr));
+        right_dest_tile->SetValue(val, tuple_itr, col_itr);
+      }
+    }
+
+    // RIGHT - 1 st tile --> RIGHT - 2 nd tile
+    // RIGHT - 2 nd tile --> RIGHT - 2 nd tile
+    for (oid_t col_itr = 0; col_itr < source_tile_column_count; col_itr++) {
+      common::Value val1 = (right_source_tile->GetValue(4, col_itr));
+      right_dest_tile->SetValue(val1, 0, col_itr);
+      common::Value val2 = (right_dest_tile->GetValue(3, col_itr));
+      right_dest_tile->SetValue(val2, 2, col_itr);
+    }
+  }
+
+  // Result of seq scans
+  std::shared_ptr<executor::LogicalTileLists> right_table_logical_tile_lists(
+      new executor::LogicalTileLists());
+
   std::vector<std::unique_ptr<executor::LogicalTile>>
       left_table_logical_tile_ptrs;
   std::vector<std::unique_ptr<executor::LogicalTile>>
@@ -235,67 +272,87 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   }
 
   // Left scan executor returns logical tiles from the left table
-
   EXPECT_CALL(left_table_scan_executor, DInit()).WillOnce(Return(true));
 
   //===--------------------------------------------------------------------===//
   // Setup left table
   //===--------------------------------------------------------------------===//
-  if (join_test_type == BASIC_TEST || join_test_type == SPEED_TEST) {
-    ExpectNormalTileResults(left_table_tile_group_count,
-                            &left_table_scan_executor,
-                            left_table_logical_tile_ptrs);
+  if (join_test_type == BASIC_TEST || join_test_type == COMPLICATED_TEST ||
+      join_test_type == SPEED_TEST) {
+
+    JoinTestsUtil::ExpectNormalTileResults(left_table_tile_group_count,
+                                           &left_table_scan_executor,
+                                           left_table_logical_tile_ptrs);
 
   } else if (join_test_type == BOTH_TABLES_EMPTY) {
-    ExpectEmptyTileResult(&left_table_scan_executor);
+    JoinTestsUtil::ExpectEmptyTileResult(&left_table_scan_executor);
   } else if (join_test_type == LEFT_TABLE_EMPTY) {
-    ExpectEmptyTileResult(&left_table_scan_executor);
+    JoinTestsUtil::ExpectEmptyTileResult(&left_table_scan_executor);
   } else if (join_test_type == RIGHT_TABLE_EMPTY) {
     if (join_type == JOIN_TYPE_INNER || join_type == JOIN_TYPE_RIGHT) {
-      ExpectMoreThanOneTileResults(&left_table_scan_executor,
-                                   left_table_logical_tile_ptrs);
+      JoinTestsUtil::ExpectMoreThanOneTileResults(&left_table_scan_executor,
+                                                  left_table_logical_tile_ptrs);
     } else {
-      ExpectNormalTileResults(left_table_tile_group_count,
-                              &left_table_scan_executor,
-                              left_table_logical_tile_ptrs);
+      JoinTestsUtil::ExpectNormalTileResults(left_table_tile_group_count,
+                                             &left_table_scan_executor,
+                                             left_table_logical_tile_ptrs);
     }
   }
 
   // Right scan executor returns logical tiles from the right table
-
   EXPECT_CALL(right_table_scan_executor, DInit()).WillOnce(Return(true));
 
   //===--------------------------------------------------------------------===//
   // Setup right table
   //===--------------------------------------------------------------------===//
 
-  if (join_test_type == BASIC_TEST || join_test_type == SPEED_TEST) {
-    ExpectNormalTileResults(right_table_tile_group_count,
-                            &right_table_scan_executor,
-                            right_table_logical_tile_ptrs);
-
+  if (join_test_type == BASIC_TEST || join_test_type == COMPLICATED_TEST ||
+      join_test_type == SPEED_TEST) {
+    size_t task_id = 0;
+    size_t tile_begin_itr = 0;
+    PopulateTileResults(tile_begin_itr, right_table_tile_group_count,
+                        right_table_logical_tile_lists, task_id,
+                        right_table_logical_tile_ptrs);
   } else if (join_test_type == BOTH_TABLES_EMPTY) {
-    ExpectEmptyTileResult(&right_table_scan_executor);
+    // Populate an empty result
+    size_t task_id = 0;
+    size_t tile_begin_itr = 0;
+    size_t result_count = 0;
+    PopulateTileResults(tile_begin_itr, result_count,
+                        right_table_logical_tile_lists, task_id,
+                        right_table_logical_tile_ptrs);
 
   } else if (join_test_type == LEFT_TABLE_EMPTY) {
     if (join_type == JOIN_TYPE_INNER || join_type == JOIN_TYPE_LEFT) {
       // For hash join, we always build the hash table from right child
       if (join_algorithm == PLAN_NODE_TYPE_HASHJOIN) {
-        ExpectNormalTileResults(right_table_tile_group_count,
-                                &right_table_scan_executor,
-                                right_table_logical_tile_ptrs);
+        size_t task_id = 0;
+        size_t tile_begin_itr = 0;
+        PopulateTileResults(tile_begin_itr, right_table_tile_group_count,
+                            right_table_logical_tile_lists, task_id,
+                            right_table_logical_tile_ptrs);
       } else {
-        ExpectMoreThanOneTileResults(&right_table_scan_executor,
-                                     right_table_logical_tile_ptrs);
+        // TODO Handle the case for other join types
+        // ExpectMoreThanOneTileResults(&right_table_scan_executor,
+        //                           right_table_logical_tile_ptrs);
+        PL_ASSERT(false);
       }
 
     } else if (join_type == JOIN_TYPE_OUTER || join_type == JOIN_TYPE_RIGHT) {
-      ExpectNormalTileResults(right_table_tile_group_count,
-                              &right_table_scan_executor,
-                              right_table_logical_tile_ptrs);
+      size_t task_id = 0;
+      size_t tile_begin_itr = 0;
+      PopulateTileResults(tile_begin_itr, right_table_tile_group_count,
+                          right_table_logical_tile_lists, task_id,
+                          right_table_logical_tile_ptrs);
     }
   } else if (join_test_type == RIGHT_TABLE_EMPTY) {
-    ExpectEmptyTileResult(&right_table_scan_executor);
+    // Populate an empty result
+    size_t task_id = 0;
+    size_t tile_begin_itr = 0;
+    size_t result_count = 0;
+    PopulateTileResults(tile_begin_itr, result_count,
+                        right_table_logical_tile_lists, task_id,
+                        right_table_logical_tile_ptrs);
   }
 
   //===--------------------------------------------------------------------===//
@@ -306,7 +363,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   oid_t tuples_with_null = 0;
   auto projection = JoinTestsUtil::CreateProjection();
   // setup the projection schema
-  auto schema = CreateJoinSchema();
+  auto schema = JoinTestsUtil::CreateJoinSchema();
 
   // Construct predicate
   std::unique_ptr<const expression::AbstractExpression> predicate(
@@ -314,6 +371,41 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
   // Differ based on join algorithm
   switch (join_algorithm) {
+
+    case PLAN_NODE_TYPE_MERGEJOIN: {
+      // Create join clauses
+      std::vector<planner::MergeJoinPlan::JoinClause> join_clauses;
+      join_clauses = JoinTestsUtil::CreateJoinClauses();
+
+      // Create merge join plan node
+      planner::MergeJoinPlan merge_join_node(join_type, std::move(predicate),
+                                             std::move(projection), schema,
+                                             join_clauses);
+
+      // Construct the merge join executor
+      executor::MergeJoinExecutor merge_join_executor(&merge_join_node,
+                                                      nullptr);
+
+      // Construct the executor tree
+      merge_join_executor.AddChild(&left_table_scan_executor);
+      merge_join_executor.AddChild(&right_table_scan_executor);
+
+      // Run the merge join executor
+      EXPECT_TRUE(merge_join_executor.Init());
+      while (merge_join_executor.Execute() == true) {
+        std::unique_ptr<executor::LogicalTile> result_logical_tile(
+            merge_join_executor.GetOutput());
+
+        if (result_logical_tile != nullptr) {
+          result_tuple_count += result_logical_tile->GetTupleCount();
+          tuples_with_null += JoinTestsUtil::CountTuplesWithNullFields(
+              result_logical_tile.get());
+          JoinTestsUtil::ValidateJoinLogicalTile(result_logical_tile.get());
+          LOG_TRACE("%s", result_logical_tile->GetInfo().c_str());
+        }
+      }
+
+    } break;
 
     case PLAN_NODE_TYPE_HASHJOIN: {
       // Create hash plan node
@@ -341,7 +433,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
       // Create hash plan node
       planner::HashPlan hash_plan_node(hash_keys);
 
-      // Construct one instance of the hash executor
+      // Construct the hash executor
       executor::ParallelHashExecutor hash_executor(&hash_plan_node, nullptr);
 
       // Create hash join plan node.
@@ -360,15 +452,28 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
       // Run the hash_join_executor
       EXPECT_TRUE(hash_join_executor.Init());
+
+      // Launch one hash task
+      size_t task_id = 0;
+      size_t partition_id = 0;
+      std::shared_ptr<executor::HashTask> hash_task(
+          new executor::HashTask(&hash_plan_node, &hash_executor, task_id,
+                                 partition_id, right_table_logical_tile_lists));
+      executor::ParallelHashExecutor::ExecuteTask(hash_task);
+      // XXX Because the hash join executor is not modified yet, we populate the
+      // result tiles in hash executor so that the join executor can fetch the
+      // tiles..
+      hash_executor.SetChildTiles(right_table_logical_tile_lists);
+
       while (hash_join_executor.Execute() == true) {
         std::unique_ptr<executor::LogicalTile> result_logical_tile(
             hash_join_executor.GetOutput());
 
         if (result_logical_tile != nullptr) {
           result_tuple_count += result_logical_tile->GetTupleCount();
-          tuples_with_null +=
-              CountTuplesWithNullFields(result_logical_tile.get());
-          ValidateJoinLogicalTile(result_logical_tile.get());
+          tuples_with_null += JoinTestsUtil::CountTuplesWithNullFields(
+              result_logical_tile.get());
+          JoinTestsUtil::ValidateJoinLogicalTile(result_logical_tile.get());
           LOG_TRACE("%s", result_logical_tile->GetInfo().c_str());
         }
       }
@@ -441,6 +546,34 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
         break;
     }
 
+  } else if (join_test_type == COMPLICATED_TEST) {
+    // Check output
+    switch (join_type) {
+      case JOIN_TYPE_INNER:
+        EXPECT_EQ(result_tuple_count, 10);
+        EXPECT_EQ(tuples_with_null, 0);
+        break;
+
+      case JOIN_TYPE_LEFT:
+        EXPECT_EQ(result_tuple_count, 17);
+        EXPECT_EQ(tuples_with_null, 7);
+        break;
+
+      case JOIN_TYPE_RIGHT:
+        EXPECT_EQ(result_tuple_count, 10);
+        EXPECT_EQ(tuples_with_null, 0);
+        break;
+
+      case JOIN_TYPE_OUTER:
+        EXPECT_EQ(result_tuple_count, 17);
+        EXPECT_EQ(tuples_with_null, 7);
+        break;
+
+      default:
+        throw Exception("Unsupported join type : " + std::to_string(join_type));
+        break;
+    }
+
   } else if (join_test_type == LEFT_TABLE_EMPTY) {
     // Check output
     switch (join_type) {
@@ -498,105 +631,19 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   }
 }
 
-oid_t CountTuplesWithNullFields(executor::LogicalTile *logical_tile) {
-  PL_ASSERT(logical_tile);
+void PopulateTileResults(
+    size_t tile_group_begin_itr, size_t tile_group_count,
+    std::shared_ptr<executor::LogicalTileLists> table_logical_tile_lists,
+    size_t task_id, executor::LogicalTileList &table_logical_tile_ptrs) {
 
-  // Get column count
-  auto column_count = logical_tile->GetColumnCount();
-  oid_t tuples_with_null = 0;
-
-  // Go over the tile
-  for (auto logical_tile_itr : *logical_tile) {
-    const expression::ContainerTuple<executor::LogicalTile> join_tuple(
-        logical_tile, logical_tile_itr);
-
-    // Go over all the fields and check for null values
-    for (oid_t col_itr = 0; col_itr < column_count; col_itr++) {
-      common::Value val = (join_tuple.GetValue(col_itr));
-      if (val.IsNull()) {
-        tuples_with_null++;
-        break;
-      }
-    }
+  while (task_id >= table_logical_tile_lists->size()) {
+    table_logical_tile_lists->push_back(executor::LogicalTileList());
   }
-
-  return tuples_with_null;
-}
-
-void ValidateJoinLogicalTile(executor::LogicalTile *logical_tile) {
-  PL_ASSERT(logical_tile);
-
-  // Get column count
-  auto column_count = logical_tile->GetColumnCount();
-
-  // Check # of columns
-  EXPECT_EQ(column_count, 4);
-
-  // Check the attribute values
-  // Go over the tile
-  for (auto logical_tile_itr : *logical_tile) {
-    const expression::ContainerTuple<executor::LogicalTile> join_tuple(
-        logical_tile, logical_tile_itr);
-
-    // Check the join fields
-    common::Value left_tuple_join_attribute_val = (join_tuple.GetValue(0));
-    common::Value right_tuple_join_attribute_val = (join_tuple.GetValue(1));
-    common::Value cmp = (left_tuple_join_attribute_val.CompareEquals(
-        right_tuple_join_attribute_val));
-    EXPECT_TRUE(cmp.IsNull() || cmp.IsTrue());
-  }
-}
-void ExpectEmptyTileResult(MockExecutor *table_scan_executor) {
-  // Expect zero result tiles from the child
-  EXPECT_CALL(*table_scan_executor, DExecute()).WillOnce(Return(false));
-}
-
-void ExpectMoreThanOneTileResults(
-    MockExecutor *table_scan_executor,
-    std::vector<std::unique_ptr<executor::LogicalTile>> &
-        table_logical_tile_ptrs) {
-  // Expect more than one result tiles from the child, but only get one of them
-  EXPECT_CALL(*table_scan_executor, DExecute()).WillOnce(Return(true));
-  EXPECT_CALL(*table_scan_executor, GetOutput())
-      .WillOnce(Return(table_logical_tile_ptrs[0].release()));
-}
-
-void ExpectNormalTileResults(
-    size_t table_tile_group_count, MockExecutor *table_scan_executor,
-    std::vector<std::unique_ptr<executor::LogicalTile>> &
-        table_logical_tile_ptrs) {
-  // Return true for the first table_tile_group_count times
-  // Then return false after that
-  {
-    testing::Sequence execute_sequence;
-    for (size_t table_tile_group_itr = 0;
-         table_tile_group_itr < table_tile_group_count + 1;
-         table_tile_group_itr++) {
-      // Return true for the first table_tile_group_count times
-      if (table_tile_group_itr < table_tile_group_count) {
-        EXPECT_CALL(*table_scan_executor, DExecute())
-            .InSequence(execute_sequence)
-            .WillOnce(Return(true));
-      } else  // Return false after that
-      {
-        EXPECT_CALL(*table_scan_executor, DExecute())
-            .InSequence(execute_sequence)
-            .WillOnce(Return(false));
-      }
-    }
-  }
-  // Return the appropriate logical tiles for the first table_tile_group_count
-  // times
-  {
-    testing::Sequence get_output_sequence;
-    for (size_t table_tile_group_itr = 0;
-         table_tile_group_itr < table_tile_group_count;
-         table_tile_group_itr++) {
-      EXPECT_CALL(*table_scan_executor, GetOutput())
-          .InSequence(get_output_sequence)
-          .WillOnce(
-               Return(table_logical_tile_ptrs[table_tile_group_itr].release()));
-    }
+  // Move the logical tiles for the task with task_id
+  for (size_t tile_group_itr = tile_group_begin_itr;
+       tile_group_itr < tile_group_count; tile_group_itr++) {
+    (*table_logical_tile_lists)[task_id]
+        .emplace_back(table_logical_tile_ptrs[tile_group_itr].release());
   }
 }
 }  // namespace test
