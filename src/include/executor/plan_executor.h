@@ -104,6 +104,29 @@ class BlockingWait : public Notifiable {
 };
 
 /*
+* This class can be notified when a task completes
+*/
+class HashCallback : public Notifiable {
+ public:
+  HashCallback(int total_tasks, executor::ParallelHashExecutor *hash_executor)
+      : Notifiable(),
+        total_tasks_(total_tasks),
+        tasks_complete_(0),
+        hash_executor_(hash_executor) {}
+
+  ~HashCallback() {}
+
+  // when a task completes it will call this
+  // Assume the task is seq scan task
+  void TaskComplete(std::shared_ptr<executor::AbstractTask> task) override;
+
+ private:
+  int total_tasks_;
+  std::atomic<int> tasks_complete_;
+  executor::ParallelHashExecutor *hash_executor_;
+};
+
+/*
  * Struct to hold parameters used by the exchange operator
  */
 struct ExchangeParams {
