@@ -732,6 +732,7 @@ std::unique_ptr<planner::AbstractScan> SimpleOptimizer::CreateScanPlan(
   return std::move(node);
 }
 
+
 /**
  * This function replaces all COLUMN_REF expressions with TupleValue
  * expressions
