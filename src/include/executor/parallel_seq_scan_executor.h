@@ -29,13 +29,12 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor {
 
   explicit ParallelSeqScanExecutor(const planner::AbstractPlan *node,
                            ExecutorContext *executor_context);
+  LogicalTile* GetOutput();
 
  protected:
   bool DInit();
 
   bool DExecute();
-
-  LogicalTile* GetOutput();
 
  private:
   //===--------------------------------------------------------------------===//
@@ -53,7 +52,7 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor {
 
   std::shared_ptr<SeqScanTask> seq_scan_task_;
 
-  LogicalTileList::iterator result_tiles_itr_;
+  size_t curr_result_idx = 0;
 
   //===--------------------------------------------------------------------===//
   // Plan Info
