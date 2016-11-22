@@ -121,6 +121,8 @@ struct ParallelScanArgs {
   std::shared_ptr<executor::AbstractTask> task;
   bool select_for_update;
   std::vector<int> results;
+  std::vector<std::unique_ptr<executor::LogicalTile>> result_tiles;
+  int expected_num_tiles = 0;
   ParallelScanArgs *self;
 
   ParallelScanArgs(concurrency::Transaction *txn, planner::AbstractPlan *node,

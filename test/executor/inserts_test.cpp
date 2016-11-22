@@ -189,7 +189,7 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
 
   size_t num_partition = PL_NUM_PARTITIONS();
   LOG_DEBUG("Total number of partitions: %d",(int) num_partition);
-  txn = txn_manager.BeginTransaction(num_partition);
+  txn = txn_manager.BeginTransaction();
 
   // Expression for columns and table names
   char *name = new char[11]();

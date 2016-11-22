@@ -180,24 +180,27 @@ namespace test {
 ///**
 // * @brief Runs actual test as thread function
 // */
-//void RunTest(planner::AbstractPlan *node, concurrency::Transaction *txn,
-//             std::shared_ptr<executor::AbstractTask> task,
-//             int expected_num_tiles, int expected_num_cols) {
+//void RunTest(ParallelScanArgs **args) {
 //
 //  std::unique_ptr<executor::ExecutorContext> context(
-//      new executor::ExecutorContext(txn));
+//      new executor::ExecutorContext((*args)->txn));
 //
+//  // set the task for this executor
+//  context->SetTask((*args)->task);
 //  executor::ParallelSeqScanExecutor executor(node, context.get());
 //
 //  EXPECT_TRUE(executor.Init());
-//  // set the task for this executor
-//  executor.SetTask(task);
-//  std::vector<std::unique_ptr<executor::LogicalTile>> result_tiles;
-//  for (int i = 0; i < expected_num_tiles; i++) {
-//    result_tiles.emplace_back(GetNextTile(executor));
+//
+//  for (int i = 0; i < (*args)->expected_num_tiles; i++) {
+//    (*args)->result_tiles.emplace_back(GetNextTile(executor));
 //  }
 //  EXPECT_FALSE(executor.Execute());
+//  (*args)->p.set_value(true);
+//}
 //
+//void ValidateResults(
+//    std::vector<std::unique_ptr<executor::LogicalTile>>& result_tiles,
+//    int expected_num_tiles, int expected_num_cols) {
 //  // Check correctness of result tiles.
 //  for (int i = 0; i < expected_num_tiles; i++) {
 //    EXPECT_EQ(expected_num_cols, result_tiles[i]->GetColumnCount());
@@ -242,6 +245,11 @@ namespace test {
 //// The table being scanned has more than one tile group. i.e. the vertical
 //// partitioning changes midway.
 //TEST_F(ParallelSeqScanTests, SimpleParallelScanTest) {
+//  bool status = true;
+//
+//  // Start the thread pool
+//  ExecutorPoolHarness::GetInstance();
+//
 //  // Create table.
 //  std::unique_ptr<storage::DataTable> table(CreateTable());
 //
@@ -249,35 +257,40 @@ namespace test {
 //  std::vector<oid_t> column_ids({0, 1, 3});
 //
 //  // Create plan node.
-//  planner::ParallelSeqScanPlan node(table.get(), CreatePredicate(g_tuple_ids),
-//                            column_ids);
-//
+//  planner::ParallelSeqScanPlan node(table.get(),
+//                                    CreatePredicate(g_tuple_ids),
+//                                    column_ids);
 //  // Vector of tasks
 //  std::vector<executor::AbstractTask> tasks;
+//  std::vector<std::shared_ptr<ParallelScanArgs>> args;
+//  std::vector<std::unique_ptr<executor::LogicalTile>> result_tiles;
 //
 //  GenerateSingleTileGroupTasks(&table, &node, tasks);
-//
-//  // Start a partitioned thread pool
-//  PartitionThreadPool pool;
-//  pool.Initialize();
-//  // wait for the pool to start
-//  void std::this_thread::sleep_for(std::chrono::seconds(1));
 //
 //  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 //  auto txn = txn_manager.BeginTransaction();
 //
 //  for (int i=0; i<tasks.size(); i++) {
-//    pool.SubmitTask(RunTest, &(*txn), &node, std::ref(tasks.at(i)), );
+//    args.push_back(std::shared_ptr<ParallelScanArgs>(
+//        new ParallelScanArgs(txn, &node, tasks[i], false)));
+//    args[i]->expected_num_tiles = table->GetTileGroupCount();
+//    partitioned_executor_thread_pool.SubmitTask(tasks[i].partition_id,
+//                                                RunTest, &args[i]->self);
 //  }
-//  RunTest(executor, table->GetTileGroupCount(), column_ids.size());
 //
+//  for (int i=0; i<tasks.size(); i++) {
+//    status &= args[i]->f.get();
+//    // concatenate result tiles
+//    result_tiles.insert(result_tiles.end(), args[i]->result_tiles.begin(),
+//                        args[i]->result_tiles.end());
+//  }
 //  txn_manager.CommitTransaction(txn);
 //
-//  pool.Shutdown();
+//  ValidateResults(result_tiles, table->GetTileGroupCount(), column_ids.size());
 //}
-//
-//// Sequential scan of logical tile with predicate.
-//    TEST_F(SeqScanTests, NonLeafNodePredicateTest) {
+
+// Sequential scan of logical tile with predicate.
+//TEST_F(SeqScanTests, NonLeafNodePredicateTest) {
 //    // No table for this case as seq scan is not a leaf node.
 //    storage::DataTable *table = nullptr;
 //
