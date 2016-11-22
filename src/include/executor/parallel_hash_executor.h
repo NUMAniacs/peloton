@@ -52,18 +52,23 @@ class ParallelHashExecutor : public AbstractExecutor {
       expression::ContainerTupleComparator<LogicalTile>  // Pred
       > ParallelHashMapType;
 
-  inline ParallelHashMapType &GetHashTable() { return this->hash_table_; }
+  inline ParallelHashMapType &GetHashTable() { return hash_table_; }
 
-  inline const std::vector<oid_t> &GetHashKeyIds() const {
-    return this->column_ids_;
+  inline const std::vector<oid_t> &GetHashKeyIds() const { return column_ids_; }
+
+  // Execute the hash task
+  static void ExecuteTask(std::shared_ptr<HashTask> hash_task);
+
+  // TODO This is a hack. Remove me when we hook up hash executor with seq scan
+  // executor
+  void SetChildTiles(std::shared_ptr<LogicalTileLists> child_tiles) {
+    child_tiles_ = child_tiles;
   }
 
-  // DExecute Internal
-  static void DExecuteInt(ParallelHashMapType &hash_table,
-                          UNUSED_ATTRIBUTE size_t task_itr, size_t tile_itr,
-                          LogicalTile *tile, std::vector<oid_t> *column_ids);
-
  protected:
+  // Initialize the values of the hash keys from plan node
+  void InitHashKeys();
+
   bool DInit();
 
   bool DExecute();
@@ -73,11 +78,9 @@ class ParallelHashExecutor : public AbstractExecutor {
   ParallelHashMapType hash_table_;
 
   /** @brief Input tiles from child node */
-  std::vector<std::unique_ptr<LogicalTile>> child_tiles_;
+  std::shared_ptr<LogicalTileLists> child_tiles_;
 
   std::vector<oid_t> column_ids_;
-
-  bool done_ = false;
 
   size_t result_itr = 0;
 };

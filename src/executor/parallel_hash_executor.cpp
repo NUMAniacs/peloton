@@ -36,98 +36,85 @@ ParallelHashExecutor::ParallelHashExecutor(const planner::AbstractPlan *node,
  */
 bool ParallelHashExecutor::DInit() {
   PL_ASSERT(children_.size() == 1);
-
   // Initialize executor state
-  done_ = false;
   result_itr = 0;
 
+  // Initialize the hash keys
+  InitHashKeys();
   return true;
 }
 
-// TODO The task itr is used to distinguish the result logical tiles from
-// different tasks
-void ParallelHashExecutor::DExecuteInt(ParallelHashMapType &hash_table,
-                                       UNUSED_ATTRIBUTE size_t task_itr,
-                                       size_t tile_itr, LogicalTile *tile,
-                                       std::vector<oid_t> *column_ids) {
+void ParallelHashExecutor::InitHashKeys() {
+  const planner::HashPlan &node = GetPlanNode<planner::HashPlan>();
+  /* *
+   * HashKeys is a vector of TupleValue expr
+   * from which we construct a vector of column ids that represent the
+   * attributes of the underlying table.
+   * The hash table is built on top of these hash key attributes
+   * */
+  auto &hashkeys = node.GetHashKeys();
 
-  // Go over all tuples in the logical tile
-  for (oid_t tuple_id : *tile) {
-    // Key : container tuple with a subset of tuple attributes
-    // Value : < child_tile offset, tuple offset >
+  // Construct a logical tile
+  for (auto &hashkey : hashkeys) {
+    PL_ASSERT(hashkey->GetExpressionType() == EXPRESSION_TYPE_VALUE_TUPLE);
+    auto tuple_value =
+        reinterpret_cast<const expression::TupleValueExpression *>(
+            hashkey.get());
+    column_ids_.push_back(tuple_value->GetColumnId());
+  }
+}
 
-    // FIXME This is not thread safe at all
-    ParallelHashMapType::key_type key(tile, tuple_id, column_ids);
-    std::shared_ptr<HashSet> value;
-    auto status = hash_table.find(key, value);
-    // Not found
-    if (status == false) {
-      LOG_TRACE("key not found %d", (int)tuple_id);
-      value.reset(new HashSet());
-      value->insert(std::make_pair(tile_itr, tuple_id));
-      auto success = hash_table.insert(key, value);
-      PL_ASSERT(success);
-      (void)success;
-    } else {
-      // Found
-      LOG_TRACE("key found %d", (int)tuple_id);
-      value->insert(std::make_pair(tile_itr, tuple_id));
+void ParallelHashExecutor::ExecuteTask(std::shared_ptr<HashTask> hash_task) {
+  // Construct the hash table by going over each child logical tile and hashing
+  auto task_id = hash_task->task_id;
+  auto child_tiles = hash_task->result_tile_lists;
+  auto &hash_table = hash_task->hash_executor->GetHashTable();
+  auto &column_ids = hash_task->hash_executor->GetHashKeyIds();
+
+  for (size_t tile_itr = 0; tile_itr < (*child_tiles)[task_id].size();
+       tile_itr++) {
+
+    LOG_DEBUG("Advance to next tile");
+    auto tile = (*child_tiles)[task_id][tile_itr].get();
+
+    // Go over all tuples in the logical tile
+    for (oid_t tuple_id : *tile) {
+      // Key : container tuple with a subset of tuple attributes
+      // Value : < child_tile offset, tuple offset >
+
+      // FIXME This is not thread safe at all since multiple threads may insert
+      // to the same std::set
+      ParallelHashMapType::key_type key(tile, tuple_id, &column_ids);
+      std::shared_ptr<HashSet> value;
+      auto status = hash_table.find(key, value);
+      // Not found
+      if (status == false) {
+        LOG_TRACE("key not found %d", (int)tuple_id);
+        value.reset(new HashSet());
+        value->insert(std::make_pair(tile_itr, tuple_id));
+        auto success = hash_table.insert(key, value);
+        PL_ASSERT(success);
+        (void)success;
+      } else {
+        // Found
+        LOG_TRACE("key found %d", (int)tuple_id);
+        value->insert(std::make_pair(tile_itr, tuple_id));
+      }
+      PL_ASSERT(hash_table.contains(key));
     }
-    PL_ASSERT(hash_table.contains(key));
   }
 }
 
 bool ParallelHashExecutor::DExecute() {
   LOG_TRACE("Hash Executor");
 
-  if (done_ == false) {
-    const planner::HashPlan &node = GetPlanNode<planner::HashPlan>();
-
-    // First, get all the input logical tiles
-    while (children_[0]->Execute()) {
-      child_tiles_.emplace_back(children_[0]->GetOutput());
-    }
-
-    if (child_tiles_.size() == 0) {
-      LOG_TRACE("Hash Executor : false -- no child tiles ");
-      return false;
-    }
-
-    /* *
-     * HashKeys is a vector of TupleValue expr
-     * from which we construct a vector of column ids that represent the
-     * attributes of the underlying table.
-     * The hash table is built on top of these hash key attributes
-     * */
-    auto &hashkeys = node.GetHashKeys();
-
-    // Construct a logical tile
-    for (auto &hashkey : hashkeys) {
-      PL_ASSERT(hashkey->GetExpressionType() == EXPRESSION_TYPE_VALUE_TUPLE);
-      auto tuple_value =
-          reinterpret_cast<const expression::TupleValueExpression *>(
-              hashkey.get());
-      column_ids_.push_back(tuple_value->GetColumnId());
-    }
-
-    // Construct the hash table by going over each child logical tile and
-    // hashing
-    for (size_t child_tile_itr = 0; child_tile_itr < child_tiles_.size();
-         child_tile_itr++) {
-      LOG_DEBUG("Advance to next tile");
-      auto tile = child_tiles_[child_tile_itr].get();
-      DExecuteInt(hash_table_, 0, child_tile_itr, tile, &column_ids_);
-    }
-    done_ = true;
-  }
-
   // Return logical tiles one at a time
-  while (result_itr < child_tiles_.size()) {
-    if (child_tiles_[result_itr]->GetTupleCount() == 0) {
+  while (result_itr < (*child_tiles_)[0].size()) {
+    if ((*child_tiles_)[0][result_itr]->GetTupleCount() == 0) {
       result_itr++;
       continue;
     } else {
-      SetOutput(child_tiles_[result_itr++].release());
+      SetOutput((*child_tiles_)[0][result_itr++].release());
       LOG_DEBUG("Hash Executor : true -- return tile one at a time ");
       return true;
     }

@@ -33,6 +33,10 @@ class AbstractPlan;
 }
 
 namespace executor {
+class ParallelHashExecutor;
+}
+
+namespace executor {
 
 /*
  * Type for a list of pointers to tile groups
@@ -138,6 +142,27 @@ class InsertTask : public PartitionAwareTask {
 
   // The bitmap of tuples to insert
   std::vector<bool> tuple_bitmap;
+};
+
+// The class for hash tasks
+class HashTask : public PartitionAwareTask {
+ public:
+  ~HashTask() {}
+
+  TaskType GetTaskType() { return TASK_HASH; }
+
+  /*
+   * @param bulk_insert_count: The total bulk insert count in insert plan node
+   */
+  explicit HashTask(const planner::AbstractPlan *node,
+                    ParallelHashExecutor *hash_executor, size_t task_id,
+                    size_t partition_id,
+                    std::shared_ptr<LogicalTileLists> result_tile_lists)
+      : PartitionAwareTask(node, task_id, partition_id, result_tile_lists),
+        hash_executor(hash_executor) {}
+
+  // The hash executor object
+  ParallelHashExecutor *hash_executor;
 };
 
 // The class for parallel seq scan tasks
