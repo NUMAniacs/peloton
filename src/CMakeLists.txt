@@ -64,6 +64,11 @@ file(GLOB_RECURSE ycsb_srcs ${PROJECT_SOURCE_DIR}/src/main/ycsb/*.cpp)
 add_executable(ycsb EXCLUDE_FROM_ALL ${ycsb_srcs})
 target_link_libraries(ycsb peloton)
 
+# --[ numabench
+file(GLOB_RECURSE numabench_srcs ${PROJECT_SOURCE_DIR}/src/main/numabench/*.cpp)
+add_executable(numabench EXCLUDE_FROM_ALL ${numabench_srcs})
+target_link_libraries(numabench peloton)
+
 # --[ sdbench
 file(GLOB_RECURSE sdbench_srcs ${PROJECT_SOURCE_DIR}/src/main/sdbench/*.cpp)
 add_executable(sdbench EXCLUDE_FROM_ALL ${sdbench_srcs})
@@ -74,6 +79,8 @@ target_link_libraries(sdbench peloton)
 file(GLOB_RECURSE logger_srcs ${PROJECT_SOURCE_DIR}/src/main/logger/*.cpp)
 list(APPEND logger_srcs ${ycsb_srcs})
 list(REMOVE_ITEM  logger_srcs ${PROJECT_SOURCE_DIR}/src/main/ycsb/ycsb.cpp)
+list(APPEND logger_srcs ${numabench_srcs})
+list(REMOVE_ITEM  logger_srcs ${PROJECT_SOURCE_DIR}/src/main/numabench/numabench.cpp)
 list(APPEND logger_srcs ${tpcc_srcs})
 list(REMOVE_ITEM  logger_srcs ${PROJECT_SOURCE_DIR}/src/main/tpcc/tpcc.cpp)
 add_executable(logger EXCLUDE_FROM_ALL ${logger_srcs})
@@ -83,7 +90,7 @@ target_link_libraries(logger peloton)
 # --[ link to jemalloc
 set(EXE_LINK_LIBRARIES ${JEMALLOC_LIBRARIES})
 set(EXE_LINK_FLAGS "-Wl,--no-as-needed")
-set(EXE_LIST peloton-bin ycsb tpcc sdbench logger)
+set(EXE_LIST peloton-bin ycsb numabench tpcc sdbench logger)
 foreach(exe_name ${EXE_LIST})
     target_link_libraries(${exe_name} ${EXE_LINK_LIBRARIES})
     set_target_properties(${exe_name} PROPERTIES LINK_FLAGS ${EXE_LINK_FLAGS})
@@ -93,6 +100,6 @@ endforeach()
 
 add_custom_target(benchmark)
 
-add_dependencies(benchmark tpcc ycsb sdbench logger)
+add_dependencies(benchmark tpcc ycsb numabench sdbench logger)
 
 

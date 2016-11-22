@@ -97,7 +97,7 @@ TEST_F(InsertTests, InsertRecord) {
 
   values_ptr->push_back(new expression::ConstantValueExpression(
       common::ValueFactory::GetVarcharValue("Hello")));
-
+  // why there is a select statement
   insert_node->select = new parser::SelectStatement();
 
   planner::InsertPlan node(insert_node.get());
