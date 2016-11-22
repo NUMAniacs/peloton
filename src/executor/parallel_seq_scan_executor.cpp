@@ -63,7 +63,7 @@ bool ParallelSeqScanExecutor::DInit() {
   tile_group_itr_ = seq_scan_task_->tile_group_ptrs.begin();
   tile_group_end_itr_ = seq_scan_task_->tile_group_ptrs.end();
 
-  result_tiles_itr_ = seq_scan_task_->GetResultTileList().begin();
+  curr_result_idx = 0;
 
   txn_partition_id_ = PL_GET_PARTITION_NODE();
 
@@ -202,11 +202,12 @@ bool ParallelSeqScanExecutor::DExecute() {
 }
 
 LogicalTile* ParallelSeqScanExecutor::GetOutput() {
-  if (result_tiles_itr_ == seq_scan_task_->GetResultTileList().end()) {
+  if (curr_result_idx >= seq_scan_task_->GetResultTileList().size()) {
     return nullptr;
   }
-  auto result_tile = (*result_tiles_itr_).release();
-  result_tiles_itr_++;
+  auto result_tile =
+      seq_scan_task_->GetResultTileList()[curr_result_idx].release();
+  curr_result_idx++;
   return result_tile;
 }
 

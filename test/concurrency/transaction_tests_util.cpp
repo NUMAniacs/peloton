@@ -17,6 +17,7 @@
 #include "executor/insert_executor.h"
 #include "executor/seq_scan_executor.h"
 #include "executor/parallel_seq_scan_executor.h"
+#include "executor/plan_executor.h"
 #include "executor/index_scan_executor.h"
 #include "executor/update_executor.h"
 #include "executor/logical_tile_factory.h"
@@ -479,17 +480,24 @@ bool TransactionTestsUtil::ExecuteParallelScan(concurrency::Transaction *transac
   planner::ParallelSeqScanPlan
       parallel_seq_scan_node(table, predicate, column_ids, select_for_update);
 
+  std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
+      new executor::LogicalTileLists());
+
   // spawn all the executors
   for (size_t p=0; p<table->GetPartitionCount(); p++) {
     for (size_t i = 0; i < table->GetPartitionTileGroupCount(p); i++) {
       executor::SeqScanTask *task =
-          new executor::SeqScanTask(&parallel_seq_scan_node);
+          new executor::SeqScanTask(&parallel_seq_scan_node, tasks.size(), p,
+                                    result_tile_lists);
       task->tile_group_ptrs.push_back(table->GetTileGroupFromPartition(p, i));
       tasks.push_back(std::shared_ptr<executor::AbstractTask>(task));
     }
   }
 
+  bridge::BlockingWait wait(tasks.size());
+
   for (size_t i=0; i<tasks.size(); i++) {
+    tasks[i]->Init(&wait, tasks.size());
     args.push_back(std::shared_ptr<ParallelScanArgs>(
         new ParallelScanArgs(transaction, &parallel_seq_scan_node,
                              tasks[i], select_for_update)));
@@ -509,7 +517,6 @@ bool TransactionTestsUtil::ExecuteParallelScan(concurrency::Transaction *transac
 }
 
 void TransactionTestsUtil::ThreadExecuteScan(ParallelScanArgs **args) {
-  LOG_DEBUG("thread pid:%d", (*args)->task->partition_id);
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext((*args)->txn));
   context->SetTask((*args)->task);
