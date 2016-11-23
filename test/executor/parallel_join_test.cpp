@@ -31,6 +31,7 @@
 #include "planner/parallel_hash_plan.h"
 #include "planner/merge_join_plan.h"
 #include "planner/nested_loop_join_plan.h"
+#include "planner/abstract_callback.h"
 
 #include "storage/data_table.h"
 #include "storage/tile.h"
@@ -298,9 +299,6 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
     }
   }
 
-  // Right scan executor returns logical tiles from the right table
-  EXPECT_CALL(right_table_scan_executor, DInit()).WillOnce(Return(true));
-
   //===--------------------------------------------------------------------===//
   // Setup right table
   //===--------------------------------------------------------------------===//
@@ -432,12 +430,24 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
       // Create hash plan node
       planner::ParallelHashPlan hash_plan_node(hash_keys);
 
-      // Construct the hash executor
-      executor::ParallelHashExecutor hash_executor(&hash_plan_node, nullptr);
-
       // Create hash join plan node.
       planner::ParallelHashJoinPlan hash_join_plan_node(
           join_type, std::move(predicate), std::move(projection), schema);
+
+      // Set the dependent parent
+      hash_plan_node.SetDependentParent(&hash_join_plan_node);
+
+      // Assume the last seq scan task has finished
+      size_t task_id = 0;
+      size_t partition_id = 0;
+      // XXX Passing a nullptr to make compiler happy
+      std::shared_ptr<executor::AbstractTask> task(
+          new executor::SeqScanTask(&hash_plan_node, task_id, partition_id,
+                                    right_table_logical_tile_lists));
+
+      //  XXX Temporary reference to make sure hash executor is not destructed..
+      std::shared_ptr<executor::ParallelHashExecutor> hash_executor =
+          hash_plan_node.TaskComplete(task, true);
 
       // Construct the hash join executor
       executor::ParallelHashJoinExecutor hash_join_executor(
@@ -445,24 +455,11 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
       // Construct the executor tree
       hash_join_executor.AddChild(&left_table_scan_executor);
-      hash_join_executor.AddChild(&hash_executor);
+      PL_ASSERT(hash_executor != nullptr);
+      hash_join_executor.AddChild(hash_executor.get());
 
-      hash_executor.AddChild(&right_table_scan_executor);
-
-      // Run the hash_join_executor
+      // Init the executor tree
       EXPECT_TRUE(hash_join_executor.Init());
-
-      // Launch one hash task
-      size_t task_id = 0;
-      size_t partition_id = 0;
-      std::shared_ptr<executor::HashTask> hash_task(
-          new executor::HashTask(&hash_plan_node, &hash_executor, task_id,
-                                 partition_id, right_table_logical_tile_lists));
-      executor::ParallelHashExecutor::ExecuteTask(hash_task);
-      // XXX Because the hash join executor is not modified yet, we populate the
-      // result tiles in hash executor so that the join executor can fetch the
-      // tiles..
-      hash_executor.SetChildTiles(right_table_logical_tile_lists);
 
       while (hash_join_executor.Execute() == true) {
         std::unique_ptr<executor::LogicalTile> result_logical_tile(

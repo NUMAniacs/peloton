@@ -24,11 +24,8 @@
 
 namespace peloton {
 
-namespace bridge {
-class Notifiable;
-}
-
 namespace planner {
+class Notifiable;
 class AbstractPlan;
 }
 
@@ -66,7 +63,7 @@ class AbstractTask {
       : node(node), result_tile_lists(result_tile_lists) {}
 
   // Initialize the task with callbacks
-  inline void Init(bridge::Notifiable *callback, int num_tasks) {
+  inline void Init(planner::Notifiable *callback, int num_tasks) {
     this->callback = callback;
     if (result_tile_lists != nullptr) {
       result_tile_lists->resize(num_tasks);
@@ -83,7 +80,7 @@ class AbstractTask {
   std::shared_ptr<LogicalTileLists> result_tile_lists;
 
   // The callback to call after task completes
-  bridge::Notifiable *callback = nullptr;
+  planner::Notifiable *callback = nullptr;
 
   // Whether the task is initialized
   bool initialized = false;
@@ -101,7 +98,7 @@ class PartitionAwareTask : public AbstractTask {
         task_id(task_id),
         partition_id(partition_id) {}
 
-  inline LogicalTileList& GetResultTileList() {
+  inline LogicalTileList &GetResultTileList() {
     return (*result_tile_lists)[task_id];
   }
 
@@ -159,14 +156,14 @@ class HashTask : public PartitionAwareTask {
    * @param bulk_insert_count: The total bulk insert count in insert plan node
    */
   explicit HashTask(const planner::AbstractPlan *node,
-                    ParallelHashExecutor *hash_executor, size_t task_id,
-                    size_t partition_id,
+                    std::shared_ptr<ParallelHashExecutor> hash_executor,
+                    size_t task_id, size_t partition_id,
                     std::shared_ptr<LogicalTileLists> result_tile_lists)
       : PartitionAwareTask(node, task_id, partition_id, result_tile_lists),
         hash_executor(hash_executor) {}
 
   // The hash executor object
-  ParallelHashExecutor *hash_executor;
+  std::shared_ptr<ParallelHashExecutor> hash_executor;
 };
 
 // The class for parallel seq scan tasks

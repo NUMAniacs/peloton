@@ -57,7 +57,7 @@ class ParallelHashExecutor : public AbstractExecutor {
   inline const std::vector<oid_t> &GetHashKeyIds() const { return column_ids_; }
 
   // Execute the hash task
-  static void ExecuteTask(std::shared_ptr<HashTask> hash_task);
+  static void ExecuteTask(std::shared_ptr<AbstractTask> hash_task);
 
   // TODO This is a hack. Remove me when we hook up hash executor with seq scan
   // executor
@@ -83,6 +83,8 @@ class ParallelHashExecutor : public AbstractExecutor {
   std::vector<oid_t> column_ids_;
 
   size_t result_itr = 0;
+
+  bool initialized_ = false;
 };
 
 } /* namespace executor */

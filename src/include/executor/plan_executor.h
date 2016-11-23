@@ -15,6 +15,7 @@
 
 #include "common/statement.h"
 #include "common/types.h"
+#include "planner/abstract_callback.h"
 #include "concurrency/transaction_manager.h"
 #include "executor/abstract_executor.h"
 #include "executor/abstract_task.h"
@@ -56,16 +57,7 @@ typedef struct peloton_status {
 /*
 * This class can be notified when a task completes
 */
-class Notifiable {
- public:
-  virtual ~Notifiable() {}
-  virtual void TaskComplete(std::shared_ptr<executor::AbstractTask> task) = 0;
-};
-
-/*
-* This class can be notified when a task completes
-*/
-class BlockingWait : public Notifiable {
+class BlockingWait : public planner::Notifiable {
  public:
   BlockingWait(int total_tasks)
       : Notifiable(),
@@ -101,29 +93,6 @@ class BlockingWait : public Notifiable {
   // dirty mutex is okay for now since this class will be removed
   std::mutex done_lock;
   std::condition_variable cv;
-};
-
-/*
-* This class can be notified when a task completes
-*/
-class HashCallback : public Notifiable {
- public:
-  HashCallback(int total_tasks, executor::ParallelHashExecutor *hash_executor)
-      : Notifiable(),
-        total_tasks_(total_tasks),
-        tasks_complete_(0),
-        hash_executor_(hash_executor) {}
-
-  ~HashCallback() {}
-
-  // when a task completes it will call this
-  // Assume the task is seq scan task
-  void TaskComplete(std::shared_ptr<executor::AbstractTask> task) override;
-
- private:
-  int total_tasks_;
-  std::atomic<int> tasks_complete_;
-  executor::ParallelHashExecutor *hash_executor_;
 };
 
 /*

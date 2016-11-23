@@ -35,12 +35,17 @@ ParallelHashExecutor::ParallelHashExecutor(const planner::AbstractPlan *node,
  * @return true on success, false otherwise.
  */
 bool ParallelHashExecutor::DInit() {
-  PL_ASSERT(children_.size() == 1);
-  // Initialize executor state
-  result_itr = 0;
+  if (initialized_ == false) {
+    // TODO Add reference node to the seq scan executors
+    // PL_ASSERT(children_.size() == 1);
 
-  // Initialize the hash keys
-  InitHashKeys();
+    // Initialize executor state
+    result_itr = 0;
+
+    // Initialize the hash keys
+    InitHashKeys();
+  }
+  initialized_ = true;
   return true;
 }
 
@@ -65,7 +70,10 @@ void ParallelHashExecutor::InitHashKeys() {
   }
 }
 
-void ParallelHashExecutor::ExecuteTask(std::shared_ptr<HashTask> hash_task) {
+void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
+  PL_ASSERT(task->GetTaskType() == TASK_HASH);
+  executor::HashTask *hash_task = static_cast<executor::HashTask *>(task.get());
+
   // Construct the hash table by going over each child logical tile and hashing
   auto task_id = hash_task->task_id;
   auto child_tiles = hash_task->result_tile_lists;
@@ -108,6 +116,10 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<HashTask> hash_task) {
 
 bool ParallelHashExecutor::DExecute() {
   LOG_TRACE("Hash Executor");
+
+  if (child_tiles_->size() == 0) {
+    return false;
+  }
 
   // Return logical tiles one at a time
   while (result_itr < (*child_tiles_)[0].size()) {
