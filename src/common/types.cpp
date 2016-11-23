@@ -602,6 +602,8 @@ std::string PlanNodeTypeToString(PlanNodeType type) {
     case PLAN_NODE_TYPE_HASH: { return "HASH"; }
     case PLAN_NODE_TYPE_DROP: { return "DROP"; }
     case PLAN_NODE_TYPE_CREATE: { return "CREATE"; }
+    case PLAN_NODE_TYPE_PARALLEL_HASH: { return "PARALLELHASH"; }
+    case PLAN_NODE_TYPE_PARALLEL_HASHJOIN: { return "PARALLELHASHJOIN"; }
   }
   return "INVALID";
 }

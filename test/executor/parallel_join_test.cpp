@@ -18,8 +18,6 @@
 #include "executor/logical_tile.h"
 #include "executor/logical_tile_factory.h"
 
-#include "executor/hash_join_executor.h"
-#include "executor/hash_executor.h"
 #include "executor/parallel_hash_join_executor.h"
 #include "executor/parallel_hash_executor.h"
 #include "executor/merge_join_executor.h"
@@ -29,8 +27,8 @@
 #include "expression/tuple_value_expression.h"
 #include "expression/expression_util.h"
 
-#include "planner/hash_join_plan.h"
-#include "planner/hash_plan.h"
+#include "planner/parallel_hash_join_plan.h"
+#include "planner/parallel_hash_plan.h"
 #include "planner/merge_join_plan.h"
 #include "planner/nested_loop_join_plan.h"
 
@@ -55,7 +53,7 @@ namespace test {
 class ParallelJoinTests : public PelotonTest {};
 
 std::vector<PlanNodeType> join_algorithms = {  // PLAN_NODE_TYPE_MERGEJOIN,
-    PLAN_NODE_TYPE_HASHJOIN};
+    PLAN_NODE_TYPE_PARALLEL_HASHJOIN};
 
 std::vector<PelotonJoinType> join_types = {JOIN_TYPE_INNER, JOIN_TYPE_LEFT,
                                            JOIN_TYPE_RIGHT, JOIN_TYPE_OUTER};
@@ -175,7 +173,8 @@ TEST_F(ParallelJoinTests, JoinPredicateTest) {
 
 // XXX We're not supposed to do performance test in unit tests..
 // TEST_F(ParallelJoinTests, SpeedTest) {
-//  ExecuteJoinTest(PLAN_NODE_TYPE_HASHJOIN, JOIN_TYPE_OUTER, SPEED_TEST);
+//  ExecuteJoinTest(PLAN_NODE_TYPE_PARALLEL_HASHJOIN, JOIN_TYPE_OUTER,
+// SPEED_TEST);
 //  ExecuteJoinTest(PLAN_NODE_TYPE_MERGEJOIN, JOIN_TYPE_OUTER, SPEED_TEST);
 //}
 
@@ -325,7 +324,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   } else if (join_test_type == LEFT_TABLE_EMPTY) {
     if (join_type == JOIN_TYPE_INNER || join_type == JOIN_TYPE_LEFT) {
       // For hash join, we always build the hash table from right child
-      if (join_algorithm == PLAN_NODE_TYPE_HASHJOIN) {
+      if (join_algorithm == PLAN_NODE_TYPE_PARALLEL_HASHJOIN) {
         size_t task_id = 0;
         size_t tile_begin_itr = 0;
         PopulateTileResults(tile_begin_itr, right_table_tile_group_count,
@@ -407,7 +406,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
     } break;
 
-    case PLAN_NODE_TYPE_HASHJOIN: {
+    case PLAN_NODE_TYPE_PARALLEL_HASHJOIN: {
       // Create hash plan node
       expression::AbstractExpression *right_table_attr_1 =
           new expression::TupleValueExpression(common::Type::INTEGER, 1, 1);
@@ -431,14 +430,14 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
                                                    1)});
 
       // Create hash plan node
-      planner::HashPlan hash_plan_node(hash_keys);
+      planner::ParallelHashPlan hash_plan_node(hash_keys);
 
       // Construct the hash executor
       executor::ParallelHashExecutor hash_executor(&hash_plan_node, nullptr);
 
       // Create hash join plan node.
-      planner::HashJoinPlan hash_join_plan_node(join_type, std::move(predicate),
-                                                std::move(projection), schema);
+      planner::ParallelHashJoinPlan hash_join_plan_node(
+          join_type, std::move(predicate), std::move(projection), schema);
 
       // Construct the hash join executor
       executor::ParallelHashJoinExecutor hash_join_executor(
