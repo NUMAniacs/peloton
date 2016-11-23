@@ -31,7 +31,7 @@
 #include "planner/parallel_hash_plan.h"
 #include "planner/merge_join_plan.h"
 #include "planner/nested_loop_join_plan.h"
-#include "planner/abstract_callback.h"
+#include "planner/abstract_dependent.h"
 
 #include "storage/data_table.h"
 #include "storage/tile.h"
@@ -447,7 +447,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
       //  XXX Temporary reference to make sure hash executor is not destructed..
       std::shared_ptr<executor::ParallelHashExecutor> hash_executor =
-          hash_plan_node.TaskComplete(task, true);
+          hash_plan_node.DependencyComplete(task, true);
 
       // Construct the hash join executor
       executor::ParallelHashJoinExecutor hash_join_executor(

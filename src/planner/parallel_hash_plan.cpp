@@ -26,7 +26,8 @@ namespace peloton {
 namespace planner {
 
 // This is really the implementation for Dependency Complete
-std::shared_ptr<executor::ParallelHashExecutor> ParallelHashPlan::TaskComplete(
+std::shared_ptr<executor::ParallelHashExecutor>
+ParallelHashPlan::DependencyComplete(
     std::shared_ptr<executor::AbstractTask> task, bool hack) {
 
   (void)hack;
@@ -78,7 +79,7 @@ std::shared_ptr<executor::ParallelHashExecutor> ParallelHashPlan::TaskComplete(
 
   // Construct the hash executor
   std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
-      new executor::ParallelHashExecutor(this, nullptr));
+      new executor::ParallelHashExecutor(this, nullptr, num_tasks));
   hash_executor->Init();
 
   // TODO Add dummy child node to retrieve result from

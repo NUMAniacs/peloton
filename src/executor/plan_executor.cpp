@@ -300,8 +300,10 @@ executor::AbstractExecutor *BuildExecutorTree(
 
     case PLAN_NODE_TYPE_PARALLEL_SEQSCAN:
       LOG_TRACE("Adding Parallel Sequential Scan Executor");
-      child_executor =
-          new executor::ParallelSeqScanExecutor(plan, executor_context);
+      PL_ASSERT(executor_context != nullptr);
+      PL_ASSERT(executor_context->GetTask() != nullptr);
+      child_executor = new executor::ParallelSeqScanExecutor(
+          plan, executor_context, executor_context->GetTask()->num_tasks);
       break;
 
     case PLAN_NODE_TYPE_INDEXSCAN:
