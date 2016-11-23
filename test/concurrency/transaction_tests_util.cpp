@@ -457,11 +457,10 @@ bool TransactionTestsUtil::ExecuteScan(concurrency::Transaction *transaction,
   return true;
 }
 
-bool TransactionTestsUtil::ExecuteParallelScan(concurrency::Transaction *transaction,
-                                               std::vector<int> &results,
-                                               storage::DataTable *table, int id,
-                                               bool select_for_update) {
-  bool status=true;
+bool TransactionTestsUtil::ExecuteParallelScan(
+    concurrency::Transaction *transaction, std::vector<int> &results,
+    storage::DataTable *table, int id, bool select_for_update) {
+  bool status = true;
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
   std::vector<std::shared_ptr<ParallelScanArgs>> args;
 
@@ -520,8 +519,8 @@ void TransactionTestsUtil::ThreadExecuteScan(ParallelScanArgs **args) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext((*args)->txn));
   context->SetTask((*args)->task);
-  executor::ParallelSeqScanExecutor
-      parallel_seq_scan_executor((*args)->node, context.get());
+  executor::ParallelSeqScanExecutor parallel_seq_scan_executor(
+      (*args)->node, context.get(), (*args)->task->num_tasks);
 
   EXPECT_TRUE(parallel_seq_scan_executor.Init());
   if (parallel_seq_scan_executor.Execute() == false) {
@@ -538,11 +537,10 @@ void TransactionTestsUtil::ThreadExecuteScan(ParallelScanArgs **args) {
       (*args)->results.push_back(val.GetAs<int32_t>());
     }
 
-  } while(parallel_seq_scan_executor.Execute() == true);
+  } while (parallel_seq_scan_executor.Execute() == true);
 
   (*args)->p.set_value(true);
   return;
 }
-
 }
 }

@@ -30,32 +30,24 @@ namespace peloton {
 
 namespace executor {
 class AbstractTask;
-// class LogicalTile;
 }
-//
-// namespace catalog {
-// class Schema;
-//}
-//
-// namespace expression {
-// class AbstractExpression;
-//}
 
 namespace planner {
 
 //===--------------------------------------------------------------------===//
-// Abstract Callback
+// Abstract Dependent
 //===--------------------------------------------------------------------===//
 /*
-* This class can be notified when a task completes
-* This class is used when dependency completes. Need another class for task
-* completion
+* This class is notified when dependency completes.
 */
-class Notifiable {
+class Dependent {
  public:
-  virtual ~Notifiable() {}
-  // TODO Rename this function to Dependency complete..
-  virtual void TaskComplete(std::shared_ptr<executor::AbstractTask> task) = 0;
+  virtual ~Dependent() {}
+
+  virtual void DependencyComplete(
+      std::shared_ptr<executor::AbstractTask> task) = 0;
+
+  // TODO Also keep an dependency count in this class
 };
 
 }  // namespace planner

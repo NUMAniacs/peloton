@@ -38,9 +38,10 @@ namespace executor {
  * @brief Constructor for seqscan executor.
  * @param node Seqscan node corresponding to this executor.
  */
-ParallelSeqScanExecutor::ParallelSeqScanExecutor(const planner::AbstractPlan *node,
-                                 ExecutorContext *executor_context)
-    : AbstractScanExecutor(node, executor_context) {}
+ParallelSeqScanExecutor::ParallelSeqScanExecutor(
+    const planner::AbstractPlan *node, ExecutorContext *executor_context,
+    size_t num_tasks)
+    : AbstractScanExecutor(node, executor_context), Trackable(num_tasks) {}
 
 /**
  * @brief Let base class DInit() first, then do mine.
@@ -52,11 +53,13 @@ bool ParallelSeqScanExecutor::DInit() {
   if (!status) return false;
 
   // Grab data from plan node.
-  const planner::ParallelSeqScanPlan &node = GetPlanNode<planner::ParallelSeqScanPlan>();
+  const planner::ParallelSeqScanPlan &node =
+      GetPlanNode<planner::ParallelSeqScanPlan>();
 
   target_table_ = node.GetTable();
 
-  seq_scan_task_ = std::dynamic_pointer_cast<SeqScanTask>(executor_context_->GetTask());
+  seq_scan_task_ =
+      std::dynamic_pointer_cast<SeqScanTask>(executor_context_->GetTask());
   // the task should be set in a previous step
   PL_ASSERT(seq_scan_task_.get() != nullptr);
 
@@ -99,7 +102,7 @@ bool ParallelSeqScanExecutor::DExecute() {
           expression::ContainerTuple<LogicalTile> tuple(tile.get(), tuple_id);
           auto eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
           if (eval.IsFalse()) {
-            //if (predicate_->Evaluate(&tuple, nullptr, executor_context_)
+            // if (predicate_->Evaluate(&tuple, nullptr, executor_context_)
             //        .IsFalse()) {
             tile->RemoveVisibility(tuple_id);
           }
@@ -116,7 +119,7 @@ bool ParallelSeqScanExecutor::DExecute() {
     }
     return false;
   }
-    // Scanning a table
+  // Scanning a table
   else if (children_.size() == 0) {
     LOG_TRACE("Seq Scan executor :: 0 child ");
 

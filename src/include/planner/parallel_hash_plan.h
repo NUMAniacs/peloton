@@ -14,7 +14,7 @@
 #include "abstract_plan.h"
 #include "common/types.h"
 #include "expression/abstract_expression.h"
-#include "planner/abstract_callback.h"
+#include "planner/abstract_dependent.h"
 #include "executor/parallel_hash_executor.h"
 
 namespace peloton {
@@ -24,7 +24,7 @@ namespace planner {
  * @brief
  *
  */
-class ParallelHashPlan : public AbstractPlan, public Notifiable {
+class ParallelHashPlan : public AbstractPlan, public Dependent {
  public:
   ParallelHashPlan(const ParallelHashPlan &) = delete;
   ParallelHashPlan &operator=(const ParallelHashPlan &) = delete;
@@ -58,12 +58,13 @@ class ParallelHashPlan : public AbstractPlan, public Notifiable {
 
   // when a task completes it will call this
   // XXX Assume the task is seq scan task for now
-  void TaskComplete(std::shared_ptr<executor::AbstractTask> task) override {
+  void DependencyComplete(std::shared_ptr<executor::AbstractTask> task)
+      override {
     (void)task;
   }
 
   // TODO Hacky function which should be removed. Used for join test..
-  std::shared_ptr<executor::ParallelHashExecutor> TaskComplete(
+  std::shared_ptr<executor::ParallelHashExecutor> DependencyComplete(
       std::shared_ptr<executor::AbstractTask> task, bool hack);
 
  private:

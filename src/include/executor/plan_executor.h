@@ -15,7 +15,7 @@
 
 #include "common/statement.h"
 #include "common/types.h"
-#include "planner/abstract_callback.h"
+#include "planner/abstract_dependent.h"
 #include "concurrency/transaction_manager.h"
 #include "executor/abstract_executor.h"
 #include "executor/abstract_task.h"
@@ -57,28 +57,21 @@ typedef struct peloton_status {
 /*
 * This class can be notified when a task completes
 */
-class BlockingWait : public planner::Notifiable {
+class BlockingWait : public planner::Dependent, public executor::Trackable {
  public:
   BlockingWait(int total_tasks)
-      : Notifiable(),
-        total_tasks_(total_tasks),
-        tasks_complete_(0),
-        all_done(false) {}
+      : Dependent(), Trackable(total_tasks), all_done(false) {}
 
   ~BlockingWait() {}
 
   // when a task completes it will call this
-  void TaskComplete(
+  void DependencyComplete(
       UNUSED_ATTRIBUTE std::shared_ptr<executor::AbstractTask> task) override {
-    int task_num = tasks_complete_.fetch_add(1);
-
-    if (task_num == total_tasks_ - 1) {
-      // we are the last task to complete
-      std::unique_lock<std::mutex> lk(done_lock);
-      all_done = true;
-      cv.notify_all();
-    }
+    std::unique_lock<std::mutex> lk(done_lock);
+    all_done = true;
+    cv.notify_all();
   }
+
   // wait for all tasks to be complete
   void WaitForCompletion() {
     std::unique_lock<std::mutex> lk(done_lock);
@@ -86,8 +79,6 @@ class BlockingWait : public planner::Notifiable {
   }
 
  private:
-  int total_tasks_;
-  std::atomic<int> tasks_complete_;
   bool all_done;
 
   // dirty mutex is okay for now since this class will be removed
@@ -126,8 +117,11 @@ struct ExchangeParams {
 
   void TaskComplete(const bridge::peloton_status &p_status) {
     this->p_status = p_status;
-    PL_ASSERT(task->callback != nullptr);
-    task->callback->TaskComplete(task);
+    PL_ASSERT(task->dependent != nullptr);
+    PL_ASSERT(task->trackable != nullptr);
+    if (task->trackable->TaskComplete()) {
+      task->dependent->DependencyComplete(task);
+    }
   }
 };
 

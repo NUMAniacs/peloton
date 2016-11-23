@@ -19,18 +19,21 @@
 
 #define INVALID_TASK_ID -1
 
+#define INVALID_NUM_TASK -1
+
 // Should we set the granularity by number of tile groups or number of tuples??
 #define TASK_TILEGROUP_COUNT 100
 
 namespace peloton {
 
 namespace planner {
-class Notifiable;
+class Dependent;
 class AbstractPlan;
 }
 
 namespace executor {
 class ParallelHashExecutor;
+class Trackable;
 }
 
 namespace executor {
@@ -63,8 +66,11 @@ class AbstractTask {
       : node(node), result_tile_lists(result_tile_lists) {}
 
   // Initialize the task with callbacks
-  inline void Init(planner::Notifiable *callback, int num_tasks) {
-    this->callback = callback;
+  inline void Init(executor::Trackable *trackable,
+                   planner::Dependent *dependent, int num_tasks) {
+    this->trackable = trackable;
+    this->dependent = dependent;
+    this->num_tasks = num_tasks;
     if (result_tile_lists != nullptr) {
       result_tile_lists->resize(num_tasks);
     }
@@ -80,10 +86,16 @@ class AbstractTask {
   std::shared_ptr<LogicalTileLists> result_tile_lists;
 
   // The callback to call after task completes
-  planner::Notifiable *callback = nullptr;
+  executor::Trackable *trackable = nullptr;
+
+  // The callback to call after dependency completes
+  planner::Dependent *dependent = nullptr;
 
   // Whether the task is initialized
   bool initialized = false;
+
+  // The total number of tasks
+  size_t num_tasks = INVALID_NUM_TASK;
 };
 
 // The *abstract* task class for partition-aware / parallel tasks

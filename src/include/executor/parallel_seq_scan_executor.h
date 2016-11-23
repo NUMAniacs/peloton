@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #pragma once
 
 #include "planner/seq_scan_plan.h"
@@ -20,7 +19,7 @@
 namespace peloton {
 namespace executor {
 
-class ParallelSeqScanExecutor : public AbstractScanExecutor {
+class ParallelSeqScanExecutor : public AbstractScanExecutor, public Trackable {
  public:
   ParallelSeqScanExecutor(const ParallelSeqScanExecutor &) = delete;
   ParallelSeqScanExecutor &operator=(const ParallelSeqScanExecutor &) = delete;
@@ -28,8 +27,9 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor {
   ParallelSeqScanExecutor &operator=(ParallelSeqScanExecutor &&) = delete;
 
   explicit ParallelSeqScanExecutor(const planner::AbstractPlan *node,
-                           ExecutorContext *executor_context);
-  LogicalTile* GetOutput();
+                                   ExecutorContext *executor_context,
+                                   size_t num_tasks);
+  LogicalTile *GetOutput();
 
  protected:
   bool DInit();

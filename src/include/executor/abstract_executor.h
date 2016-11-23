@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #pragma once
 
 #include <memory>
@@ -31,6 +30,34 @@ class ExecutorContext;
 }
 
 namespace executor {
+
+//===--------------------------------------------------------------------===//
+// Abstract Trackable
+//===--------------------------------------------------------------------===//
+/*
+* This class is notified when a task completes.
+*/
+class Trackable {
+ public:
+  virtual ~Trackable() {}
+
+  Trackable(int total_tasks) : total_tasks_(total_tasks), tasks_complete_(0) {
+    PL_ASSERT(total_tasks_ != INVALID_NUM_TASK);
+  }
+
+  // Returns true when all the tasks completed
+  bool TaskComplete() {
+    int task_num = tasks_complete_.fetch_add(1);
+    // All the tasks are completed
+    if (task_num == total_tasks_ - 1) {
+      return true;
+    }
+    return false;
+  }
+
+  int total_tasks_;
+  std::atomic<int> tasks_complete_;
+};
 
 class AbstractExecutor {
  public:

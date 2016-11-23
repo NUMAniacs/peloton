@@ -231,7 +231,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
   for (auto task : tasks) {
     // We create the callbacks only after we know the total number of tasks
-    task->Init(&wait, tasks.size());
+    task->Init(&wait, &wait, tasks.size());
 
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(

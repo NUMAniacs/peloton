@@ -29,7 +29,7 @@ namespace executor {
  * @brief Hash executor.
  *
  */
-class ParallelHashExecutor : public AbstractExecutor {
+class ParallelHashExecutor : public AbstractExecutor, public Trackable {
  public:
   ParallelHashExecutor(const ParallelHashExecutor &) = delete;
   ParallelHashExecutor &operator=(const ParallelHashExecutor &) = delete;
@@ -37,7 +37,8 @@ class ParallelHashExecutor : public AbstractExecutor {
   ParallelHashExecutor &operator=(const ParallelHashExecutor &&) = delete;
 
   explicit ParallelHashExecutor(const planner::AbstractPlan *node,
-                                ExecutorContext *executor_context);
+                                ExecutorContext *executor_context,
+                                size_t num_tasks);
 
   /** @brief Type definitions for hash table */
   typedef std::unordered_set<std::pair<size_t, oid_t>,
