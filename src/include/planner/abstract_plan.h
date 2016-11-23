@@ -107,6 +107,11 @@ class AbstractPlan : public Printable {
   }
   virtual int SerializeSize() { return 0; }
 
+  // TODO Move me to private
+  void SetDependentParent(AbstractPlan *dependent_parent) {
+    dependent_parent_ = dependent_parent;
+  }
+
  protected:
   // only used by its derived classes (when deserialization)
   AbstractPlan *Parent() { return parent_; }

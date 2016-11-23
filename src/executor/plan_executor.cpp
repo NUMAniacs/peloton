@@ -36,67 +36,6 @@ executor::AbstractExecutor *BuildExecutorTree(
 
 void CleanExecutorTree(executor::AbstractExecutor *root);
 
-void HashCallback::TaskComplete(
-    UNUSED_ATTRIBUTE std::shared_ptr<executor::AbstractTask> task) {
-  // Increment the number of tasks completed
-  int task_num = tasks_complete_.fetch_add(1);
-  // This is the last task
-  if (task_num == total_tasks_ - 1) {
-    // Get the total number of partition
-    size_t num_partitions = PL_NUM_PARTITIONS();
-
-    // Group the results based on partitions
-    executor::LogicalTileLists partitioned_result_tile_lists(num_partitions);
-    for (auto &result_tile_list : *(task->result_tile_lists)) {
-      for (auto &result_tile : result_tile_list) {
-        size_t partition = result_tile->GetPartition();
-        partitioned_result_tile_lists[partition]
-            .push_back(std::move(result_tile));
-      }
-    }
-    // Populate tasks for each partition and re-chunk the tiles
-    std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
-        new executor::LogicalTileLists());
-    for (size_t partition = 0; partition < num_partitions; partition++) {
-      executor::LogicalTileList next_result_tile_list;
-
-      for (auto &result_tile_list : partitioned_result_tile_lists) {
-        // TODO we should re-chunk based on number of tuples?
-        for (auto &result_tile : result_tile_list) {
-          next_result_tile_list.push_back(std::move(result_tile));
-          // Reached the limit of each chunk
-          if (next_result_tile_list.size() >= TASK_TILEGROUP_COUNT) {
-            result_tile_lists->push_back(std::move(next_result_tile_list));
-            next_result_tile_list = executor::LogicalTileList();
-          }
-        }
-        // Check the remaining result tiles
-        if (next_result_tile_list.size() > 0) {
-          result_tile_lists->push_back(std::move(next_result_tile_list));
-        }
-      }
-    }
-
-    size_t num_tasks = result_tile_lists->size();
-    // A list of all tasks to execute
-    std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
-    for (size_t task_id = 0; task_id < num_tasks; task_id++) {
-      // Construct a hash task
-      std::shared_ptr<executor::AbstractTask> next_task(new executor::HashTask(
-          hash_executor_->GetRawNode(), hash_executor_, task_id,
-          result_tile_lists->at(task_id).at(0)->GetPartition(),
-          result_tile_lists));
-      // next_task->Init(next_callback, num_tasks);
-      tasks.push_back(next_task);
-    }
-
-    // TODO Launch the new tasks?
-    // for (auto &task : tasks) {
-
-    //}
-  }
-}
-
 /**
  * @brief Build a executor tree and execute it.
  * Use std::vector<common::Value> as params to make it more elegant for
