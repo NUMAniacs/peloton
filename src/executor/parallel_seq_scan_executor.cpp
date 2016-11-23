@@ -39,9 +39,8 @@ namespace executor {
  * @param node Seqscan node corresponding to this executor.
  */
 ParallelSeqScanExecutor::ParallelSeqScanExecutor(
-    const planner::AbstractPlan *node, ExecutorContext *executor_context,
-    size_t num_tasks)
-    : AbstractScanExecutor(node, executor_context), Trackable(num_tasks) {}
+    const planner::AbstractPlan *node, ExecutorContext *executor_context)
+    : AbstractScanExecutor(node, executor_context), Trackable() {}
 
 /**
  * @brief Let base class DInit() first, then do mine.

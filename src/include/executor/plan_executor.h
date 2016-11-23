@@ -59,8 +59,9 @@ typedef struct peloton_status {
 */
 class BlockingWait : public planner::Dependent, public executor::Trackable {
  public:
-  BlockingWait(int total_tasks)
-      : Dependent(), Trackable(total_tasks), all_done(false) {}
+  BlockingWait(int total_tasks) : Dependent(), Trackable(), all_done(false) {
+    this->SetNumTasks(total_tasks);
+  }
 
   ~BlockingWait() {}
 

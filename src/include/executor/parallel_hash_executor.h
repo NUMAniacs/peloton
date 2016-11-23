@@ -37,8 +37,7 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
   ParallelHashExecutor &operator=(const ParallelHashExecutor &&) = delete;
 
   explicit ParallelHashExecutor(const planner::AbstractPlan *node,
-                                ExecutorContext *executor_context,
-                                size_t num_tasks);
+                                ExecutorContext *executor_context);
 
   /** @brief Type definitions for hash table */
   typedef std::unordered_set<std::pair<size_t, oid_t>,

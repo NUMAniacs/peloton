@@ -41,12 +41,16 @@ class Trackable {
  public:
   virtual ~Trackable() {}
 
-  Trackable(int total_tasks) : total_tasks_(total_tasks), tasks_complete_(0) {
-    PL_ASSERT(total_tasks_ != INVALID_NUM_TASK);
-  }
+  Trackable() : tasks_complete_(0) {}
 
   // Returns true when all the tasks completed
   bool TaskComplete() {
+    if (total_tasks_ == INVALID_NUM_TASK) {
+      LOG_ERROR("The total number of tasks is not set yet");
+      PL_ASSERT(false);
+      return false;
+    }
+
     int task_num = tasks_complete_.fetch_add(1);
     // All the tasks are completed
     if (task_num == total_tasks_ - 1) {
@@ -55,7 +59,9 @@ class Trackable {
     return false;
   }
 
-  int total_tasks_;
+  void SetNumTasks(int total_tasks) { total_tasks_ = total_tasks; }
+
+  int total_tasks_ = INVALID_NUM_TASK;
   std::atomic<int> tasks_complete_;
 };
 

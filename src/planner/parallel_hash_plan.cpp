@@ -79,7 +79,8 @@ ParallelHashPlan::DependencyComplete(
 
   // Construct the hash executor
   std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
-      new executor::ParallelHashExecutor(this, nullptr, num_tasks));
+      new executor::ParallelHashExecutor(this, nullptr));
+  hash_executor->SetNumTasks(num_tasks);
   hash_executor->Init();
 
   // TODO Add dummy child node to retrieve result from
@@ -100,6 +101,9 @@ ParallelHashPlan::DependencyComplete(
     executor::HashTask *hash_task =
         static_cast<executor::HashTask *>(task.get());
     hash_task->hash_executor->ExecuteTask(task);
+    if (hash_task->hash_executor->TaskComplete()) {
+      LOG_INFO("All the hash tasks have completed");
+    }
   }
   // XXX This is a hack to let join test pass
   hash_executor->SetChildTiles(result_tile_lists);

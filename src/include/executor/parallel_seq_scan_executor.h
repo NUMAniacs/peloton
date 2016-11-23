@@ -27,8 +27,7 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor, public Trackable {
   ParallelSeqScanExecutor &operator=(ParallelSeqScanExecutor &&) = delete;
 
   explicit ParallelSeqScanExecutor(const planner::AbstractPlan *node,
-                                   ExecutorContext *executor_context,
-                                   size_t num_tasks);
+                                   ExecutorContext *executor_context);
   LogicalTile *GetOutput();
 
  protected:
@@ -61,7 +60,6 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor, public Trackable {
   /** @brief Pointer to table to scan from. */
   storage::DataTable *target_table_ = nullptr;
 };
-
 
 }  // namespace executor
 }  // namespace peloton

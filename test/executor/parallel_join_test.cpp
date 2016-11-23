@@ -20,6 +20,7 @@
 
 #include "executor/parallel_hash_join_executor.h"
 #include "executor/parallel_hash_executor.h"
+#include "executor/parallel_seq_scan_executor.h"
 #include "executor/merge_join_executor.h"
 #include "executor/nested_loop_join_executor.h"
 
@@ -437,21 +438,33 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
       // Set the dependent parent
       hash_plan_node.SetDependentParent(&hash_join_plan_node);
 
-      // Assume the last seq scan task has finished
-      size_t task_id = 0;
-      size_t partition_id = 0;
-      // XXX Passing a nullptr to make compiler happy
-      std::shared_ptr<executor::AbstractTask> task(
-          new executor::SeqScanTask(&hash_plan_node, task_id, partition_id,
-                                    right_table_logical_tile_lists));
+      // Create seq scan executor
+      std::shared_ptr<executor::ParallelSeqScanExecutor> seq_scan_executor(
+          new executor::ParallelSeqScanExecutor(nullptr, nullptr));
 
-      //  XXX Temporary reference to make sure hash executor is not destructed..
-      std::shared_ptr<executor::ParallelHashExecutor> hash_executor =
-          hash_plan_node.DependencyComplete(task, true);
+      // Create hash executor
+      std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
+          new executor::ParallelHashExecutor(&hash_plan_node, nullptr));
 
       // Construct the hash join executor
       executor::ParallelHashJoinExecutor hash_join_executor(
           &hash_join_plan_node, nullptr);
+
+      // Assume the last seq scan task has finished
+      size_t num_tasks = 1;
+      size_t task_id = 0;
+      size_t partition_id = 0;
+      std::shared_ptr<executor::AbstractTask> task(
+          new executor::SeqScanTask(&hash_plan_node, task_id, partition_id,
+                                    right_table_logical_tile_lists));
+      seq_scan_executor->SetNumTasks(num_tasks);
+      task->Init(seq_scan_executor.get(), &hash_plan_node, num_tasks);
+
+      if (task->trackable->TaskComplete()) {
+        // TODO it should be replaced by
+        // task->dependent->DependencyComplete(task);
+        hash_executor = hash_plan_node.DependencyComplete(task, true);
+      }
 
       // Construct the executor tree
       hash_join_executor.AddChild(&left_table_scan_executor);
