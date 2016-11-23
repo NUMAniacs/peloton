@@ -495,17 +495,16 @@ bool TransactionTestsUtil::ExecuteParallelScan(
 
   bridge::BlockingWait wait(tasks.size());
 
-  for (size_t i=0; i<tasks.size(); i++) {
-    tasks[i]->Init(&wait, tasks.size());
-    args.push_back(std::shared_ptr<ParallelScanArgs>(
-        new ParallelScanArgs(transaction, &parallel_seq_scan_node,
-                             tasks[i], select_for_update)));
+  for (size_t i = 0; i < tasks.size(); i++) {
+    tasks[i]->Init(&wait, &wait, tasks.size());
+    args.push_back(std::shared_ptr<ParallelScanArgs>(new ParallelScanArgs(
+        transaction, &parallel_seq_scan_node, tasks[i], select_for_update)));
     partitioned_executor_thread_pool.SubmitTaskRandom(ThreadExecuteScan,
                                                       &(args[i]->self));
   }
 
   // join and coalesce the results
-  for (size_t i=0; i<tasks.size(); i++) {
+  for (size_t i = 0; i < tasks.size(); i++) {
     // update status
     status |= args[i]->f.get();
     results.insert(results.end(), args[i]->results.begin(),
@@ -518,9 +517,12 @@ bool TransactionTestsUtil::ExecuteParallelScan(
 void TransactionTestsUtil::ThreadExecuteScan(ParallelScanArgs **args) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext((*args)->txn));
-  context->SetTask((*args)->task);
-  executor::ParallelSeqScanExecutor parallel_seq_scan_executor(
-      (*args)->node, context.get(), (*args)->task->num_tasks);
+  std::shared_ptr<executor::AbstractTask> task = (*args)->task;
+  context->SetTask(task);
+  executor::ParallelSeqScanExecutor parallel_seq_scan_executor((*args)->node,
+                                                               context.get());
+  executor::Trackable *trackable = &parallel_seq_scan_executor;
+  trackable->SetNumTasks(task->num_tasks);
 
   EXPECT_TRUE(parallel_seq_scan_executor.Init());
   if (parallel_seq_scan_executor.Execute() == false) {

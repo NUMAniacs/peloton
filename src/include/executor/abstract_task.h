@@ -86,7 +86,7 @@ class AbstractTask {
   std::shared_ptr<LogicalTileLists> result_tile_lists;
 
   // The callback to call after task completes
-  executor::Trackable *trackable = nullptr;
+  Trackable *trackable = nullptr;
 
   // The callback to call after dependency completes
   planner::Dependent *dependent = nullptr;

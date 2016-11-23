@@ -27,9 +27,8 @@ namespace executor {
  * @brief Constructor
  */
 ParallelHashExecutor::ParallelHashExecutor(const planner::AbstractPlan *node,
-                                           ExecutorContext *executor_context,
-                                           size_t num_tasks)
-    : AbstractExecutor(node, executor_context), Trackable(num_tasks) {}
+                                           ExecutorContext *executor_context)
+    : AbstractExecutor(node, executor_context), Trackable() {}
 
 /**
  * @brief Do some basic checks and initialize executor state.

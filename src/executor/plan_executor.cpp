@@ -298,14 +298,16 @@ executor::AbstractExecutor *BuildExecutorTree(
       child_executor = new executor::SeqScanExecutor(plan, executor_context);
       break;
 
-    case PLAN_NODE_TYPE_PARALLEL_SEQSCAN:
+    case PLAN_NODE_TYPE_PARALLEL_SEQSCAN: {
       LOG_TRACE("Adding Parallel Sequential Scan Executor");
       PL_ASSERT(executor_context != nullptr);
       PL_ASSERT(executor_context->GetTask() != nullptr);
-      child_executor = new executor::ParallelSeqScanExecutor(
-          plan, executor_context, executor_context->GetTask()->num_tasks);
+      executor::ParallelSeqScanExecutor *seq_scan_executor =
+          new executor::ParallelSeqScanExecutor(plan, executor_context);
+      seq_scan_executor->SetNumTasks(executor_context->GetTask()->num_tasks);
+      child_executor = seq_scan_executor;
       break;
-
+    }
     case PLAN_NODE_TYPE_INDEXSCAN:
       LOG_TRACE("Adding Index Scan Executor");
       child_executor = new executor::IndexScanExecutor(plan, executor_context);
