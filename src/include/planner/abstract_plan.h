@@ -115,7 +115,11 @@ class AbstractPlan : public Printable {
   // A plan node can have multiple children
   std::vector<std::unique_ptr<AbstractPlan>> children_;
 
+  // The immediate parent plan node
   AbstractPlan *parent_ = nullptr;
+
+  // The parent planner
+  AbstractPlan *dependent_parent_ = nullptr;
 };
 
 }  // namespace planner

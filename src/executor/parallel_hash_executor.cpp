@@ -17,7 +17,7 @@
 #include "common/value.h"
 #include "executor/logical_tile.h"
 #include "executor/parallel_hash_executor.h"
-#include "planner/hash_plan.h"
+#include "planner/parallel_hash_plan.h"
 #include "expression/tuple_value_expression.h"
 
 namespace peloton {
@@ -45,7 +45,8 @@ bool ParallelHashExecutor::DInit() {
 }
 
 void ParallelHashExecutor::InitHashKeys() {
-  const planner::HashPlan &node = GetPlanNode<planner::HashPlan>();
+  const planner::ParallelHashPlan &node =
+      GetPlanNode<planner::ParallelHashPlan>();
   /* *
    * HashKeys is a vector of TupleValue expr
    * from which we construct a vector of column ids that represent the

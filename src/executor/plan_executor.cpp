@@ -90,7 +90,6 @@ void HashCallback::TaskComplete(
       tasks.push_back(next_task);
     }
 
-    // TODO Initialize the executor, too
     // TODO Launch the new tasks?
     // for (auto &task : tasks) {
 

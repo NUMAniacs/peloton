@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "executor/abstract_join_executor.h"
-#include "planner/hash_join_plan.h"
+#include "planner/parallel_hash_join_plan.h"
 #include "executor/parallel_hash_executor.h"
 
 namespace peloton {

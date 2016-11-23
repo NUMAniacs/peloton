@@ -811,6 +811,7 @@ IndexConstraintType StringToIndexConstraintType(const std::string& str) {
 
 std::string PlanNodeTypeToString(PlanNodeType type) {
   switch (type) {
+<<<<<<< HEAD
     case PLAN_NODE_TYPE_INVALID: {
       return ("INVALID");
     }
@@ -901,9 +902,13 @@ std::string PlanNodeTypeToString(PlanNodeType type) {
     case PLAN_NODE_TYPE_MOCK: {
       return ("MOCK");
     }
+    case PLAN_NODE_TYPE_PARALLEL_SEQSCAN: { return "PARALLELSEQSCAN"; }
+    case PLAN_NODE_TYPE_PARALLEL_HASH: { return "PARALLELHASH"; }
+    case PLAN_NODE_TYPE_PARALLEL_HASHJOIN: { return "PARALLELHASHJOIN"; }
     default: {
       throw ConversionException("No conversion from PlanNodeType");  // FIXME
     }
+
   }
   return "INVALID";
 }
