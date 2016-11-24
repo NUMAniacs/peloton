@@ -100,7 +100,7 @@ class LogicalTile : public Printable {
 
   size_t GetColumnCount();
 
-  inline size_t GetPartition() { return partition_; }
+  inline size_t GetPartition() const { return partition_; }
 
   inline void SetPartition(size_t partition) { partition_ = partition; }
 

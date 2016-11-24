@@ -23,6 +23,7 @@
 
 // Should we set the granularity by number of tile groups or number of tuples??
 #define TASK_TILEGROUP_COUNT 100
+#define TASK_TUPLE_COUNT TASK_TILEGROUP_COUNT *DEFAULT_TUPLES_PER_TILEGROUP
 
 namespace peloton {
 
@@ -82,7 +83,6 @@ class AbstractTask {
 
   // The shared result vector for each task. All the intermediate result are
   // buffered here. (further used by joins)
-  // TODO store the partition information in the logical tile as well
   std::shared_ptr<LogicalTileLists> result_tile_lists;
 
   // The callback to call after task completes

@@ -79,6 +79,12 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
     child_tiles_ = child_tiles;
   }
 
+  inline size_t GetTotalNumTuples() const { return total_num_tuples_.load(); }
+
+  inline void IncrementNumTuple(size_t num_tuples) {
+    total_num_tuples_.fetch_add(num_tuples);
+  }
+
  protected:
   // Initialize the values of the hash keys from plan node
   void InitHashKeys();
@@ -101,6 +107,8 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
   size_t task_itr = 0;
 
   bool initialized_ = false;
+
+  std::atomic<size_t> total_num_tuples_;
 };
 
 } /* namespace executor */
