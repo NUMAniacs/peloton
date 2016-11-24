@@ -25,23 +25,33 @@
 namespace peloton {
 namespace planner {
 
-// TODO Remove this hack function
+/*
+ * Helper used for parallel join test. When force_single_partition is set to
+ * true, it execute only one hash task instead of multiple ones
+ */
 std::shared_ptr<executor::ParallelHashExecutor>
-ParallelHashPlan::DependencyComplete(
-    std::shared_ptr<executor::AbstractTask> task, bool hack) {
+ParallelHashPlan::DependencyCompleteHelper(
+    std::shared_ptr<executor::AbstractTask> task, bool force_single_partition) {
 
-  (void)hack;
+  if (force_single_partition == false) {
+    LOG_ERROR("Not implement yet");
+    PL_ASSERT(false);
+  }
 
   // Get the total number of partition
-  size_t num_partitions = 1;  // PL_NUM_PARTITIONS();
+  size_t num_partitions = PL_NUM_PARTITIONS();
+  if (force_single_partition) {
+    num_partitions = 1;
+  }
 
   // Group the results based on partitions
   executor::LogicalTileLists partitioned_result_tile_lists(num_partitions);
   for (auto &result_tile_list : *(task->result_tile_lists.get())) {
     for (auto &result_tile : result_tile_list) {
       size_t partition = result_tile->GetPartition();
-      // XXX hard code partition
-      partition = 0;
+      if (force_single_partition) {
+        partition = 0;
+      }
       partitioned_result_tile_lists[partition]
           .emplace_back(result_tile.release());
     }
@@ -54,7 +64,7 @@ ParallelHashPlan::DependencyComplete(
     executor::LogicalTileList next_result_tile_list;
 
     for (auto &result_tile : partitioned_result_tile_lists[partition]) {
-      // TODO we should re-chunk based on number of tuples?
+      // TODO we should re-chunk based on number of tuples
       next_result_tile_list.push_back(std::move(result_tile));
       // Reached the limit of each chunk
       if (next_result_tile_list.size() >= TASK_TILEGROUP_COUNT) {
@@ -85,11 +95,18 @@ ParallelHashPlan::DependencyComplete(
 
   for (size_t task_id = 0; task_id < num_tasks; task_id++) {
     // Construct a hash task
+    size_t partition;
+    if (force_single_partition) {
+      partition = 0;
+    } else {
+      LOG_ERROR("Not implemented yet.");
+      // TODO set the right partition for this task
+      PL_ASSERT(false);
+    }
 
-    // XXX Hard code partition
-    size_t partition = 0;
     std::shared_ptr<executor::AbstractTask> next_task(new executor::HashTask(
         this, hash_executor, task_id, partition, result_tile_lists));
+
     // next_task->Init(next_callback, num_tasks);
     tasks.push_back(next_task);
   }

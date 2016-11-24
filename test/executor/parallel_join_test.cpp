@@ -483,6 +483,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
         std::shared_ptr<executor::AbstractTask> task(new executor::SeqScanTask(
             &hash_plan_node, INVALID_TASK_ID, INVALID_PARTITION_ID,
             right_table_logical_tile_lists));
+
         // Init task with num tasks
         task->Init(seq_scan_executor.get(), &hash_plan_node,
                    num_seq_scan_tasks);
@@ -497,9 +498,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
         auto task = seq_scan_tasks[task_id];
         if (task->trackable->TaskComplete()) {
           PL_ASSERT(task_id == num_seq_scan_tasks - 1);
-          // TODO it should be replaced by
-          // task->dependent->DependencyComplete(task);
-          hash_executor = hash_plan_node.DependencyComplete(task, true);
+          hash_executor = hash_plan_node.DependencyCompleteHelper(task, true);
         }
       }
 

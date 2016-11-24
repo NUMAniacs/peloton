@@ -56,16 +56,16 @@ class ParallelHashPlan : public AbstractPlan, public Dependent {
         new ParallelHashPlan(copied_hash_keys));
   }
 
-  // when a task completes it will call this
-  // XXX Assume the task is seq scan task for now
+  // When a dependency completes it will call this
   void DependencyComplete(std::shared_ptr<executor::AbstractTask> task)
       override {
-    (void)task;
+    DependencyCompleteHelper(task, false);
   }
 
-  // TODO Hacky function which should be removed. Used for join test..
-  std::shared_ptr<executor::ParallelHashExecutor> DependencyComplete(
-      std::shared_ptr<executor::AbstractTask> task, bool hack);
+  // TODO Move me to private. Remove the force_single_result_partition param.
+  std::shared_ptr<executor::ParallelHashExecutor> DependencyCompleteHelper(
+      std::shared_ptr<executor::AbstractTask> task,
+      bool force_single_result_partition);
 
  private:
   std::vector<HashKeyPtrType> hash_keys_;
