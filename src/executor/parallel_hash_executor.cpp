@@ -92,24 +92,23 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
       // Key : container tuple with a subset of tuple attributes
       // Value : < child_tile offset, tuple offset >
 
-      // FIXME This is not thread safe at all since multiple threads may insert
-      // to the same std::set
       ParallelHashMapType::key_type key(tile, tuple_id, &column_ids);
-      std::shared_ptr<HashSet> value;
+      std::shared_ptr<ConcurrentSet> value;
       auto status = hash_table.find(key, value);
       // Not found
       if (status == false) {
         LOG_TRACE("key not found %d", (int)tuple_id);
-        value.reset(new HashSet());
-        value->insert(std::make_pair(tile_itr, tuple_id));
+        value.reset(new ConcurrentSet());
         auto success = hash_table.insert(key, value);
+        if (success == false) {
+          success = hash_table.find(key, value);
+        }
         PL_ASSERT(success);
-        (void)success;
       } else {
         // Found
         LOG_TRACE("key found %d", (int)tuple_id);
-        value->insert(std::make_pair(tile_itr, tuple_id));
       }
+      value->Insert(std::make_pair(tile_itr, tuple_id));
       PL_ASSERT(hash_table.contains(key));
     }
   }

@@ -31,6 +31,24 @@ namespace executor {
  */
 class ParallelHashExecutor : public AbstractExecutor, public Trackable {
  public:
+  /** @brief Type definitions for hash table */
+  typedef std::unordered_set<std::pair<size_t, oid_t>,
+                             boost::hash<std::pair<size_t, oid_t>>> HashSet;
+
+  // A wrapper over std::unordered_set with spin locks
+  struct ConcurrentSet {
+    Spinlock lock;
+    HashSet unordered_set;
+
+    void Insert(std::pair<size_t, oid_t> element) {
+      lock.Lock();
+      unordered_set.insert(element);
+      lock.Unlock();
+    }
+
+    const HashSet &GetSet() const { return unordered_set; }
+  };
+
   ParallelHashExecutor(const ParallelHashExecutor &) = delete;
   ParallelHashExecutor &operator=(const ParallelHashExecutor &) = delete;
   ParallelHashExecutor(const ParallelHashExecutor &&) = delete;
@@ -39,15 +57,11 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
   explicit ParallelHashExecutor(const planner::AbstractPlan *node,
                                 ExecutorContext *executor_context);
 
-  /** @brief Type definitions for hash table */
-  typedef std::unordered_set<std::pair<size_t, oid_t>,
-                             boost::hash<std::pair<size_t, oid_t>>> HashSet;
-
   // TODO We should reserve the size of the cuckoomap if we know the number of
   // tuples to insert
   typedef cuckoohash_map<
       expression::ContainerTuple<LogicalTile>,           // Key
-      std::shared_ptr<HashSet>,                          // T
+      std::shared_ptr<ConcurrentSet>,                    // T
       expression::ContainerTupleHasher<LogicalTile>,     // Hash
       expression::ContainerTupleComparator<LogicalTile>  // Pred
       > ParallelHashMapType;
