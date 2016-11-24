@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "common/harness.h"
-
+#include "common/macros.h"
 #include "catalog/schema.h"
 #include "common/types.h"
 #include "common/value.h"
@@ -209,7 +209,7 @@ void GenerateMultiTileGroupTasks(storage::DataTable *table,
  * @brief Runs actual test as thread function
  */
 void RunTest(ParallelScanArgs **args) {
-  auto partition_aware_task =
+  UNUSED_ATTRIBUTE auto partition_aware_task =
       static_cast<executor::PartitionAwareTask*>((*args)->task.get());
   LOG_DEBUG("Partition ID:%ld", partition_aware_task->partition_id);
   std::unique_ptr<executor::ExecutorContext> context(
