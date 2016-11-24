@@ -24,7 +24,7 @@ namespace peloton {
 // core/partition node correspond to a partition
 // XXX Assume hyper-threading, num_partition = num_cores
 
-#define SIMULATE_NUMA_PARTITION 0
+#define SIMULATE_NUMA_PARTITION 1
 
 #if SIMULATE_NUMA_PARTITION
   // Get total number of partitions
@@ -42,7 +42,7 @@ namespace peloton {
 
 // Get the number of parallel units in each partition
 // (Assume homogeneous architecture)
-#define PL_GET_PARTITION_SIZE() (int)(std::thread::hardware_concurrency() / PL_NUM_PARTITIONS())
+#define PL_GET_PARTITION_SIZE() 2
 
 #else
 // Get total number of partitions
@@ -59,7 +59,7 @@ namespace peloton {
 
 // Get the number of parallel units in each partition
 // (Assume homogeneous architecture)
-#define PL_GET_PARTITION_SIZE() 2
+#define PL_GET_PARTITION_SIZE() (int)(std::thread::hardware_concurrency() / PL_NUM_PARTITIONS())
 
 #endif
 

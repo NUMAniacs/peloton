@@ -64,10 +64,10 @@ const std::set<oid_t> g_tuple_ids({0, 3});
 *
 * @return Table generated for test.
 */
-storage::DataTable *CreateTable() {
+storage::DataTable *CreateTable(size_t active_tile_group_count) {
   const int tuple_count = TESTS_TUPLES_PER_TILEGROUP;
   // have double the number of active tile groups as partitions
-  storage::DataTable::SetActiveTileGroupCount(PL_NUM_PARTITIONS() * 2);
+  storage::DataTable::SetActiveTileGroupCount(active_tile_group_count);
   std::unique_ptr<storage::DataTable> table(ExecutorTestsUtil::CreateTable());
 
   // populate all tile groups
@@ -162,8 +162,8 @@ executor::LogicalTile *GetNextTile(executor::AbstractExecutor &executor) {
  * @brief Generates single tile-group tasks
  */
 void GenerateSingleTileGroupTasks(storage::DataTable *table,
-                                  planner::AbstractPlan *node,
-                                  std::vector<std::shared_ptr<executor::AbstractTask>> &tasks) {
+    planner::AbstractPlan *node,
+    std::vector<std::shared_ptr<executor::AbstractTask>> &tasks) {
   // The result of the logical tiles for all tasks
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
@@ -180,11 +180,38 @@ void GenerateSingleTileGroupTasks(storage::DataTable *table,
   }
 }
 
+void GenerateMultiTileGroupTasks(storage::DataTable *table,
+       planner::AbstractPlan *node,
+       std::vector<std::shared_ptr<executor::AbstractTask>> &tasks) {
+  std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
+      new executor::LogicalTileLists());
+  for (size_t p = 0; p < table->GetPartitionCount(); p++) {
+    auto partition_tilegroup_count = table->GetPartitionTileGroupCount(p);
+    size_t task_tilegroup_count =
+        (partition_tilegroup_count +
+         PL_GET_PARTITION_SIZE() - 1)/PL_GET_PARTITION_SIZE();
+    for (size_t i=0; i<partition_tilegroup_count; i+=task_tilegroup_count) {
+      executor::SeqScanTask *seq_scan_task =
+          new executor::SeqScanTask(node, tasks.size(), p, result_tile_lists);
+      for (size_t tile_group_offset_=i;
+          tile_group_offset_<i+task_tilegroup_count &&
+              tile_group_offset_<partition_tilegroup_count; tile_group_offset_++) {
+        seq_scan_task->tile_group_ptrs.push_back(
+            table->GetTileGroupFromPartition(p, tile_group_offset_));
+      }
+      tasks.push_back(
+          std::shared_ptr<executor::AbstractTask>(seq_scan_task));
+    }
+  }
+}
+
 /**
  * @brief Runs actual test as thread function
  */
 void RunTest(ParallelScanArgs **args) {
-
+  auto partition_aware_task =
+      static_cast<executor::PartitionAwareTask*>((*args)->task.get());
+  LOG_DEBUG("Partition ID:%ld", partition_aware_task->partition_id);
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext((*args)->txn));
 
@@ -245,31 +272,13 @@ void ValidateResults(
   }
 }
 
-// Sequential scan of table with predicate.
-// The table being scanned has more than one tile group. i.e. the vertical
-// partitioning changes midway.
-TEST_F(ParallelSeqScanTests, SimpleParallelScanTest) {
+void ParallelScanTestBody(std::unique_ptr<storage::DataTable> table,
+    planner::AbstractPlan *node, const size_t num_columns,
+    std::vector<std::shared_ptr<executor::AbstractTask>>& tasks) {
   bool status = true;
 
-  // Start the thread pool
-  ExecutorPoolHarness::GetInstance();
-
-  // Create table.
-  std::unique_ptr<storage::DataTable> table(CreateTable());
-
-  // Column ids to be added to logical tile after scan.
-  std::vector<oid_t> column_ids({0, 1, 3});
-
-  // Create plan node.
-  planner::ParallelSeqScanPlan node(table.get(),
-                                    CreatePredicate(g_tuple_ids),
-                                    column_ids);
-  // Vector of tasks
-  std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
   std::vector<std::shared_ptr<ParallelScanArgs>> args;
   std::vector<std::shared_ptr<executor::LogicalTile>> result_tiles;
-
-  GenerateSingleTileGroupTasks(table.get(), &node, tasks);
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
@@ -282,7 +291,7 @@ TEST_F(ParallelSeqScanTests, SimpleParallelScanTest) {
 
     partition_aware_task->Init(&wait, tasks.size());
     args.push_back(std::shared_ptr<ParallelScanArgs>(
-        new ParallelScanArgs(txn, &node, tasks[i], false)));
+        new ParallelScanArgs(txn, node, tasks[i], false)));
     partitioned_executor_thread_pool.SubmitTask(partition_aware_task->partition_id,
                                                 RunTest, &args[i]->self);
   }
@@ -295,9 +304,58 @@ TEST_F(ParallelSeqScanTests, SimpleParallelScanTest) {
   }
   txn_manager.CommitTransaction(txn);
 
-  ValidateResults(result_tiles, table->GetTileGroupCount(), column_ids.size());
+  EXPECT_EQ(status, true);
+  ValidateResults(result_tiles, table->GetTileGroupCount(), num_columns);
 }
 
+// Sequential scan of table with predicate.
+// The table being scanned has more than one tile group. i.e. the vertical
+// partitioning changes midway.
+TEST_F(ParallelSeqScanTests, SimpleParallelScanTest) {
+  // Start the thread pool
+  ExecutorPoolHarness::GetInstance();
+
+  // Create table.
+  std::unique_ptr<storage::DataTable> table(CreateTable(PL_NUM_PARTITIONS()*2));
+
+  // Column ids to be added to logical tile after scan.
+  std::vector<oid_t> column_ids({0, 1, 3});
+
+  // Create plan node.
+  planner::ParallelSeqScanPlan node(table.get(),
+                                    CreatePredicate(g_tuple_ids),
+                                    column_ids);
+  // Vector of tasks
+  std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
+  GenerateSingleTileGroupTasks(table.get(), &node, tasks);
+
+  ParallelScanTestBody(std::move(table), &node, column_ids.size(), tasks);
+}
+
+// Sequential scan of table with predicate.
+// The table being scanned has more than one tile group. i.e. the vertical
+// partitioning changes midway.
+TEST_F(ParallelSeqScanTests, MultiTileGroupParallelScanTest) {
+  // Start the thread pool
+  ExecutorPoolHarness::GetInstance();
+
+  // Create table.
+  std::unique_ptr<storage::DataTable>
+      table(CreateTable(PL_NUM_PARTITIONS()*PL_GET_PARTITION_SIZE()*4));
+
+  // Column ids to be added to logical tile after scan.
+  std::vector<oid_t> column_ids({0, 1, 3});
+
+  // Create plan node.
+  planner::ParallelSeqScanPlan node(table.get(),
+                                    CreatePredicate(g_tuple_ids),
+                                    column_ids);
+  // Vector of tasks
+  std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
+  GenerateMultiTileGroupTasks(table.get(), &node, tasks);
+
+  ParallelScanTestBody(std::move(table), &node, column_ids.size(), tasks);
+}
 // Sequential scan of logical tile with predicate.
 //TEST_F(SeqScanTests, NonLeafNodePredicateTest) {
 //    // No table for this case as seq scan is not a leaf node.
