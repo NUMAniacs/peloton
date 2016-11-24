@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <memory>
 #include <set>
 #include <string>
@@ -76,8 +75,7 @@ storage::DataTable *CreateTable(size_t active_tile_group_count) {
          tile_group_offset_ < table->GetPartitionTileGroupCount(p);
          tile_group_offset_++) {
       ExecutorTestsUtil::PopulateTiles(
-          table->GetTileGroupFromPartition(p, tile_group_offset_),
-          tuple_count);
+          table->GetTileGroupFromPartition(p, tile_group_offset_), tuple_count);
     }
   }
   return table.release();
@@ -102,7 +100,8 @@ expression::AbstractExpression *CreatePredicate(
   PL_ASSERT(tuple_ids.size() >= 1);
 
   expression::AbstractExpression *predicate =
-      expression::ExpressionUtil::ConstantValueFactory(common::ValueFactory::GetBooleanValue(0));
+      expression::ExpressionUtil::ConstantValueFactory(
+          common::ValueFactory::GetBooleanValue(0));
 
   bool even = false;
   for (oid_t tuple_id : tuple_ids) {
@@ -113,23 +112,22 @@ expression::AbstractExpression *CreatePredicate(
     expression::AbstractExpression *tuple_value_expr = nullptr;
 
     tuple_value_expr = even ? expression::ExpressionUtil::TupleValueFactory(
-        common::Type::INTEGER, 0, 0)
+                                  common::Type::INTEGER, 0, 0)
                             : expression::ExpressionUtil::TupleValueFactory(
-            common::Type::VARCHAR, 0, 3);
+                                  common::Type::VARCHAR, 0, 3);
 
     // Second, create constant value expression.
     expression::AbstractExpression *constant_value_expr;
     if (even) {
       auto constant_value = common::ValueFactory::GetIntegerValue(
           ExecutorTestsUtil::PopulatedValue(tuple_id, 0));
-      constant_value_expr = expression::ExpressionUtil::ConstantValueFactory(
-          constant_value);
-    }
-    else {
+      constant_value_expr =
+          expression::ExpressionUtil::ConstantValueFactory(constant_value);
+    } else {
       auto constant_value = common::ValueFactory::GetVarcharValue(
           std::to_string(ExecutorTestsUtil::PopulatedValue(tuple_id, 3)));
-      constant_value_expr = expression::ExpressionUtil::ConstantValueFactory(
-          constant_value);
+      constant_value_expr =
+          expression::ExpressionUtil::ConstantValueFactory(constant_value);
     }
 
     // Finally, link them together using an equality expression.
@@ -161,8 +159,8 @@ executor::LogicalTile *GetNextTile(executor::AbstractExecutor &executor) {
 /**
  * @brief Generates single tile-group tasks
  */
-void GenerateSingleTileGroupTasks(storage::DataTable *table,
-    planner::AbstractPlan *node,
+void GenerateSingleTileGroupTasks(
+    storage::DataTable *table, planner::AbstractPlan *node,
     std::vector<std::shared_ptr<executor::AbstractTask>> &tasks) {
   // The result of the logical tiles for all tasks
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
@@ -180,27 +178,28 @@ void GenerateSingleTileGroupTasks(storage::DataTable *table,
   }
 }
 
-void GenerateMultiTileGroupTasks(storage::DataTable *table,
-       planner::AbstractPlan *node,
-       std::vector<std::shared_ptr<executor::AbstractTask>> &tasks) {
+void GenerateMultiTileGroupTasks(
+    storage::DataTable *table, planner::AbstractPlan *node,
+    std::vector<std::shared_ptr<executor::AbstractTask>> &tasks) {
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
   for (size_t p = 0; p < table->GetPartitionCount(); p++) {
     auto partition_tilegroup_count = table->GetPartitionTileGroupCount(p);
     size_t task_tilegroup_count =
-        (partition_tilegroup_count +
-         PL_GET_PARTITION_SIZE() - 1)/PL_GET_PARTITION_SIZE();
-    for (size_t i=0; i<partition_tilegroup_count; i+=task_tilegroup_count) {
+        (partition_tilegroup_count + PL_GET_PARTITION_SIZE() - 1) /
+        PL_GET_PARTITION_SIZE();
+    for (size_t i = 0; i < partition_tilegroup_count;
+         i += task_tilegroup_count) {
       executor::SeqScanTask *seq_scan_task =
           new executor::SeqScanTask(node, tasks.size(), p, result_tile_lists);
-      for (size_t tile_group_offset_=i;
-          tile_group_offset_<i+task_tilegroup_count &&
-              tile_group_offset_<partition_tilegroup_count; tile_group_offset_++) {
+      for (size_t tile_group_offset_ = i;
+           tile_group_offset_ < i + task_tilegroup_count &&
+               tile_group_offset_ < partition_tilegroup_count;
+           tile_group_offset_++) {
         seq_scan_task->tile_group_ptrs.push_back(
             table->GetTileGroupFromPartition(p, tile_group_offset_));
       }
-      tasks.push_back(
-          std::shared_ptr<executor::AbstractTask>(seq_scan_task));
+      tasks.push_back(std::shared_ptr<executor::AbstractTask>(seq_scan_task));
     }
   }
 }
@@ -210,7 +209,7 @@ void GenerateMultiTileGroupTasks(storage::DataTable *table,
  */
 void RunTest(ParallelScanArgs **args) {
   UNUSED_ATTRIBUTE auto partition_aware_task =
-      static_cast<executor::PartitionAwareTask*>((*args)->task.get());
+      static_cast<executor::PartitionAwareTask *>((*args)->task.get());
   LOG_DEBUG("Partition ID:%ld", partition_aware_task->partition_id);
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext((*args)->txn));
@@ -230,7 +229,7 @@ void RunTest(ParallelScanArgs **args) {
 }
 
 void ValidateResults(
-    std::vector<std::shared_ptr<executor::LogicalTile>>& result_tiles,
+    std::vector<std::shared_ptr<executor::LogicalTile>> &result_tiles,
     int expected_num_tiles, int expected_num_cols) {
   // Check correctness of result tiles.
   for (int i = 0; i < expected_num_tiles; i++) {
@@ -245,15 +244,13 @@ void ValidateResults(
       // We divide by 10 because we know how PopulatedValue() computes.
       // Bad style. Being a bit lazy here...
 
-      common::Value value1 = (
-          result_tiles[i]->GetValue(new_tuple_id, 0));
+      common::Value value1 = (result_tiles[i]->GetValue(new_tuple_id, 0));
       int old_tuple_id = value1.GetAs<int32_t>() / 10;
 
       EXPECT_EQ(1, expected_tuples_left.erase(old_tuple_id));
 
       int val1 = ExecutorTestsUtil::PopulatedValue(old_tuple_id, 1);
-      common::Value value2 = (
-          result_tiles[i]->GetValue(new_tuple_id, 1));
+      common::Value value2 = (result_tiles[i]->GetValue(new_tuple_id, 1));
       EXPECT_EQ(val1, value2.GetAs<int32_t>());
       int val2 = ExecutorTestsUtil::PopulatedValue(old_tuple_id, 3);
 
@@ -262,9 +259,10 @@ void ValidateResults(
       // For the tile group test case, it'll be 2 (one column is removed
       // during the scan as part of the test case).
       // For the logical tile test case, it'll be 3.
-      common::Value string_value = (common::ValueFactory::GetVarcharValue(std::to_string(val2)));
-      common::Value val = (
-          result_tiles[i]->GetValue(new_tuple_id, expected_num_cols - 1));
+      common::Value string_value =
+          (common::ValueFactory::GetVarcharValue(std::to_string(val2)));
+      common::Value val =
+          (result_tiles[i]->GetValue(new_tuple_id, expected_num_cols - 1));
       common::Value cmp = (val.CompareEquals(string_value));
       EXPECT_TRUE(cmp.IsTrue());
     }
@@ -272,9 +270,10 @@ void ValidateResults(
   }
 }
 
-void ParallelScanTestBody(std::unique_ptr<storage::DataTable> table,
-    planner::AbstractPlan *node, const size_t num_columns,
-    std::vector<std::shared_ptr<executor::AbstractTask>>& tasks) {
+void ParallelScanTestBody(
+    std::unique_ptr<storage::DataTable> table, planner::AbstractPlan *node,
+    const size_t num_columns,
+    std::vector<std::shared_ptr<executor::AbstractTask>> &tasks) {
   bool status = true;
 
   std::vector<std::shared_ptr<ParallelScanArgs>> args;
@@ -284,16 +283,15 @@ void ParallelScanTestBody(std::unique_ptr<storage::DataTable> table,
   auto txn = txn_manager.BeginTransaction();
   bridge::BlockingWait wait(tasks.size());
 
-
   for (size_t i = 0; i < tasks.size(); i++) {
     auto partition_aware_task =
         std::dynamic_pointer_cast<executor::PartitionAwareTask>(tasks[i]);
 
-    partition_aware_task->Init(&wait, tasks.size());
+    partition_aware_task->Init(&wait, &wait, tasks.size());
     args.push_back(std::shared_ptr<ParallelScanArgs>(
         new ParallelScanArgs(txn, node, tasks[i], false)));
-    partitioned_executor_thread_pool.SubmitTask(partition_aware_task->partition_id,
-                                                RunTest, &args[i]->self);
+    partitioned_executor_thread_pool.SubmitTask(
+        partition_aware_task->partition_id, RunTest, &args[i]->self);
   }
 
   for (size_t i = 0; i < tasks.size(); i++) {
@@ -316,14 +314,14 @@ TEST_F(ParallelSeqScanTests, SimpleParallelScanTest) {
   ExecutorPoolHarness::GetInstance();
 
   // Create table.
-  std::unique_ptr<storage::DataTable> table(CreateTable(PL_NUM_PARTITIONS()*2));
+  std::unique_ptr<storage::DataTable> table(
+      CreateTable(PL_NUM_PARTITIONS() * 2));
 
   // Column ids to be added to logical tile after scan.
   std::vector<oid_t> column_ids({0, 1, 3});
 
   // Create plan node.
-  planner::ParallelSeqScanPlan node(table.get(),
-                                    CreatePredicate(g_tuple_ids),
+  planner::ParallelSeqScanPlan node(table.get(), CreatePredicate(g_tuple_ids),
                                     column_ids);
   // Vector of tasks
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
@@ -340,15 +338,14 @@ TEST_F(ParallelSeqScanTests, MultiTileGroupParallelScanTest) {
   ExecutorPoolHarness::GetInstance();
 
   // Create table.
-  std::unique_ptr<storage::DataTable>
-      table(CreateTable(PL_NUM_PARTITIONS()*PL_GET_PARTITION_SIZE()*4));
+  std::unique_ptr<storage::DataTable> table(
+      CreateTable(PL_NUM_PARTITIONS() * PL_GET_PARTITION_SIZE() * 4));
 
   // Column ids to be added to logical tile after scan.
   std::vector<oid_t> column_ids({0, 1, 3});
 
   // Create plan node.
-  planner::ParallelSeqScanPlan node(table.get(),
-                                    CreatePredicate(g_tuple_ids),
+  planner::ParallelSeqScanPlan node(table.get(), CreatePredicate(g_tuple_ids),
                                     column_ids);
   // Vector of tasks
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
@@ -356,9 +353,6 @@ TEST_F(ParallelSeqScanTests, MultiTileGroupParallelScanTest) {
 
   ParallelScanTestBody(std::move(table), &node, column_ids.size(), tasks);
 }
-
-
 }
 }  // namespace test
 }  // namespace peloton
-
