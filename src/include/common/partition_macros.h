@@ -24,7 +24,7 @@ namespace peloton {
 // core/partition node correspond to a partition
 // XXX Assume hyper-threading, num_partition = num_cores
 
-#define SIMULATE_NUMA_PARTITION 1
+#define SIMULATE_NUMA_PARTITION 0
 
 #if SIMULATE_NUMA_PARTITION
   // Get total number of partitions
