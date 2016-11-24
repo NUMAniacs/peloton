@@ -35,16 +35,14 @@ class LogicalTile;
 
 class LogicalTileFactory {
  public:
-  static LogicalTile *GetTile();
-
-  // TODO Logical tiles should also be allocated partition aware
-  // We should override the new and delete operator, too
+  static LogicalTile *GetTile(size_t partition);
 
   static LogicalTile *WrapTiles(
-      const std::vector<std::shared_ptr<storage::Tile>> &base_tile_refs);
+      const std::vector<std::shared_ptr<storage::Tile>> &base_tile_refs,
+      size_t partition);
 
   static LogicalTile *WrapTileGroup(
-      const std::shared_ptr<storage::TileGroup> &tile_group);
+      const std::shared_ptr<storage::TileGroup> &tile_group, size_t partition);
 };
 
 }  // namespace executor

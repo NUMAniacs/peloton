@@ -89,13 +89,16 @@ TEST_F(AppendTests, AppendTwoTest) {
   txn_manager.CommitTransaction(txn);
 
   std::unique_ptr<executor::LogicalTile> ltile0(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0),
+                                                  UNDEFINED_NUMA_REGION));
 
   std::unique_ptr<executor::LogicalTile> ltile1(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1),
+                                                  UNDEFINED_NUMA_REGION));
 
   std::unique_ptr<executor::LogicalTile> ltile2(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(2)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(2),
+                                                  UNDEFINED_NUMA_REGION));
 
   EXPECT_CALL(child_executor1, GetOutput()).WillOnce(Return(ltile0.release()));
 

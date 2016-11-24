@@ -199,7 +199,8 @@ std::unique_ptr<LogicalTile> AbstractJoinExecutor::BuildOutputLogicalTile(
   PL_ASSERT(right_tile != nullptr);
 
   // Construct output logical tile.
-  std::unique_ptr<LogicalTile> output_tile(LogicalTileFactory::GetTile());
+  std::unique_ptr<LogicalTile> output_tile(
+      LogicalTileFactory::GetTile(DEFAULT_NUMA_REGION));
 
   auto left_tile_schema = left_tile->GetSchema();
   auto right_tile_schema = right_tile->GetSchema();
@@ -223,7 +224,8 @@ std::unique_ptr<LogicalTile> AbstractJoinExecutor::BuildOutputLogicalTile(
     const catalog::Schema *output_schema) {
   PL_ASSERT(output_schema != nullptr);
 
-  std::unique_ptr<LogicalTile> output_tile(LogicalTileFactory::GetTile());
+  std::unique_ptr<LogicalTile> output_tile(
+      LogicalTileFactory::GetTile(DEFAULT_NUMA_REGION));
 
   // get the non empty tile
   LogicalTile *non_empty_tile = GetNonEmptyTile(left_tile, right_tile);

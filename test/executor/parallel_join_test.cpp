@@ -33,6 +33,7 @@
 #include "planner/merge_join_plan.h"
 #include "planner/nested_loop_join_plan.h"
 #include "planner/abstract_dependent.h"
+#include "common/partition_macros.h"
 
 #include "storage/data_table.h"
 #include "storage/tile.h"
@@ -66,7 +67,8 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 void PopulateTileResults(
     size_t tile_group_begin_itr, size_t tile_group_count,
     std::shared_ptr<executor::LogicalTileLists> table_logical_tile_lists,
-    size_t task_id, executor::LogicalTileList &table_logical_tile_ptrs);
+    size_t task_id, size_t partition,
+    executor::LogicalTileList &table_logical_tile_ptrs);
 
 enum JOIN_TEST_TYPE {
   BASIC_TEST = 0,
@@ -192,6 +194,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   size_t tile_group_size = TESTS_TUPLES_PER_TILEGROUP;
   size_t left_table_tile_group_count = 3;
   size_t right_table_tile_group_count = 2;
+  size_t num_seq_scan_tasks = PL_NUM_PARTITIONS();
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
@@ -258,7 +261,8 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
        left_table_tile_group_itr++) {
     std::unique_ptr<executor::LogicalTile> left_table_logical_tile(
         executor::LogicalTileFactory::WrapTileGroup(
-            left_table->GetTileGroup(left_table_tile_group_itr)));
+            left_table->GetTileGroup(left_table_tile_group_itr),
+            UNDEFINED_NUMA_REGION));
     left_table_logical_tile_ptrs.push_back(std::move(left_table_logical_tile));
   }
 
@@ -267,7 +271,8 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
        right_table_tile_group_itr++) {
     std::unique_ptr<executor::LogicalTile> right_table_logical_tile(
         executor::LogicalTileFactory::WrapTileGroup(
-            right_table->GetTileGroup(right_table_tile_group_itr)));
+            right_table->GetTileGroup(right_table_tile_group_itr),
+            UNDEFINED_NUMA_REGION));
     right_table_logical_tile_ptrs.push_back(
         std::move(right_table_logical_tile));
   }
@@ -306,18 +311,35 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
   if (join_test_type == BASIC_TEST || join_test_type == COMPLICATED_TEST ||
       join_test_type == SPEED_TEST) {
-    size_t task_id = 0;
     size_t tile_begin_itr = 0;
-    PopulateTileResults(tile_begin_itr, right_table_tile_group_count,
-                        right_table_logical_tile_lists, task_id,
-                        right_table_logical_tile_ptrs);
+    size_t num_tile_group_per_task =
+        right_table_tile_group_count / num_seq_scan_tasks;
+    // Split the populated right table tiles into multiple tasks
+    for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
+      // XXX Assume partition == task_id
+      size_t partition = task_id;
+      if (task_id != num_seq_scan_tasks - 1) {
+        // The first few tasks have the same number of tiles
+        PopulateTileResults(tile_begin_itr, num_tile_group_per_task,
+                            right_table_logical_tile_lists, task_id, partition,
+                            right_table_logical_tile_ptrs);
+        tile_begin_itr += num_tile_group_per_task;
+      } else {
+        // The last task
+        PopulateTileResults(tile_begin_itr,
+                            right_table_tile_group_count - tile_begin_itr,
+                            right_table_logical_tile_lists, task_id, partition,
+                            right_table_logical_tile_ptrs);
+      }
+    }
   } else if (join_test_type == BOTH_TABLES_EMPTY) {
     // Populate an empty result
     size_t task_id = 0;
+    size_t partition = 0;
     size_t tile_begin_itr = 0;
     size_t result_count = 0;
     PopulateTileResults(tile_begin_itr, result_count,
-                        right_table_logical_tile_lists, task_id,
+                        right_table_logical_tile_lists, task_id, partition,
                         right_table_logical_tile_ptrs);
 
   } else if (join_test_type == LEFT_TABLE_EMPTY) {
@@ -325,9 +347,10 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
       // For hash join, we always build the hash table from right child
       if (join_algorithm == PLAN_NODE_TYPE_PARALLEL_HASHJOIN) {
         size_t task_id = 0;
+        size_t partition = 0;
         size_t tile_begin_itr = 0;
         PopulateTileResults(tile_begin_itr, right_table_tile_group_count,
-                            right_table_logical_tile_lists, task_id,
+                            right_table_logical_tile_lists, task_id, partition,
                             right_table_logical_tile_ptrs);
       } else {
         // TODO Handle the case for other join types
@@ -338,18 +361,22 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
     } else if (join_type == JOIN_TYPE_OUTER || join_type == JOIN_TYPE_RIGHT) {
       size_t task_id = 0;
+      size_t partition = 0;
+
       size_t tile_begin_itr = 0;
       PopulateTileResults(tile_begin_itr, right_table_tile_group_count,
-                          right_table_logical_tile_lists, task_id,
+                          right_table_logical_tile_lists, task_id, partition,
                           right_table_logical_tile_ptrs);
     }
   } else if (join_test_type == RIGHT_TABLE_EMPTY) {
     // Populate an empty result
     size_t task_id = 0;
+    size_t partition = 0;
+
     size_t tile_begin_itr = 0;
     size_t result_count = 0;
     PopulateTileResults(tile_begin_itr, result_count,
-                        right_table_logical_tile_lists, task_id,
+                        right_table_logical_tile_lists, task_id, partition,
                         right_table_logical_tile_ptrs);
   }
 
@@ -450,20 +477,30 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
       executor::ParallelHashJoinExecutor hash_join_executor(
           &hash_join_plan_node, nullptr);
 
-      // Assume the last seq scan task has finished
-      size_t num_tasks = 1;
-      size_t task_id = 0;
-      size_t partition_id = 0;
-      std::shared_ptr<executor::AbstractTask> task(
-          new executor::SeqScanTask(&hash_plan_node, task_id, partition_id,
-                                    right_table_logical_tile_lists));
-      seq_scan_executor->SetNumTasks(num_tasks);
-      task->Init(seq_scan_executor.get(), &hash_plan_node, num_tasks);
+      std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
+      for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
+        // Create dummy seq scan task
+        std::shared_ptr<executor::AbstractTask> task(new executor::SeqScanTask(
+            &hash_plan_node, INVALID_TASK_ID, INVALID_PARTITION_ID,
+            right_table_logical_tile_lists));
+        // Init task with num tasks
+        task->Init(seq_scan_executor.get(), &hash_plan_node,
+                   num_seq_scan_tasks);
+        // Insert to the list
+        seq_scan_tasks.push_back(task);
+      }
 
-      if (task->trackable->TaskComplete()) {
-        // TODO it should be replaced by
-        // task->dependent->DependencyComplete(task);
-        hash_executor = hash_plan_node.DependencyComplete(task, true);
+      seq_scan_executor->SetNumTasks(num_seq_scan_tasks);
+
+      // Loop until the last seq scan task completes
+      for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
+        auto task = seq_scan_tasks[task_id];
+        if (task->trackable->TaskComplete()) {
+          PL_ASSERT(task_id == num_seq_scan_tasks - 1);
+          // TODO it should be replaced by
+          // task->dependent->DependencyComplete(task);
+          hash_executor = hash_plan_node.DependencyComplete(task, true);
+        }
       }
 
       // Construct the executor tree
@@ -486,7 +523,6 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
           LOG_TRACE("%s", result_logical_tile->GetInfo().c_str());
         }
       }
-
     } break;
 
     default:
@@ -643,16 +679,20 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 void PopulateTileResults(
     size_t tile_group_begin_itr, size_t tile_group_count,
     std::shared_ptr<executor::LogicalTileLists> table_logical_tile_lists,
-    size_t task_id, executor::LogicalTileList &table_logical_tile_ptrs) {
+    size_t task_id, size_t partition,
+    executor::LogicalTileList &table_logical_tile_ptrs) {
 
   while (task_id >= table_logical_tile_lists->size()) {
     table_logical_tile_lists->push_back(executor::LogicalTileList());
   }
   // Move the logical tiles for the task with task_id
+  auto &target_tile_list = (*table_logical_tile_lists)[task_id];
   for (size_t tile_group_itr = tile_group_begin_itr;
-       tile_group_itr < tile_group_count; tile_group_itr++) {
-    (*table_logical_tile_lists)[task_id]
-        .emplace_back(table_logical_tile_ptrs[tile_group_itr].release());
+       tile_group_itr < tile_group_begin_itr + tile_group_count;
+       tile_group_itr++) {
+    auto logical_tile = table_logical_tile_ptrs[tile_group_itr].release();
+    logical_tile->SetPartition(partition);
+    target_tile_list.emplace_back(logical_tile);
   }
 }
 }  // namespace test

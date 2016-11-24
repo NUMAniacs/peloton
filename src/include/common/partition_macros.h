@@ -19,9 +19,12 @@ namespace peloton {
 
 #define PL_PARTITION_FREE(ptr, size) numa_free(ptr, size);
 
-// Set this value to 1 if you want to simulate more than one partition
-// on a single socket machine. The result of simulate is that each
+// Set SIMULATE_NUMA_PARTITION to 1 if you want to simulate more than one
+// partition on a single socket machine. The result of simulate is that each
 // core/partition node correspond to a partition
+// However, this will override new() to allocate memory on numa region 0,
+// please don't use this for performance testing
+
 // XXX Assume hyper-threading, num_partition = num_cores
 
 #define SIMULATE_NUMA_PARTITION 0

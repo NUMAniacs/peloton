@@ -84,6 +84,8 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
 
   size_t result_itr = 0;
 
+  size_t task_itr = 0;
+
   bool initialized_ = false;
 };
 

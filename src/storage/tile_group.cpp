@@ -156,7 +156,8 @@ oid_t TileGroup::InsertTuple(const Tuple *tuple) {
     return INVALID_OID;
   }
 
-  // if the input tuple is nullptr, then it means that the tuple with be filled in
+  // if the input tuple is nullptr, then it means that the tuple with be filled
+  // in
   // outside the function. directly return the empty slot.
   if (tuple == nullptr) {
     return tuple_slot_id;
@@ -436,6 +437,10 @@ const std::string TileGroup::GetInfo() const {
 }
 
 void *TileGroup::operator new(size_t size, int numa_region) {
+  if (SIMULATE_NUMA_PARTITION) {
+    numa_region = 0;
+  }
+
   if (numa_region == LOCAL_NUMA_REGION) {
     numa_region = PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE());
   }

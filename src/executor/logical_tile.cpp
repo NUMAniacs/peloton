@@ -21,15 +21,44 @@
 #include "storage/data_table.h"
 #include "storage/tile.h"
 #include "storage/tile_group.h"
+#include "common/partition_macros.h"
 
 namespace peloton {
 namespace executor {
 
 #define SCHEMA_PREALLOCATION_SIZE 20
 
-LogicalTile::LogicalTile() {
+LogicalTile::LogicalTile(size_t partition) : partition_(partition) {
   // Preallocate schema
   schema_.reserve(SCHEMA_PREALLOCATION_SIZE);
+}
+
+void *LogicalTile::operator new(size_t size, int partition) {
+  // TODO numa un-aware alloc
+  //  if (partition == UNDEFINED_NUMA_REGION) {
+  //    return do_allocation(size, true);
+  //  }
+  if (SIMULATE_NUMA_PARTITION) {
+    partition = 0;
+  }
+
+  // For numa-aware alloc
+  if (partition == LOCAL_NUMA_REGION || UNDEFINED_NUMA_REGION) {
+    partition = PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE());
+  }
+  return PL_PARTITION_ALLOC(size, partition);
+}
+
+void LogicalTile::operator delete(void *ptr, size_t size) {
+  //  LogicalTile *tile = (LogicalTile *)ptr;
+  // TODO numa-unaware delete
+  // if (tile->GetPartition() == UNDEFINED_NUMA_REGION) {
+  //    do_deletion(ptr);
+  //	return;
+  //  }
+
+  // For numa-aware delete
+  PL_PARTITION_FREE(ptr, size);
 }
 
 /**

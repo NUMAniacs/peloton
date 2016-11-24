@@ -49,7 +49,9 @@ std::vector<oid_t> CreateIdentityPositionList(unsigned int size) {
  *
  * @return Pointer to empty logical tile.
  */
-LogicalTile *LogicalTileFactory::GetTile() { return new LogicalTile(); }
+LogicalTile *LogicalTileFactory::GetTile(size_t partition) {
+  return new (partition) LogicalTile(partition);
+}
 
 /**
  * @brief Convenience method to construct a logical tile wrapping base tiles.
@@ -58,11 +60,12 @@ LogicalTile *LogicalTileFactory::GetTile() { return new LogicalTile(); }
  * @return Pointer to newly created logical tile.
  */
 LogicalTile *LogicalTileFactory::WrapTiles(
-    const std::vector<std::shared_ptr<storage::Tile>> &base_tile_refs) {
+    const std::vector<std::shared_ptr<storage::Tile>> &base_tile_refs,
+    size_t partition) {
   PL_ASSERT(base_tile_refs.size() > 0);
 
   // TODO ASSERT all base tiles have the same height.
-  std::unique_ptr<LogicalTile> new_tile(new LogicalTile());
+  std::unique_ptr<LogicalTile> new_tile(GetTile(partition));
 
   // First, we build a position list to be shared by all the tiles.
   const oid_t position_list_idx = 0;
@@ -89,8 +92,8 @@ LogicalTile *LogicalTileFactory::WrapTiles(
  * @return Logical tile wrapping tile group.
  */
 LogicalTile *LogicalTileFactory::WrapTileGroup(
-    const std::shared_ptr<storage::TileGroup> &tile_group) {
-  std::unique_ptr<LogicalTile> new_tile(new LogicalTile());
+    const std::shared_ptr<storage::TileGroup> &tile_group, size_t partition) {
+  std::unique_ptr<LogicalTile> new_tile(GetTile(partition));
 
   const int position_list_idx = 0;
   new_tile->AddPositionList(

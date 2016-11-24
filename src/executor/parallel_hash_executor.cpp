@@ -83,7 +83,8 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   for (size_t tile_itr = 0; tile_itr < (*child_tiles)[task_id].size();
        tile_itr++) {
 
-    LOG_DEBUG("Advance to next tile");
+    LOG_DEBUG("Advance to next tile. Task id: %d, tile_itr: %d", (int)task_id,
+              (int)tile_itr);
     auto tile = (*child_tiles)[task_id][tile_itr].get();
 
     // Go over all tuples in the logical tile
@@ -116,21 +117,27 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
 
 bool ParallelHashExecutor::DExecute() {
   LOG_TRACE("Hash Executor");
+  auto num_tasks = child_tiles_->size();
 
-  if (child_tiles_->size() == 0) {
+  if (num_tasks == 0) {
     return false;
   }
 
-  // Return logical tiles one at a time
-  while (result_itr < (*child_tiles_)[0].size()) {
-    if ((*child_tiles_)[0][result_itr]->GetTupleCount() == 0) {
-      result_itr++;
-      continue;
-    } else {
-      SetOutput((*child_tiles_)[0][result_itr++].release());
-      LOG_DEBUG("Hash Executor : true -- return tile one at a time ");
-      return true;
+  while (task_itr < num_tasks) {
+    auto &target_tile_list = (*child_tiles_)[task_itr];
+    // Return logical tiles one at a time
+    while (result_itr < target_tile_list.size()) {
+      if (target_tile_list[result_itr]->GetTupleCount() == 0) {
+        result_itr++;
+        continue;
+      } else {
+        SetOutput(target_tile_list[result_itr++].release());
+        LOG_DEBUG("Hash Executor : true -- return tile one at a time ");
+        return true;
+      }
     }
+    task_itr++;
+    result_itr = 0;
   }
 
   LOG_DEBUG("Hash Executor : false -- done ");
