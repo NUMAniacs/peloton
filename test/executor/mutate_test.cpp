@@ -319,7 +319,8 @@ TEST_F(MutateTests, InsertTest) {
         physical_tile_group->GetTileReference(tile_itr));
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile(
-      executor::LogicalTileFactory::WrapTiles(physical_tile_refs));
+      executor::LogicalTileFactory::WrapTiles(physical_tile_refs,
+                                              UNDEFINED_NUMA_REGION));
 
   EXPECT_CALL(child_executor, GetOutput())
       .WillOnce(Return(source_logical_tile.release()));

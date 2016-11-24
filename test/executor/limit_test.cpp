@@ -226,8 +226,7 @@ TEST_F(LimitTests, NonLeafHugeLimitTest) {
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile2(
       executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1),
-                                                  UNDEFINED_NUMA_REGION),
-      UNDEFINED_NUMA_REGION);
+                                                  UNDEFINED_NUMA_REGION));
 
   EXPECT_CALL(child_executor, GetOutput())
       .WillOnce(Return(source_logical_tile1.release()))
