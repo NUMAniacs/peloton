@@ -16,7 +16,6 @@
 #include <utility>
 #include <vector>
 #include <numeric>
-#include <include/planner/parallel_seq_scan_plan.h>
 
 #include "common/types.h"
 #include "executor/logical_tile.h"
@@ -30,6 +29,7 @@
 #include "concurrency/transaction_manager_factory.h"
 #include "common/logger.h"
 #include "index/index.h"
+#include "planner/parallel_seq_scan_plan.h"
 
 namespace peloton {
 namespace executor {
