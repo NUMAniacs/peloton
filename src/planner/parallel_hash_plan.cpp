@@ -21,6 +21,7 @@
 #include "common/partition_macros.h"
 #include "planner/parallel_hash_plan.h"
 #include "executor/abstract_task.h"
+#include "common/init.h"
 
 namespace peloton {
 namespace planner {
@@ -32,11 +33,6 @@ namespace planner {
 std::shared_ptr<executor::ParallelHashExecutor>
 ParallelHashPlan::DependencyCompleteHelper(
     std::shared_ptr<executor::AbstractTask> task, bool force_single_partition) {
-
-  if (force_single_partition == false) {
-    LOG_ERROR("Not implement yet");
-    PL_ASSERT(false);
-  }
 
   // Get the total number of partition
   size_t num_partitions = PL_NUM_PARTITIONS();
@@ -64,7 +60,7 @@ ParallelHashPlan::DependencyCompleteHelper(
     executor::LogicalTileList next_result_tile_list;
 
     for (auto &result_tile : partitioned_result_tile_lists[partition]) {
-      // TODO we should re-chunk based on number of tuples
+      // TODO we should re-chunk based on TASK_TUPLE_COUNT
       next_result_tile_list.push_back(std::move(result_tile));
       // Reached the limit of each chunk
       if (next_result_tile_list.size() >= TASK_TILEGROUP_COUNT) {
@@ -95,29 +91,33 @@ ParallelHashPlan::DependencyCompleteHelper(
 
   for (size_t task_id = 0; task_id < num_tasks; task_id++) {
     // Construct a hash task
-    size_t partition;
+    size_t partition = INVALID_PARTITION_ID;
     if (force_single_partition) {
       partition = 0;
     } else {
-      LOG_ERROR("Not implemented yet.");
-      // TODO set the right partition for this task
-      PL_ASSERT(false);
+      PL_ASSERT(result_tile_lists->at(task_id).size() > 0);
+      partition = result_tile_lists->at(task_id)[0]->GetPartition();
     }
 
-    std::shared_ptr<executor::AbstractTask> next_task(new executor::HashTask(
-        this, hash_executor, task_id, partition, result_tile_lists));
+    std::shared_ptr<executor::AbstractTask> next_task;
 
+    if (partition != INVALID_PARTITION_ID) {
+      next_task.reset(new executor::HashTask(this, hash_executor, task_id,
+                                             partition, result_tile_lists));
+    }
     // next_task->Init(next_callback, num_tasks);
     tasks.push_back(next_task);
   }
 
-  // TODO Launch the new tasks by submitting the tasks to thread pool
-  for (auto &task : tasks) {
+  for (auto task : tasks) {
     executor::HashTask *hash_task =
         static_cast<executor::HashTask *>(task.get());
-    hash_task->hash_executor->ExecuteTask(task);
-    if (hash_task->hash_executor->TaskComplete()) {
-      LOG_INFO("All the hash tasks have completed");
+    if (force_single_partition) {
+      executor::ParallelHashExecutor::ExecuteTask(task);
+    } else {
+      partitioned_executor_thread_pool.SubmitTask(
+          hash_task->partition_id, executor::ParallelHashExecutor::ExecuteTask,
+          std::move(task));
     }
   }
 

@@ -28,7 +28,9 @@ namespace executor {
  */
 ParallelHashExecutor::ParallelHashExecutor(const planner::AbstractPlan *node,
                                            ExecutorContext *executor_context)
-    : AbstractExecutor(node, executor_context), Trackable() {}
+    : AbstractExecutor(node, executor_context),
+      Trackable(),
+      total_num_tuples_(0) {}
 
 /**
  * @brief Do some basic checks and initialize executor state.
@@ -79,6 +81,7 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   auto child_tiles = hash_task->result_tile_lists;
   auto &hash_table = hash_task->hash_executor->GetHashTable();
   auto &column_ids = hash_task->hash_executor->GetHashKeyIds();
+  size_t num_tuples = 0;
 
   for (size_t tile_itr = 0; tile_itr < (*child_tiles)[task_id].size();
        tile_itr++) {
@@ -110,7 +113,17 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
       }
       value->Insert(std::make_pair(tile_itr, tuple_id));
       PL_ASSERT(hash_table.contains(key));
+
+      // Increment the number of tuples hashed
+      num_tuples++;
     }
+  }
+  LOG_DEBUG("Task %d hashed %d tuples", (int)task_id, (int)num_tuples);
+  hash_task->hash_executor->IncrementNumTuple(num_tuples);
+
+  if (hash_task->hash_executor->TaskComplete()) {
+    LOG_INFO("All the hash tasks have completed");
+    // TODO Invoke DependencyComplete()
   }
 }
 
