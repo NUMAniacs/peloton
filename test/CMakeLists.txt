@@ -30,7 +30,7 @@ include_directories(SYSTEM ${GMOCK_DIR})
 set(HARNESS ${PROJECT_SOURCE_DIR}/test/common/harness.cpp)
 set(EXECUTOR_TESTS_UTIL ${PROJECT_SOURCE_DIR}/test/executor/executor_tests_util.cpp)
 set(LOGGING_TESTS_UTIL ${PROJECT_SOURCE_DIR}/test/logging/logging_tests_util.cpp)
-set(JOIN_TESTS_UTIL ${PROJECT_SOURCE_DIR}/test/executor/join_tests_util.cpp)
+set(JOIN_TESTS_UTIL ${PROJECT_SOURCE_DIR}/test/executor/join_tests_util.cpp ${PROJECT_SOURCE_DIR}/test/executor/parallel_join_tests_util.cpp)
 set(TXN_TESTS_UTIL ${PROJECT_SOURCE_DIR}/test/concurrency/transaction_tests_util.cpp)
 set(STATS_TESTS_UTIL ${PROJECT_SOURCE_DIR}/test/statistics/stats_tests_util.cpp common/partition_pool_test.cpp)
 
