@@ -17,6 +17,7 @@
 
 #include "catalog/catalog.h"
 #include "common/harness.h"
+#include "common/partition_macros.h"
 #include "common/logger.h"
 #include "executor/insert_executor.h"
 #include "expression/abstract_expression.h"
@@ -257,12 +258,18 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
 
   txn_manager.CommitTransaction(txn);
 
+  size_t tile_group_per_region = parallelism / PL_NUM_PARTITIONS();
   // Check if the tuples go to the correct partition
   for (size_t partition = 0; partition < num_partition; partition++) {
-    // XXX Hard code the tile_group offset here
-    int num_tuples = partition;
-    auto tile_group = table->GetTileGroupFromPartition(partition, num_tuples);
-    EXPECT_EQ(tile_group->GetActiveTupleCount(), 1);
+    oid_t total_num_tuples = 0;
+    // Accumulate the total number of tuple per region
+    for (size_t tile_group_itr = 0; tile_group_itr < tile_group_per_region;
+         tile_group_itr++) {
+      auto tile_group =
+          table->GetTileGroupFromPartition(partition, tile_group_itr);
+      total_num_tuples += tile_group->GetActiveTupleCount();
+    }
+    EXPECT_EQ(total_num_tuples, 1);
   }
 
   // free the database just created
