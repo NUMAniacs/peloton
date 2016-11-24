@@ -71,7 +71,8 @@ bool AggregateExecutor::DInit() {
   bool adapt_table = false;
   output_table = storage::TableFactory::GetDataTable(
       INVALID_OID, INVALID_OID, output_table_schema, "aggregate_temp_table",
-      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, NO_PARTITION_COLUMN, adapt_table);
+      DEFAULT_TUPLES_PER_TILEGROUP, own_schema, NO_PARTITION_COLUMN,
+      adapt_table);
 
   return true;
 }
@@ -188,14 +189,16 @@ bool AggregateExecutor::DExecute() {
 
   if (tile_group_count == 0) return false;
 
-  for (size_t p=0; p < output_table->GetPartitionCount(); p++) {
+  for (size_t p = 0; p < output_table->GetPartitionCount(); p++) {
     for (size_t tile_group_itr = 0;
          tile_group_itr < output_table->GetPartitionTileGroupCount(p);
          tile_group_itr++) {
-      auto tile_group = output_table->GetTileGroupFromPartition(p, tile_group_itr);
+      auto tile_group =
+          output_table->GetTileGroupFromPartition(p, tile_group_itr);
 
       // Get the logical tiles corresponding to the given tile group
-      auto logical_tile = LogicalTileFactory::WrapTileGroup(tile_group);
+      auto logical_tile =
+          LogicalTileFactory::WrapTileGroup(tile_group, UNDEFINED_NUMA_REGION);
 
       result.push_back(logical_tile);
     }

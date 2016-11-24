@@ -242,7 +242,8 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
        left_table_tile_group_itr++) {
     std::unique_ptr<executor::LogicalTile> left_table_logical_tile(
         executor::LogicalTileFactory::WrapTileGroup(
-            left_table->GetTileGroup(left_table_tile_group_itr)));
+            left_table->GetTileGroup(left_table_tile_group_itr),
+            UNDEFINED_NUMA_REGION));
     left_table_logical_tile_ptrs.push_back(std::move(left_table_logical_tile));
   }
 
@@ -251,7 +252,8 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
        right_table_tile_group_itr++) {
     std::unique_ptr<executor::LogicalTile> right_table_logical_tile(
         executor::LogicalTileFactory::WrapTileGroup(
-            right_table->GetTileGroup(right_table_tile_group_itr)));
+            right_table->GetTileGroup(right_table_tile_group_itr),
+            UNDEFINED_NUMA_REGION));
     right_table_logical_tile_ptrs.push_back(
         std::move(right_table_logical_tile));
   }

@@ -43,7 +43,7 @@ std::unique_ptr<executor::LogicalTile> CheckpointTileScanner::Scan(
 
   // Construct logical tile.
   std::unique_ptr<executor::LogicalTile> logical_tile(
-      executor::LogicalTileFactory::GetTile());
+      executor::LogicalTileFactory::GetTile(UNDEFINED_NUMA_REGION));
   logical_tile->AddColumns(tile_group, column_ids);
   logical_tile->AddPositionList(std::move(position_list));
 

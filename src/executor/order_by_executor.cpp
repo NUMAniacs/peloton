@@ -73,15 +73,16 @@ bool OrderByExecutor::DExecute() {
         sort_buffer_[num_tuples_returned_ + id].item_pointer.offset;
     // Insert a physical tuple into physical tile
     for (oid_t col = 0; col < input_schema_->GetColumnCount(); col++) {
-      common::Value val = (
-          input_tiles_[source_tile_id]->GetValue(source_tuple_id, col));
+      common::Value val =
+          (input_tiles_[source_tile_id]->GetValue(source_tuple_id, col));
       ptile.get()->SetValue(val, id, col);
     }
   }
 
   // Create an owner wrapper of this physical tile
   std::vector<std::shared_ptr<storage::Tile>> singleton({ptile});
-  std::unique_ptr<LogicalTile> ltile(LogicalTileFactory::WrapTiles(singleton));
+  std::unique_ptr<LogicalTile> ltile(
+      LogicalTileFactory::WrapTiles(singleton, UNDEFINED_NUMA_REGION));
   PL_ASSERT(ltile->GetTupleCount() == tile_size);
 
   SetOutput(ltile.release());

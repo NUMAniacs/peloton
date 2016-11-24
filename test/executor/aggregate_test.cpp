@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <memory>
 #include <set>
 #include <string>
@@ -57,10 +56,12 @@ TEST_F(AggregateTests, SortedDistinctTest) {
   txn_manager.CommitTransaction(txn);
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile1(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0),
+                                                  UNDEFINED_NUMA_REGION));
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile2(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1),
+                                                  UNDEFINED_NUMA_REGION));
 
   // (1-5) Setup plan node
 
@@ -255,10 +256,12 @@ TEST_F(AggregateTests, SortedSumMaxGroupByTest) {
   txn_manager.CommitTransaction(txn);
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile1(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0),
+                                                  UNDEFINED_NUMA_REGION));
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile2(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1),
+                                                  UNDEFINED_NUMA_REGION));
 
   // (1-5) Setup plan node
 
@@ -355,16 +358,16 @@ TEST_F(AggregateTests, HashDistinctTest) {
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tuple_count, false));
   ExecutorTestsUtil::PopulateTable(data_table.get(), 2 * tuple_count, false,
-                                   true,
-                                   true, 
-                                   txn);  // let it be random
+                                   true, true, txn);  // let it be random
   txn_manager.CommitTransaction(txn);
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile1(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0),
+                                                  UNDEFINED_NUMA_REGION));
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile2(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1),
+                                                  UNDEFINED_NUMA_REGION));
 
   // (1-5) Setup plan node
 
@@ -448,10 +451,12 @@ TEST_F(AggregateTests, HashSumGroupByTest) {
   txn_manager.CommitTransaction(txn);
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile1(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0),
+                                                  UNDEFINED_NUMA_REGION));
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile2(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1),
+                                                  UNDEFINED_NUMA_REGION));
 
   // (1-5) Setup plan node
 
@@ -536,10 +541,12 @@ TEST_F(AggregateTests, HashCountDistinctGroupByTest) {
   txn_manager.CommitTransaction(txn);
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile1(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0),
+                                                  UNDEFINED_NUMA_REGION));
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile2(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1),
+                                                  UNDEFINED_NUMA_REGION));
 
   // (1-5) Setup plan node
 
@@ -643,10 +650,12 @@ TEST_F(AggregateTests, PlainSumCountDistinctTest) {
   txn_manager.CommitTransaction(txn);
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile1(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(0),
+                                                  UNDEFINED_NUMA_REGION));
 
   std::unique_ptr<executor::LogicalTile> source_logical_tile2(
-      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1)));
+      executor::LogicalTileFactory::WrapTileGroup(data_table->GetTileGroup(1),
+                                                  UNDEFINED_NUMA_REGION));
 
   // (1-5) Setup plan node
 

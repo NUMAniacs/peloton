@@ -338,7 +338,7 @@ LogicalTile *MaterializationExecutor::Physify(LogicalTile *source_tile) {
                      dest_tile.get());
 
   // Wrap physical tile in logical tile.
-  return LogicalTileFactory::WrapTiles({dest_tile});
+  return LogicalTileFactory::WrapTiles({dest_tile}, UNDEFINED_NUMA_REGION);
 }
 
 /**

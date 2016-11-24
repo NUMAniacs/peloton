@@ -282,7 +282,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     auto &manager = catalog::Manager::GetInstance();
     auto tile_group = manager.GetTileGroup(tuples.first);
 
-    std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+    std::unique_ptr<LogicalTile> logical_tile(
+        LogicalTileFactory::GetTile(UNDEFINED_NUMA_REGION));
     // Add relevant columns to logical tile
     logical_tile->AddColumns(tile_group, full_column_ids_);
     logical_tile->AddPositionList(std::move(tuples.second));
@@ -471,7 +472,8 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
     auto &manager = catalog::Manager::GetInstance();
     auto tile_group = manager.GetTileGroup(tuples.first);
 
-    std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+    std::unique_ptr<LogicalTile> logical_tile(
+        LogicalTileFactory::GetTile(UNDEFINED_NUMA_REGION));
     // Add relevant columns to logical tile
     logical_tile->AddColumns(tile_group, full_column_ids_);
     logical_tile->AddPositionList(std::move(tuples.second));

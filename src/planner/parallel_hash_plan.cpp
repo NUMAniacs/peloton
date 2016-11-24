@@ -25,19 +25,14 @@
 namespace peloton {
 namespace planner {
 
-// This is really the implementation for Dependency Complete
+// TODO Remove this hack function
 std::shared_ptr<executor::ParallelHashExecutor>
 ParallelHashPlan::DependencyComplete(
     std::shared_ptr<executor::AbstractTask> task, bool hack) {
 
   (void)hack;
-  // TODO Move the logic of incrementing completed task count to another class
-  // Increment the number of tasks completed
-  // int task_num = tasks_complete_.fetch_add(1);
-  // This is the last task
-  // if (task_num == total_tasks_ - 1) {
 
-  // TODO Get the total number of partition
+  // Get the total number of partition
   size_t num_partitions = 1;  // PL_NUM_PARTITIONS();
 
   // Group the results based on partitions
@@ -45,12 +40,13 @@ ParallelHashPlan::DependencyComplete(
   for (auto &result_tile_list : *(task->result_tile_lists.get())) {
     for (auto &result_tile : result_tile_list) {
       size_t partition = result_tile->GetPartition();
-      // XXX  Hack default value
+      // XXX hard code partition
       partition = 0;
       partitioned_result_tile_lists[partition]
           .emplace_back(result_tile.release());
     }
   }
+
   // Populate tasks for each partition and re-chunk the tiles
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
@@ -73,6 +69,7 @@ ParallelHashPlan::DependencyComplete(
   }
 
   size_t num_tasks = result_tile_lists->size();
+  LOG_DEBUG("Number of tasks after re-chunk: %d", (int)num_tasks);
 
   // A list of all tasks to execute
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
@@ -88,6 +85,7 @@ ParallelHashPlan::DependencyComplete(
 
   for (size_t task_id = 0; task_id < num_tasks; task_id++) {
     // Construct a hash task
+
     // XXX Hard code partition
     size_t partition = 0;
     std::shared_ptr<executor::AbstractTask> next_task(new executor::HashTask(
@@ -105,6 +103,7 @@ ParallelHashPlan::DependencyComplete(
       LOG_INFO("All the hash tasks have completed");
     }
   }
+
   // XXX This is a hack to let join test pass
   hash_executor->SetChildTiles(result_tile_lists);
   return std::move(hash_executor);

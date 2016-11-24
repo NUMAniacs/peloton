@@ -199,6 +199,10 @@ oid_t TileGroupHeader::GetActiveTupleCount() {
 }
 
 void *TileGroupHeader::operator new(size_t size, int numa_region) {
+  if (SIMULATE_NUMA_PARTITION) {
+    numa_region = 0;
+  }
+
   if (numa_region == LOCAL_NUMA_REGION) {
     numa_region = PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE());
   }

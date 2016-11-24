@@ -200,7 +200,8 @@ std::unique_ptr<LogicalTile> AbstractJoinExecutor::BuildOutputLogicalTile(
   PL_ASSERT(right_tile != nullptr);
 
   // Construct output logical tile.
-  std::unique_ptr<LogicalTile> output_tile(LogicalTileFactory::GetTile());
+  std::unique_ptr<LogicalTile> output_tile(
+      LogicalTileFactory::GetTile(DEFAULT_NUMA_REGION));
 
   auto left_tile_schema = left_tile->GetSchema();
   auto right_tile_schema = right_tile->GetSchema();
@@ -224,7 +225,8 @@ std::unique_ptr<LogicalTile> AbstractJoinExecutor::BuildOutputLogicalTile(
     const catalog::Schema *output_schema) {
   PL_ASSERT(output_schema != nullptr);
 
-  std::unique_ptr<LogicalTile> output_tile(LogicalTileFactory::GetTile());
+  std::unique_ptr<LogicalTile> output_tile(
+      LogicalTileFactory::GetTile(DEFAULT_NUMA_REGION));
 
   // get the non empty tile
   LogicalTile *non_empty_tile = GetNonEmptyTile(left_tile, right_tile);
@@ -367,13 +369,9 @@ bool AbstractJoinExecutor::BuildOuterJoinOutput() {
   PL_ASSERT(join_type_ != JOIN_TYPE_INVALID);
 
   switch (join_type_) {
-    case JOIN_TYPE_LEFT: {
-      return BuildLeftJoinOutput();
-    }
+    case JOIN_TYPE_LEFT: { return BuildLeftJoinOutput(); }
 
-    case JOIN_TYPE_RIGHT: {
-      return BuildRightJoinOutput();
-    }
+    case JOIN_TYPE_RIGHT: { return BuildRightJoinOutput(); }
 
     case JOIN_TYPE_OUTER: {
       bool status = BuildLeftJoinOutput();
@@ -386,9 +384,7 @@ bool AbstractJoinExecutor::BuildOuterJoinOutput() {
       break;
     }
 
-    case JOIN_TYPE_INNER: {
-      return false;
-    }
+    case JOIN_TYPE_INNER: { return false; }
 
     default: {
       throw Exception("Unsupported join type : " + std::to_string(join_type_));

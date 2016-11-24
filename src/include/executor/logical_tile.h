@@ -67,6 +67,16 @@ class LogicalTile : public Printable {
 
   ~LogicalTile();
 
+  //===--------------------------------------------------------------------===//
+  // Partitions
+  //===--------------------------------------------------------------------===//
+
+  // override new operator for NUMA-aware memory allocation
+  void *operator new(size_t size, int partition);
+
+  // override delete operator for NUMA-aware memory allocation
+  void operator delete(void *ptr, size_t size);
+
   void AddColumn(const std::shared_ptr<storage::Tile> &base_tile,
                  oid_t origin_column_id, oid_t position_list_idx);
 
@@ -90,7 +100,9 @@ class LogicalTile : public Printable {
 
   size_t GetColumnCount();
 
-  inline size_t GetPartition() { return partition; }
+  inline size_t GetPartition() { return partition_; }
+
+  inline void SetPartition(size_t partition) { partition_ = partition; }
 
   const std::vector<ColumnInfo> &GetSchema() const;
 
@@ -288,7 +300,7 @@ class LogicalTile : public Printable {
 
  private:
   // Default constructor
-  LogicalTile();
+  LogicalTile(size_t partition);
 
   //===--------------------------------------------------------------------===//
   // Materialize utilities. We can make these public if it is necessary.
@@ -366,7 +378,7 @@ class LogicalTile : public Printable {
   oid_t visible_tuples_ = 0;
 
   /** @brief Keeps track of the partition this logical tile refers to */
-  size_t partition = INVALID_PARTITION_ID;
+  size_t partition_ = INVALID_PARTITION_ID;
 };
 
 }  // namespace executor

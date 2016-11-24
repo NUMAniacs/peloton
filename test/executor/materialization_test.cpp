@@ -60,7 +60,8 @@ TEST_F(MaterializationTests, SingleBaseTileTest) {
 
   // Add a reference because we are going to wrap around it and we don't own it
   std::unique_ptr<executor::LogicalTile> source_logical_tile(
-      executor::LogicalTileFactory::WrapTiles({source_base_tile}));
+      executor::LogicalTileFactory::WrapTiles({source_base_tile},
+                                              UNDEFINED_NUMA_REGION));
 
   // Pass through materialization executor.
   executor::MaterializationExecutor executor(nullptr, nullptr);
@@ -112,7 +113,8 @@ TEST_F(MaterializationTests, TwoBaseTilesWithReorderTest) {
 
   // Add a reference because we are going to wrap around it and we don't own it
   std::unique_ptr<executor::LogicalTile> source_logical_tile(
-      executor::LogicalTileFactory::WrapTiles(source_base_tiles));
+      executor::LogicalTileFactory::WrapTiles(source_base_tiles,
+                                              UNDEFINED_NUMA_REGION));
 
   // Create materialization node for this test.
   // Construct output schema. We drop column 3 and reorder the others to 3,1,0.

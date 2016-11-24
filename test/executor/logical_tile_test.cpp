@@ -95,7 +95,7 @@ TEST_F(LogicalTileTests, TileMaterializationTest) {
   std::vector<oid_t> position_list2 = {0, 1};
 
   std::unique_ptr<executor::LogicalTile> logical_tile(
-      executor::LogicalTileFactory::GetTile());
+      executor::LogicalTileFactory::GetTile(UNDEFINED_NUMA_REGION));
 
   logical_tile->AddPositionList(std::move(position_list1));
   logical_tile->AddPositionList(std::move(position_list2));
@@ -114,7 +114,8 @@ TEST_F(LogicalTileTests, TileMaterializationTest) {
   // LOGICAL TILE (2 BASE TILE)
   ////////////////////////////////////////////////////////////////
 
-  logical_tile.reset(executor::LogicalTileFactory::GetTile());
+  logical_tile.reset(
+      executor::LogicalTileFactory::GetTile(UNDEFINED_NUMA_REGION));
 
   auto base_tile_ref1 = tile_group->GetTileReference(0);
   auto base_tile_ref2 = tile_group->GetTileReference(1);

@@ -164,8 +164,10 @@ extern int TEST_TUPLES_PER_TILEGROUP;
 //===--------------------------------------------------------------------===//
 // Partition Awareness Constants
 //===--------------------------------------------------------------------===//
-#define LOCAL_NUMA_REGION -1
-#define INVALID_PARTITION_ID -1
+#define INVALID_PARTITION_ID 9997
+#define LOCAL_NUMA_REGION 9998
+#define UNDEFINED_NUMA_REGION 9999
+#define DEFAULT_NUMA_REGION LOCAL_NUMA_REGION
 
 //===--------------------------------------------------------------------===//
 // Port to OSX

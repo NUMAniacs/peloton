@@ -91,7 +91,8 @@ bool ProjectionExecutor::DExecute() {
     }
 
     // Wrap physical tile in logical tile and return it
-    SetOutput(LogicalTileFactory::WrapTiles({dest_tile}));
+    SetOutput(
+        LogicalTileFactory::WrapTiles({dest_tile}, UNDEFINED_NUMA_REGION));
 
     return true;
   }
