@@ -207,6 +207,15 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       }
       break;
     }
+    case PlanNodeType::PLAN_NODE_TYPE_SEQSCAN: {
+      size_t num_tasks = 8;
+      LOG_DEBUG("Creating statically partitioned tasks for SEQSCAN");
+      for (size_t i=0; i<num_tasks; i++) {
+        tasks.push_back(std::shared_ptr<executor::AbstractTask>(
+            new executor::PartitionUnawareTask(plan_tree, result_tile_lists)));
+      }
+      break;
+    }
     default: {
       // Populate default task for other queries
       LOG_DEBUG("Created partition unaware task for other stmt");
@@ -229,14 +238,14 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   final_status.m_processed = 0;
   bridge::BlockingWait wait(tasks.size());
 
-  for (auto task : tasks) {
+  for (size_t i=0; i<tasks.size(); i++) {
     // We create the callbacks only after we know the total number of tasks
-    task->Init(&wait, tasks.size());
+    tasks[i]->Init(&wait, tasks.size());
 
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(
-        new bridge::ExchangeParams(txn, statement, params, task, result_format,
-                                   init_failure));
+        new bridge::ExchangeParams(txn, statement, params, tasks[i], result_format,
+                                   init_failure, tasks.size(), i));
     exchg_params_list.push_back(exchg_params);
 
     switch (plan_tree->GetPlanNodeType()) {
@@ -244,7 +253,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       case PLAN_NODE_TYPE_INSERT: {
         // Use the partitioned_executor_pool for partition aware queries
         auto partition_aware_task =
-            static_cast<executor::PartitionAwareTask *>(task.get());
+            static_cast<executor::PartitionAwareTask *>(tasks[i].get());
         partitioned_executor_thread_pool.SubmitTask(
             partition_aware_task->partition_id,
             bridge::PlanExecutor::ExecutePlanLocal, &exchg_params->self);

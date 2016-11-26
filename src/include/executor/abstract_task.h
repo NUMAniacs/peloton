@@ -25,15 +25,15 @@
 namespace peloton {
 
 namespace bridge {
-class Notifiable;
+  class Notifiable;
 }
 
 namespace planner {
-class AbstractPlan;
+  class AbstractPlan;
 }
 
 namespace executor {
-class ParallelHashExecutor;
+  class ParallelHashExecutor;
 }
 
 namespace executor {

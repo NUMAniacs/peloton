@@ -29,7 +29,7 @@
 
 // used to set number of parallel tasks relative to the number of
 // processing units available
-#define TASK_MULTIPLIER 4
+#define IS_RANDOM_SCAN false
 
 namespace peloton {
 namespace tcop {

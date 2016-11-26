@@ -18,22 +18,21 @@
 #include <common/value.h>
 
 #include "executor/logical_tile.h"
-#include "executor/abstract_task.h"
 
 namespace peloton {
 
 namespace planner {
-class AbstractPlan;
+  class AbstractPlan;
 }
 
 namespace executor {
-class ExecutorContext;
+  class ExecutorContext;
 }
 
 namespace executor {
 
 class AbstractExecutor {
- public:
+public:
   AbstractExecutor(const AbstractExecutor &) = delete;
   AbstractExecutor &operator=(const AbstractExecutor &) = delete;
   AbstractExecutor(AbstractExecutor &&) = delete;
@@ -44,6 +43,8 @@ class AbstractExecutor {
   bool Init();
 
   bool Execute();
+
+  virtual void SetParallelism(int num_tasks, int partition_id);
 
   //===--------------------------------------------------------------------===//
   // Children + Parent Helpers
@@ -69,7 +70,7 @@ class AbstractExecutor {
   // clear the context
   void ClearContext();
 
- protected:
+protected:
   // NOTE: The reason why we keep the plan node separate from the executor
   // context is because we might want to reuse the plan multiple times
   // with different executor contexts
@@ -100,7 +101,7 @@ class AbstractExecutor {
   /** @brief Children nodes of this executor in the executor tree. */
   std::vector<AbstractExecutor *> children_;
 
- private:
+private:
   // Output logical tile
   // This is where we will write the results of the plan node's execution
   std::unique_ptr<LogicalTile> output;
@@ -108,9 +109,16 @@ class AbstractExecutor {
   /** @brief Plan node corresponding to this executor. */
   const planner::AbstractPlan *node_ = nullptr;
 
- protected:
+protected:
   // Executor context
   ExecutorContext *executor_context_ = nullptr;
+
+  // number of threads executing this query
+  int num_tasks_;
+
+  // modulo-partition that this thread of
+  // execution will work on
+  int partition_id_;
 };
 
 }  // namespace executor
