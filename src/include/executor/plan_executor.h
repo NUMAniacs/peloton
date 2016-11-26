@@ -102,19 +102,24 @@ struct ExchangeParams {
   const std::vector<int> result_format;
   bool init_failure;
   ExchangeParams *self;
+  size_t num_partitions;
+  size_t partition_id;
 
   inline ExchangeParams(concurrency::Transaction *txn,
                         const std::shared_ptr<Statement> &statement,
                         const std::vector<common::Value> &params,
                         const std::shared_ptr<executor::AbstractTask> &task,
                         const std::vector<int> &result_format,
-                        const bool &init_failure)
+                        const bool &init_failure, const size_t num_partitions,
+                        const size_t partition_id)
       : txn(txn),
         statement(statement),
         params(params),
         task(task),
         result_format(result_format),
-        init_failure(init_failure) {
+        init_failure(init_failure),
+        num_partitions(num_partitions),
+        partition_id(partition_id) {
     self = this;
   }
 

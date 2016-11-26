@@ -31,7 +31,7 @@
 #include "index/index.h"
 
 namespace peloton {
-  namespace executor {
+namespace executor {
 
 /**
  * @brief Constructor for seqscan executor.
@@ -55,11 +55,23 @@ bool SeqScanExecutor::DInit() {
 
   target_table_ = node.GetTable();
 
-  current_partition_offset_ = 0;
-  current_tile_group_offset_ = 0;
+  // offset by partition_id when multiple threads run the query
+  current_tile_group_offset_ = (START_OID + partition_id_);
+
+  LOG_TRACE("Partition_ID:%d, Parallelism Count:%d Tile Group Offset:%d\n",
+            partition_id_, num_tasks_, current_tile_group_offset_);
+
+  txn_partition_id_ = PL_GET_PARTITION_NODE();
 
   if (target_table_ != nullptr) {
-    table_partition_count_ = target_table_->GetPartitionCount();
+    table_tile_group_count_ = target_table_->GetTileGroupCount();
+
+    // round up to the nearest value of parallelism count
+    num_tile_groups_per_thread_ =
+        (table_tile_group_count_ + num_tasks_ - 1)/num_tasks_;
+
+    // offset by the number of tiles that each thread processes
+    current_tile_group_offset_ *= num_tile_groups_per_thread_;
 
     // round up to the nearest value of parallelism count
     num_tile_groups_per_thread_ =
@@ -118,6 +130,8 @@ bool SeqScanExecutor::DExecute() {
   }
     // Scanning a table
   else if (children_.size() == 0) {
+    // support intra-query parallelism, be parallelism count aware
+
     LOG_TRACE("Seq Scan executor :: 0 child ");
 
     PL_ASSERT(target_table_ != nullptr);
@@ -130,88 +144,76 @@ bool SeqScanExecutor::DExecute() {
     bool acquire_owner = GetPlanNode<planner::AbstractScan>().IsForUpdate();
     auto current_txn = executor_context_->GetTransaction();
 
-    while (current_partition_offset_ < table_partition_count_) {
-      partition_tile_group_count_ =
-          target_table_->GetPartitionTileGroupCount(current_partition_offset_);
+    // Retrieve next tile group.
+    while (current_tile_group_offset_ < table_tile_group_count_ &&
+           num_tile_groups_processed_ < num_tile_groups_per_thread_) {
 
-      // Retrieve next tile group.
-      while (current_tile_group_offset_ < partition_tile_group_count_) {
-        auto tile_group =
-            target_table_->GetTileGroupFromPartition(
-                current_partition_offset_, current_tile_group_offset_++);
-        auto tile_group_header = tile_group->GetHeader();
+      auto tile_group =
+          target_table_->GetTileGroup(current_tile_group_offset_);
 
-        oid_t active_tuple_count = tile_group->GetNextTupleSlot();
+      // move to next offset
+      current_tile_group_offset_++;
+      num_tile_groups_processed_++;
 
-        // Construct position list by looping through tile group
-        // and applying the predicate.
-        std::vector<oid_t> position_list;
-        for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
-          ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
+      auto tile_group_header = tile_group->GetHeader();
 
+      oid_t active_tuple_count = tile_group->GetNextTupleSlot();
 
-          auto visibility = transaction_manager.IsVisible(current_txn,
-                                                          tile_group_header,
-                                                          tuple_id);
-          // check transaction visibility
-          if (visibility == VISIBILITY_OK) {
-            // if the tuple is visible, then perform predicate evaluation.
-            if (predicate_ == nullptr) {
+      // Construct position list by looping through tile group
+      // and applying the predicate.
+      std::vector<oid_t> position_list;
+      for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
+        ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
+
+        auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, tuple_id);
+
+        // check transaction visibility
+        if (visibility == VISIBILITY_OK) {
+          // if the tuple is visible, then perform predicate evaluation.
+          if (predicate_ == nullptr) {
+            position_list.push_back(tuple_id);
+            auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
+                                                       txn_partition_id_);
+            if (!res) {
+              transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
+              return res;
+            }
+          } else {
+            expression::ContainerTuple<storage::TileGroup> tuple(
+                tile_group.get(), tuple_id);
+            LOG_TRACE("Evaluate predicate for a tuple");
+            auto eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
+            LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
+            if (eval.IsTrue()) {
               position_list.push_back(tuple_id);
-              auto res = transaction_manager.PerformRead(current_txn,
-                                                         location,
-                                                         acquire_owner);
+              auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
+                                                         txn_partition_id_);
               if (!res) {
-                transaction_manager.SetTransactionResult(current_txn,
-                                                         RESULT_FAILURE);
+                transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
                 return res;
-              }
-            } else {
-              expression::ContainerTuple<storage::TileGroup> tuple(
-                  tile_group.get(), tuple_id);
-              LOG_TRACE("Evaluate predicate for a tuple");
-              auto eval = predicate_->Evaluate(&tuple, nullptr,
-                                               executor_context_);
-              LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
-              if (eval.IsTrue()) {
-                position_list.push_back(tuple_id);
-                auto res = transaction_manager.PerformRead(current_txn,
-                                                           location,
-                                                           acquire_owner);
-                if (!res) {
-                  transaction_manager.SetTransactionResult(current_txn,
-                                                           RESULT_FAILURE);
-                  return res;
-                } else {
-                  LOG_TRACE("Sequential Scan Predicate Satisfied");
-                }
+              } else {
+                LOG_TRACE("Sequential Scan Predicate Satisfied");
               }
             }
           }
         }
-
-        // Don't return empty tiles
-        if (position_list.size() == 0) {
-          continue;
-        }
-
-        // Construct logical tile.
-        std::unique_ptr<LogicalTile> logical_tile(
-            LogicalTileFactory::GetTile(UNDEFINED_NUMA_REGION));
-        logical_tile->AddColumns(tile_group, column_ids_);
-        logical_tile->AddPositionList(std::move(position_list));
-
-        LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
-        SetOutput(logical_tile.release());
-        return true;
       }
 
-      // load the next partition
-      current_tile_group_offset_ = 0;
-      current_partition_offset_++;
+      // Don't return empty tiles
+      if (position_list.size() == 0) {
+        continue;
+      }
+
+      // Construct logical tile.
+      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+      logical_tile->AddColumns(tile_group, column_ids_);
+      logical_tile->AddPositionList(std::move(position_list));
+
+      LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
+      SetOutput(logical_tile.release());
+      return true;
     }
   }
-
   return false;
 }
 

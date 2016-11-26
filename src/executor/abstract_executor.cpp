@@ -28,7 +28,8 @@ namespace executor {
  */
 AbstractExecutor::AbstractExecutor(const planner::AbstractPlan *node,
                                    ExecutorContext *executor_context)
-    : node_(node), executor_context_(executor_context) {}
+    : node_(node), executor_context_(executor_context),
+      num_tasks_(1), partition_id_(0) {}
 
 void AbstractExecutor::SetOutput(LogicalTile *table) { output.reset(table); }
 
@@ -82,13 +83,13 @@ bool AbstractExecutor::Init() {
 }
 
 /**
- * @brief Returns next tile processed by this executor.
- *
- * This function is the backbone of the tile-based volcano-style execution
- * model we are using.
- *
- * @return Pointer to the logical tile processed by this executor.
- */
+* @brief Returns next tile processed by this executor.
+*
+* This function is the backbone of the tile-based volcano-style execution
+* model we are using.
+*
+* @return Pointer to the logical tile processed by this executor.
+*/
 bool AbstractExecutor::Execute() {
   // TODO In the future, we might want to pass some kind of executor state to
   // GetNextTile. e.g. params for prepared plans.
@@ -96,6 +97,11 @@ bool AbstractExecutor::Execute() {
   bool status = DExecute();
 
   return status;
+}
+
+void AbstractExecutor::SetParallelism(int num_tasks, int partition_id) {
+  num_tasks_ = num_tasks;
+  partition_id_ = partition_id;
 }
 
 void AbstractExecutor::SetContext(common::Value &value) {

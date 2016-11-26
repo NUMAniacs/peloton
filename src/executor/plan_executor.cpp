@@ -77,6 +77,8 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
       BuildExecutorTree(nullptr, exchg_params->statement->GetPlanTree().get(),
                         executor_context.get()));
 
+  executor_tree->SetParallelism(exchg_params->num_partitions,
+                                exchg_params->partition_id);
   LOG_TRACE("Initializing the executor tree");
 
   // Initialize the executor tree

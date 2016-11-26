@@ -19,7 +19,7 @@ namespace peloton {
 namespace executor {
 
 class SeqScanExecutor : public AbstractScanExecutor {
- public:
+public:
   SeqScanExecutor(const SeqScanExecutor &) = delete;
   SeqScanExecutor &operator=(const SeqScanExecutor &) = delete;
   SeqScanExecutor(SeqScanExecutor &&) = delete;
@@ -40,19 +40,22 @@ class SeqScanExecutor : public AbstractScanExecutor {
   // Executor State
   //===--------------------------------------------------------------------===//
 
-  /** @brief Keeps track of current tile group id within the current
-   * partition being scanned. */
-  size_t current_tile_group_offset_ = INVALID_OID;
+  /** @brief Keeps track of current tile group id being scanned. */
+  oid_t current_tile_group_offset_ = INVALID_OID;
 
-  /** @brief Keeps track of the current partition being accessed */
-  size_t current_partition_offset_ = INVALID_OID;
+  /** @brief Keeps track of the number of tile groups to scan. */
+  oid_t table_tile_group_count_ = INVALID_OID;
 
-  /** @brief Keeps track of the number of partitions to scan. */
-  size_t table_partition_count_ = 0;
+  // number of tile groups that this thread
+  // of execution will work on
+  int num_tile_groups_processed_ = 0;
 
-  /** @brief Keep track of the number of tile groups
-   * in the current partition */
-  size_t partition_tile_group_count_ = 0;
+  // number of sequential tile groups each
+  // thread of execution will work on
+  int num_tile_groups_per_thread_;
+
+  /* RW-set partition this executor writes to */
+  size_t txn_partition_id_ = 0;
 
   // number of tile groups that this thread
   // of execution will work on

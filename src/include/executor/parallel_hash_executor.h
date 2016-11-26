@@ -21,6 +21,7 @@
 #include "common/container_tuple.h"
 #include <boost/functional/hash.hpp>
 #include "libcuckoo/cuckoohash_map.hh"
+#include "executor/abstract_task.h"
 
 namespace peloton {
 namespace executor {
