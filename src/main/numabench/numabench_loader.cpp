@@ -38,19 +38,8 @@
 #include "storage/table_factory.h"
 #include "storage/database.h"
 
-#include <cstdio>
-
-#include "gtest/gtest.h"
-
-#include "catalog/catalog.h"
 #include "common/harness.h"
-#include "common/logger.h"
-#include "executor/insert_executor.h"
-#include "expression/abstract_expression.h"
 #include "parser/statement_insert.h"
-#include "parser/statement_select.h"
-#include "planner/insert_plan.h"
-#include "executor/executor_tests_util.h"
 // Logging mode
 extern LoggingType peloton_logging_mode;
 
