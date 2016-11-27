@@ -21,7 +21,7 @@
 #include <iostream>
 
 #include "common/types.h"
-
+#define NUMABENCH_DB_NAME "numabench_db"
 namespace peloton {
 namespace benchmark {
 namespace numabench {
