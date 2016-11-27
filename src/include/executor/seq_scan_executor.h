@@ -14,6 +14,7 @@
 
 #include "planner/seq_scan_plan.h"
 #include "executor/abstract_scan_executor.h"
+#include "executor/abstract_task.h"
 
 namespace peloton {
 namespace executor {
@@ -57,13 +58,8 @@ public:
   /* RW-set partition this executor writes to */
   size_t txn_partition_id_ = 0;
 
-  // number of tile groups that this thread
-  // of execution will work on
-  int num_tile_groups_processed_ = 0;
-
-  // number of sequential tile groups each
-  // thread of execution will work on
-  int num_tile_groups_per_thread_;
+  /** Ptr to the task for this executor **/
+  std::shared_ptr<PartitionUnawareTask> task_;
 
   //===--------------------------------------------------------------------===//
   // Plan Info

@@ -139,6 +139,9 @@ class DataTable : public AbstractTable {
   std::shared_ptr<storage::TileGroup> GetTileGroup(
       const std::size_t &tile_group_offset) const;
 
+  std::shared_ptr<storage::TileGroup> GetTileGroup(
+      std::size_t tile_group_offset, size_t *partition_id) const;
+
   // ID is the global identifier in the entire DBMS
   std::shared_ptr<storage::TileGroup> GetTileGroupById(
       const oid_t &tile_group_id) const;

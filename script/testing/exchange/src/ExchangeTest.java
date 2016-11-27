@@ -34,6 +34,9 @@ public class ExchangeTest {
   private final String DDL = 
       "CREATE TABLE A (id INT PRIMARY KEY, name TEXT, extra_id INT, single INT);";
 
+  private final String PARTITON_DDL = 
+    "CREATE TABLE A (id INT PRIMARY KEY, name TEXT, extra_id INT, single INT) PARTITIONED BY id;";
+
   public final static String[] nameTokens = { "BAR", "OUGHT", "ABLE", "PRI",
     "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING" };
 
@@ -96,11 +99,16 @@ public class ExchangeTest {
   *
   * @throws SQLException
   */
-  public void Init() throws SQLException {
+  public void Init(boolean isPartitioned) throws SQLException {
     conn.setAutoCommit(true);
     Statement stmt = conn.createStatement();
     stmt.execute(DROP);
-    stmt.execute(DDL);
+    if (isPartitioned == false) {
+      stmt.execute(DDL);
+    } else {
+      System.out.println("Partitioned Insert");
+      stmt.execute(PARTITON_DDL);
+    }
   }
 
   public void BatchInsert() throws SQLException{
@@ -371,7 +379,7 @@ public class ExchangeTest {
   }
 
   public static void main(String[] args) throws Exception {
-    boolean isCreate, isExecute, isLoad;
+    boolean isCreate, isExecute, isLoad, isPartitioned;
     Options options = new Options();
     long startTime, endTime;
     Class[] parameterTypes = new Class[0];
@@ -379,21 +387,24 @@ public class ExchangeTest {
     // load CLI options
     Option rows = new Option("r", "rows", true,
       "Required: number of input rows");
-    Option count = new Option("s", "count", true,
-      "Toggles normal SELECT queries and COUNT(*) queries (Default: true)");
     rows.setRequired(true);
+    Option count = new Option("s", "count", false,
+      "Toggles normal SELECT queries and COUNT(*) queries (Default: true)");
     Option create = new Option("c", "create", true,
       "Create a new table (true or false)");
     Option load = new Option("l", "load", true,
       "Load values into the table (true or false)");
     Option execute = new Option("e", "execute", true,
       "Execute queries on the table (true or false)");
+    Option partition = new Option("p", "partition", false,
+      "Create a partition table (true or false)");
 
     options.addOption(rows);
     options.addOption(count);
     options.addOption(create);
     options.addOption(load);
     options.addOption(execute);
+    options.addOption(partition);
 
     CommandLineParser parser = new DefaultParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -412,11 +423,11 @@ public class ExchangeTest {
       numRows = Integer.parseInt(cmd.getOptionValue("rows"));
     }
 
-    isCount = Boolean.parseBoolean(cmd.getOptionValue("count", "true"));
-    
+    isCount = Boolean.parseBoolean(cmd.getOptionValue("count", "false"));    
     isCreate = Boolean.parseBoolean(cmd.getOptionValue("create", "true"));
     isLoad = Boolean.parseBoolean(cmd.getOptionValue("load", "true"));
     isExecute = Boolean.parseBoolean(cmd.getOptionValue("execute", "true"));
+    isPartitioned = Boolean.parseBoolean(cmd.getOptionValue("partition", "false"));
 
     // select the tests that will be run
     Method test1 = ExchangeTest.class.getMethod("Selectivity1TupleScan", 
@@ -430,7 +441,7 @@ public class ExchangeTest {
 
     ExchangeTest et = new ExchangeTest();
     if (isCreate) {
-      et.Init();
+      et.Init(isPartitioned);
       System.out.println("Completed Init");
     }
     if (isLoad) {
