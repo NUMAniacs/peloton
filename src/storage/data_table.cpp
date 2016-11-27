@@ -839,6 +839,28 @@ std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
   return nullptr;
 }
 
+std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
+    std::size_t tile_group_offset, size_t *partition_id) const {
+  PL_ASSERT(tile_group_offset < GetTileGroupCount());
+
+  LOG_TRACE("GetTileGroup %d", (int)tile_group_offset);
+
+  auto tile_group_id = invalid_tile_group_id;
+
+  for (size_t partition = 0; partition < num_partitions_; partition++) {
+    if (tile_group_offset >= GetPartitionTileGroupCount(partition)) {
+      tile_group_offset -= GetPartitionTileGroupCount(partition);
+    } else {
+      *partition_id = partition;
+      return GetTileGroupFromPartition(partition, tile_group_offset);
+    }
+  }
+
+  PL_ASSERT(tile_group_id != invalid_tile_group_id);
+  *partition_id = 0;
+  return nullptr;
+}
+
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupById(
     const oid_t &tile_group_id) const {
   auto &manager = catalog::Manager::GetInstance();

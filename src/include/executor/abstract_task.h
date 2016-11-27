@@ -115,6 +115,9 @@ class PartitionAwareTask : public AbstractTask {
 // The default task class for queries which don't need parallelism
 class PartitionUnawareTask : public AbstractTask {
  public:
+  size_t non_local_access_count = 0;
+  size_t total_access_count = 0;
+  int cpu_id;
   ~PartitionUnawareTask() {}
 
   TaskType GetTaskType() { return TASK_PARTITION_UNAWARE; }
@@ -123,6 +126,10 @@ class PartitionUnawareTask : public AbstractTask {
       const planner::AbstractPlan *node,
       std::shared_ptr<LogicalTileLists> result_tile_lists)
       : AbstractTask(node, result_tile_lists) {}
+
+  double GetAcessHistogram() {
+    return static_cast<double>(non_local_access_count)/total_access_count;
+  }
 };
 
 // The class for insert tasks

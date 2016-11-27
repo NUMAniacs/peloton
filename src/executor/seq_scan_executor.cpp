@@ -63,6 +63,12 @@ bool SeqScanExecutor::DInit() {
 
   txn_partition_id_ = PL_GET_PARTITION_NODE();
 
+  task_ = std::dynamic_pointer_cast<PartitionUnawareTask>(executor_context_->GetTask());
+
+  if (task_.get() != nullptr) {
+    task_->cpu_id = PL_GET_PARTITION_NODE();
+  }
+
   if (target_table_ != nullptr) {
     table_tile_group_count_ = target_table_->GetTileGroupCount();
 
@@ -140,9 +146,18 @@ bool SeqScanExecutor::DExecute() {
     // Retrieve next tile group.
     while (current_tile_group_offset_ < table_tile_group_count_ &&
            num_tile_groups_processed_ < num_tile_groups_per_thread_) {
-
+      size_t tile_group_partition_id;
       auto tile_group =
-          target_table_->GetTileGroup(current_tile_group_offset_);
+          target_table_->GetTileGroup(current_tile_group_offset_,
+                                      &tile_group_partition_id);
+
+      if (task_.get() != nullptr) {
+        task_->total_access_count++;
+        // non-local tile group access?
+        if (tile_group_partition_id != (size_t)PL_GET_PARTITION_ID(txn_partition_id_)) {
+          task_->non_local_access_count++;
+        }
+      }
 
       // move to next offset
       current_tile_group_offset_++;

@@ -115,9 +115,14 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
   bridge::peloton_status final_status;
 
+  bool print_time = false;
+
   if (statement->GetPlanTree().get() == nullptr) {
     return final_status;
   }
+
+  auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count());
 
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
   size_t num_partitions = PL_NUM_PARTITIONS();
@@ -180,6 +185,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       break;
     }
     case PlanNodeType::PLAN_NODE_TYPE_PARALLEL_SEQSCAN: {
+      print_time = true;
       planner::ParallelSeqScanPlan *parallel_seq_scan_plan =
           static_cast<planner::ParallelSeqScanPlan *>(plan_tree);
       auto target_table = parallel_seq_scan_plan->GetTable();
@@ -209,6 +215,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     }
     case PlanNodeType::PLAN_NODE_TYPE_SEQSCAN: {
       size_t num_tasks = 8;
+      print_time = true;
       LOG_DEBUG("Creating statically partitioned tasks for SEQSCAN");
       for (size_t i=0; i<num_tasks; i++) {
         tasks.push_back(std::shared_ptr<executor::AbstractTask>(
@@ -268,12 +275,14 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     }
   }
 
+  std::map<int, std::pair<double, double>> access_histograms;
+
   // wait for tasks to complete
   wait.WaitForCompletion();
-  for (auto exchg_params : exchg_params_list) {
+  for (size_t i=0; i<exchg_params_list.size(); i++) {
     // wait for executor thread to return result
-    auto temp_status = exchg_params->p_status;
-    init_failure &= exchg_params->init_failure;
+    auto temp_status = exchg_params_list[i]->p_status;
+    init_failure &= exchg_params_list[i]->init_failure;
     if (init_failure == false) {
       // proceed only if none of the threads so far have failed
       final_status.m_processed += temp_status.m_processed;
@@ -283,8 +292,15 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         final_status.m_result = temp_status.m_result;
       final_status.m_result_slots = nullptr;
 
-      result.insert(result.end(), exchg_params->result.begin(),
-                    exchg_params->result.end());
+      result.insert(result.end(), exchg_params_list[i]->result.begin(),
+                    exchg_params_list[i]->result.end());
+    }
+
+    if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {
+      auto task = static_cast<executor::PartitionUnawareTask*>(tasks[i].get());
+      auto current = access_histograms[task->cpu_id];
+      access_histograms[task->cpu_id].first = current.first + task->non_local_access_count;
+      access_histograms[task->cpu_id].second = current.second + task->total_access_count;
     }
   }
 
@@ -307,6 +323,25 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         LOG_TRACE("Abort Transaction");
         final_status.m_result = txn_manager.AbortTransaction(txn);
     }
+  }
+
+  auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count());
+
+  if (print_time == true) {
+    LOG_ERROR("%f", (end-start)/1000);
+  }
+
+  if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {
+    std::stringstream histogram;
+    for (size_t i=0; i<std::thread::hardware_concurrency(); i++) {
+      double frac = 0;
+      if (access_histograms[i].second != 0) {
+        frac = access_histograms[i].first/access_histograms[i].second;
+      }
+      histogram << frac << std::endl;
+    }
+    LOG_ERROR("Access Histogram:\n%s", histogram.str().c_str());
   }
 
   return final_status;
