@@ -30,7 +30,7 @@ ThreadPool thread_pool;
 PartitionThreadPool partitioned_executor_thread_pool;
 
 void PelotonInit::Initialize() {
-
+  size_t num_cores = 1;
   // Initialize CDS library
   cds::Initialize();
 
@@ -38,13 +38,12 @@ void PelotonInit::Initialize() {
   // std::thread::hardware_concurrency() should be
   // chosen. Assigning new task after reaching maximum will
   // block.
-  thread_pool.Initialize(std::thread::hardware_concurrency(), 0);
+  thread_pool.Initialize(num_cores, 0);
 
   // Initialize partitioned thread pool
-  partitioned_executor_thread_pool.Initialize(
-      (int)std::thread::hardware_concurrency());
+  partitioned_executor_thread_pool.Initialize(std::thread::hardware_concurrency());
 
-  int parallelism = (std::thread::hardware_concurrency() + 1) / 2;
+  int parallelism = (num_cores + 1) / 2;
   storage::DataTable::SetActiveTileGroupCount(parallelism);
   storage::DataTable::SetActiveIndirectionArrayCount(parallelism);
 

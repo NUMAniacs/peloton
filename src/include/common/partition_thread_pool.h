@@ -42,10 +42,10 @@ class PartitionThreadPool {
       partition_node_id_map[partition_id].push_back(i);
     }
 
-    for (auto itr = partition_node_id_map.begin();
-         itr != partition_node_id_map.end(); itr++) {
-      thread_pool_map_[itr->first].InitializePinned(itr->second);
-    }
+//    for (auto itr = partition_node_id_map.begin();
+//         itr != partition_node_id_map.end(); itr++) {
+      thread_pool_map_[0].InitializePinned(partition_node_id_map[0]);
+//    }
   }
 
   // submit task to numa thread pool.
