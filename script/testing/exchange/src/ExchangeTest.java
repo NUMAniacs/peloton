@@ -35,7 +35,7 @@ public class ExchangeTest {
       "CREATE TABLE A (id INT PRIMARY KEY, name TEXT, extra_id INT, single INT);";
 
   private final String PARTITON_DDL = 
-    "CREATE TABLE A (id INT PRIMARY KEY, name TEXT, extra_id INT, single INT) PARTITIONED BY id;";
+    "CREATE TABLE A (id INT PRIMARY KEY, name TEXT, extra_id INT, single INT) PARTITION BY id";
 
   public final static String[] nameTokens = { "BAR", "OUGHT", "ABLE", "PRI",
     "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING" };
@@ -396,7 +396,7 @@ public class ExchangeTest {
       "Load values into the table (true or false)");
     Option execute = new Option("e", "execute", true,
       "Execute queries on the table (true or false)");
-    Option partition = new Option("p", "partition", false,
+    Option partition = new Option("p", "partition", true,
       "Create a partition table (true or false)");
 
     options.addOption(rows);
