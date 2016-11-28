@@ -34,7 +34,7 @@ namespace peloton {
 #define PL_GET_PARTITION_NODE() sched_getcpu()
 
 // Get the partition id
-#define PL_GET_PARTITION_ID(x) x
+#define PL_GET_PARTITION_ID(x) numa_node_of_cpu(x)
 
 // Allocate a partition to default region
 #define PL_PARTITION_ALLOC(size, partition) \

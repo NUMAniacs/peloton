@@ -341,7 +341,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       }
       histogram << frac << std::endl;
     }
-    LOG_ERROR("Access Histogram:\n%s", histogram.str().c_str());
+//    LOG_ERROR("Access Histogram:\n%s", histogram.str().c_str());
   }
 
   return final_status;
