@@ -85,6 +85,8 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
     total_num_tuples_.fetch_add(num_tuples);
   }
 
+  inline void Reserve(size_t num_tuples) { hash_table_.reserve(num_tuples); }
+
  protected:
   // Initialize the values of the hash keys from plan node
   void InitHashKeys();

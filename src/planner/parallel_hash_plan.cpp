@@ -40,10 +40,13 @@ ParallelHashPlan::DependencyCompleteHelper(
     num_partitions = 1;
   }
 
+  size_t total_num_tuples = 0;
+
   // Group the results based on partitions
   executor::LogicalTileLists partitioned_result_tile_lists(num_partitions);
   for (auto &result_tile_list : *(task->result_tile_lists.get())) {
     for (auto &result_tile : result_tile_list) {
+      total_num_tuples += result_tile->GetTupleCount();
       size_t partition = result_tile->GetPartition();
       if (force_single_partition) {
         partition = 0;
@@ -84,9 +87,12 @@ ParallelHashPlan::DependencyCompleteHelper(
   std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
       new executor::ParallelHashExecutor(this, nullptr));
   hash_executor->SetNumTasks(num_tasks);
+  // Reserve space for hash table
+  hash_executor->Reserve(total_num_tuples);
   hash_executor->Init();
+  LOG_DEBUG("Number of tuples from child: %d", (int)total_num_tuples);
 
-  // TODO Add dummy child node to retrieve result from
+  // TODO Add dummy child node to retrieve result from?
   // hash_executor.AddChild(&right_table_scan_executor);
 
   for (size_t task_id = 0; task_id < num_tasks; task_id++) {
@@ -112,15 +118,12 @@ ParallelHashPlan::DependencyCompleteHelper(
   for (auto task : tasks) {
     executor::HashTask *hash_task =
         static_cast<executor::HashTask *>(task.get());
-    if (force_single_partition) {
-      executor::ParallelHashExecutor::ExecuteTask(task);
-    } else {
-      partitioned_executor_thread_pool.SubmitTask(
-          hash_task->partition_id, executor::ParallelHashExecutor::ExecuteTask,
-          std::move(task));
-    }
+    partitioned_executor_thread_pool.SubmitTask(
+        hash_task->partition_id, executor::ParallelHashExecutor::ExecuteTask,
+        std::move(task));
   }
 
+  LOG_DEBUG("%d hash tasks submitted", (int)tasks.size());
   // XXX This is a hack to let join test pass
   hash_executor->SetChildTiles(result_tile_lists);
   return std::move(hash_executor);

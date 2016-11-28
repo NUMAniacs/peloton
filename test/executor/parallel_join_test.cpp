@@ -171,11 +171,13 @@ TEST_F(ParallelJoinTests, JoinPredicateTest) {
 
 void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
                      oid_t join_test_type) {
+  // start executor pool
+  ExecutorPoolHarness::GetInstance();
+
   //===--------------------------------------------------------------------===//
   // Mock table scan executors
   //===--------------------------------------------------------------------===//
-
-  MockExecutor left_table_scan_executor, right_table_scan_executor;
+  MockExecutor left_table_scan_executor;
 
   // Create a table and wrap it in logical tile
   size_t tile_group_size = TESTS_TUPLES_PER_TILEGROUP;
@@ -387,41 +389,6 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   // Differ based on join algorithm
   switch (join_algorithm) {
 
-    case PLAN_NODE_TYPE_MERGEJOIN: {
-      // Create join clauses
-      std::vector<planner::MergeJoinPlan::JoinClause> join_clauses;
-      join_clauses = JoinTestsUtil::CreateJoinClauses();
-
-      // Create merge join plan node
-      planner::MergeJoinPlan merge_join_node(join_type, std::move(predicate),
-                                             std::move(projection), schema,
-                                             join_clauses);
-
-      // Construct the merge join executor
-      executor::MergeJoinExecutor merge_join_executor(&merge_join_node,
-                                                      nullptr);
-
-      // Construct the executor tree
-      merge_join_executor.AddChild(&left_table_scan_executor);
-      merge_join_executor.AddChild(&right_table_scan_executor);
-
-      // Run the merge join executor
-      EXPECT_TRUE(merge_join_executor.Init());
-      while (merge_join_executor.Execute() == true) {
-        std::unique_ptr<executor::LogicalTile> result_logical_tile(
-            merge_join_executor.GetOutput());
-
-        if (result_logical_tile != nullptr) {
-          result_tuple_count += result_logical_tile->GetTupleCount();
-          tuples_with_null += JoinTestsUtil::CountTuplesWithNullFields(
-              result_logical_tile.get());
-          JoinTestsUtil::ValidateJoinLogicalTile(result_logical_tile.get());
-          LOG_TRACE("%s", result_logical_tile->GetInfo().c_str());
-        }
-      }
-
-    } break;
-
     case PLAN_NODE_TYPE_PARALLEL_HASHJOIN: {
       // Create hash plan node
       expression::AbstractExpression *right_table_attr_1 =
@@ -489,6 +456,24 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
         if (task->trackable->TaskComplete()) {
           PL_ASSERT(task_id == num_seq_scan_tasks - 1);
           hash_executor = hash_plan_node.DependencyCompleteHelper(task, true);
+        }
+      }
+
+      // XXX Wait for all hash_executor tasks to finish
+      // This is a temporary code because we don't have hash join executor ready
+      while (true) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        size_t num_tuples = hash_executor->GetTotalNumTuples();
+        size_t expected_num_tuples =
+            tile_group_size * right_table_tile_group_count;
+        if (join_test_type == RIGHT_TABLE_EMPTY ||
+            join_test_type == BOTH_TABLES_EMPTY) {
+          expected_num_tuples = 0;
+        }
+        EXPECT_TRUE(expected_num_tuples >= num_tuples);
+        // All tuples have been processed
+        if (expected_num_tuples == num_tuples) {
+          break;
         }
       }
 
