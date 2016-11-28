@@ -710,8 +710,13 @@ std::unique_ptr<planner::AbstractScan> SimpleOptimizer::CreateScanPlan(
     auto predicate_cpy = predicate == nullptr ? nullptr : predicate->Copy();
 
     std::unique_ptr<planner::AbstractScan> child_SelectPlan;
-    child_SelectPlan.reset(new planner::SeqScanPlan(target_table, predicate_cpy,
-                                                    column_ids, for_update));
+    if (target_table->GetTupleCount() >= 1000) {
+      child_SelectPlan.reset(new planner::ParallelSeqScanPlan(select_stmt));
+      LOG_TRACE("Parallel Sequential scan plan created");
+    } else {
+      child_SelectPlan.reset(new planner::SeqScanPlan(select_stmt));
+      LOG_TRACE("Sequential scan plan created");
+    }
     return std::move(child_SelectPlan);
   }
 
