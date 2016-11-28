@@ -21,6 +21,7 @@
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
 #include "common/macros.h"
+#include "common/logger.h"
 
 namespace peloton {
 // a wrapper for boost worker thread pool.
@@ -54,6 +55,7 @@ class ThreadPool {
     PL_ASSERT(pool_size_ != 0);
 
     for (size_t i=0; i < pool_size_; i++) {
+      LOG_ERROR("CPUID:%d", cpu_ids[i]);
       auto new_thread = thread_pool_.create_thread(
           boost::bind(&boost::asio::io_service::run, &io_service_));
       auto nt_handle = new_thread->native_handle();

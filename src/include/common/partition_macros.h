@@ -28,13 +28,13 @@ namespace peloton {
 
 #if SIMULATE_NUMA_PARTITION
   // Get total number of partitions
-#define PL_NUM_PARTITIONS() (int)(std::thread::hardware_concurrency() / 2)
+#define PL_NUM_PARTITIONS() 2
 
 // Get the partition node id of current worker (= core id)
 #define PL_GET_PARTITION_NODE() sched_getcpu()
 
 // Get the partition id
-#define PL_GET_PARTITION_ID(x) x
+#define PL_GET_PARTITION_ID(x) numa_node_of_cpu(x)
 
 // Allocate a partition to default region
 #define PL_PARTITION_ALLOC(size, partition) \
