@@ -28,7 +28,7 @@ namespace peloton {
 
 #if SIMULATE_NUMA_PARTITION
   // Get total number of partitions
-#define PL_NUM_PARTITIONS() 4
+#define PL_NUM_PARTITIONS() 1
 
 // Get the partition node id of current worker (= core id)
 #define PL_GET_PARTITION_NODE() sched_getcpu()
