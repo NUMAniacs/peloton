@@ -254,7 +254,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(
         new bridge::ExchangeParams(txn, statement, params, tasks[i], result_format,
-                                   init_failure, tasks.size(), i, exec_histograms));
+                                   init_failure, tasks.size(), i));
     exchg_params_list.push_back(exchg_params);
 
     switch (plan_tree->GetPlanNodeType()) {
@@ -296,6 +296,10 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
       result.insert(result.end(), exchg_params_list[i]->result.begin(),
                     exchg_params_list[i]->result.end());
+    }
+
+    if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_PARALLEL_SEQSCAN) {
+      exec_histograms[exchg_params_list[i]->cpu_id] += exchg_params_list[i]->exec_time;
     }
 
     if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {

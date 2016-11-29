@@ -136,7 +136,8 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
 
   auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count());
-  exchg_params->exec_histograms[PL_GET_PARTITION_NODE()] += (end-start)/1000;
+  exchg_params->cpu_id = PL_GET_PARTITION_NODE();
+  exchg_params->exec_time  = (end-start)/1000;
   exchg_params->TaskComplete(p_status);
 }
 
