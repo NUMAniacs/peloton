@@ -20,9 +20,11 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.lang3.StringUtils;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.LinkedList;
+import java.util.Arrays;
 
 public class ExchangeTest {
   private static boolean isCount; // are we running count * queries?
@@ -42,7 +44,7 @@ public class ExchangeTest {
 
   private final Random rand;
 
-  private final String TEMPLATE_FOR_BATCH_INSERT = "INSERT INTO A VALUES (?,?,?,?);";
+  private final String INSERT_PREFIX = "INSERT INTO A VALUES ";
 
   private final String SEQSCAN = "SELECT * FROM A";
 
@@ -69,6 +71,8 @@ public class ExchangeTest {
   private final Connection conn;
 
   private static final int BATCH_SIZE = 10000;
+
+  private static final int MULTI_QUERY_SIZE = 25;
 
   private static int numRows;
 
@@ -111,46 +115,46 @@ public class ExchangeTest {
     }
   }
 
-  public void BatchInsert() throws SQLException{
+  public void SetInsertValueString(List<String> values, int index, int key, int j) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("(");
+    sb.append(key+",");
+    sb.append("\'" + nameTokens[j%nameTokens.length] + "\',");
+    sb.append((key%100) + ",");
+    sb.append(key + ")");
+    values.set(index, sb.toString());
+  }
+
+  public void BatchInsert() throws SQLException {
     int[] res;
     int insertCount = 0, numInsertions, key;
     int numBatches = (numRows + BATCH_SIZE - 1)/BATCH_SIZE;
-    String name1, name2;
-    PreparedStatement stmt = conn.prepareStatement(TEMPLATE_FOR_BATCH_INSERT);
-    conn.setAutoCommit(false);
+    conn.setAutoCommit(true);
+    Statement stmt = conn.createStatement();
+
+    List<String> values = Arrays.asList(new String[MULTI_QUERY_SIZE]);
 
     for (int i=1; i<=numBatches; i++) {
-      
       numInsertions = (i==numBatches) ? numRows - insertCount : BATCH_SIZE;
-      for(int j=1; j <= numInsertions; j++) {
-        key = j+insertCount;
-        stmt.setInt(1, key);
-        stmt.setString(2, nameTokens[j%nameTokens.length]);
-        stmt.setInt(3, key%100);
-        stmt.setInt(4, key);
-        stmt.addBatch();
-      }
-      
-      try{
-        res = stmt.executeBatch();
-      }catch(SQLException e){
-        e.printStackTrace();
-        throw e.getNextException();
-      }
+      for(int j=1; j <= numInsertions; j+=MULTI_QUERY_SIZE) {
+        for (int k=0; k<MULTI_QUERY_SIZE; k++) {
+          key = j+k+insertCount;
+          SetInsertValueString(values, k, key, j+k);
+        }
 
-      for(int k=0; k < res.length; k++){
-        if (res[k] < 0) {
-          throw new SQLException("Query "+ (k+1) +" returned " + res[k]);
+        try{
+          stmt.execute(INSERT_PREFIX + StringUtils.join(values, ",") +";");
+        }catch(SQLException e){
+          e.printStackTrace();
+          throw e.getNextException();
         }
       }
-      
-      insertCount += res.length;
+
+      insertCount += numInsertions;
+
       System.out.println("Inserted " + insertCount + 
           " rows out of " + numRows + " rows.");
-      stmt.clearBatch();
     }
-    
-    conn.commit();
   }
 
   public void SeqScan() throws SQLException {
