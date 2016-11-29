@@ -21,6 +21,7 @@
 #include "executor/parallel_hash_join_executor.h"
 #include "executor/parallel_hash_executor.h"
 #include "executor/parallel_seq_scan_executor.h"
+#include "planner/parallel_seq_scan_plan.h"
 
 #include "expression/abstract_expression.h"
 #include "expression/tuple_value_expression.h"

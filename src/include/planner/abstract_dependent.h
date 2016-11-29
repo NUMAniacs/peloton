@@ -2,9 +2,9 @@
 //
 //                         Peloton
 //
-// abstract_plan.h
+// abstract_dependent.h
 //
-// Identification: src/include/planner/abstract_plan.h
+// Identification: src/include/planner/abstract_dependent.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -47,7 +47,11 @@ class Dependent {
   virtual void DependencyComplete(
       std::shared_ptr<executor::AbstractTask> task) = 0;
 
-  // TODO Also keep an dependency count in this class
+  // The parent dependent planner
+  Dependent *parent_dependent = nullptr;
+
+  // Keep track of multiple dependents
+  size_t dependency_count = 1;
 };
 
 }  // namespace planner

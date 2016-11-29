@@ -413,14 +413,16 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
                                                    1)});
 
       // Create hash plan node
-      planner::ParallelHashPlan hash_plan_node(hash_keys);
+      std::unique_ptr<planner::ParallelHashPlan> hash_plan_node(
+          new planner::ParallelHashPlan(hash_keys));
 
       // Create hash join plan node.
-      planner::ParallelHashJoinPlan hash_join_plan_node(
-          join_type, std::move(predicate), std::move(projection), schema);
+      std::unique_ptr<planner::ParallelHashJoinPlan> hash_join_plan_node(
+          new planner::ParallelHashJoinPlan(join_type, std::move(predicate),
+                                            std::move(projection), schema));
 
-      // Set the dependent parent
-      hash_plan_node.SetDependentParent(&hash_join_plan_node);
+      // Set the dependent of hash plan MANUALLY
+      hash_plan_node->parent_dependent = hash_join_plan_node.get();
 
       // Create seq scan executor
       std::shared_ptr<executor::ParallelSeqScanExecutor> seq_scan_executor(
@@ -428,21 +430,21 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
       // Create hash executor
       std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
-          new executor::ParallelHashExecutor(&hash_plan_node, nullptr));
+          new executor::ParallelHashExecutor(hash_plan_node.get(), nullptr));
 
       // Construct the hash join executor
       executor::ParallelHashJoinExecutor hash_join_executor(
-          &hash_join_plan_node, nullptr);
+          hash_join_plan_node.get(), nullptr);
 
       std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
       for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
         // Create dummy seq scan task
         std::shared_ptr<executor::AbstractTask> task(new executor::SeqScanTask(
-            &hash_plan_node, INVALID_TASK_ID, INVALID_PARTITION_ID,
+            hash_plan_node.get(), INVALID_TASK_ID, INVALID_PARTITION_ID,
             right_table_logical_tile_lists));
 
         // Init task with num tasks
-        task->Init(seq_scan_executor.get(), &hash_plan_node,
+        task->Init(seq_scan_executor.get(), hash_plan_node.get(),
                    num_seq_scan_tasks);
         // Insert to the list
         seq_scan_tasks.push_back(task);
@@ -455,7 +457,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
         auto task = seq_scan_tasks[task_id];
         if (task->trackable->TaskComplete()) {
           PL_ASSERT(task_id == num_seq_scan_tasks - 1);
-          hash_executor = hash_plan_node.DependencyCompleteHelper(task, true);
+          hash_executor = hash_plan_node->DependencyCompleteHelper(task, true);
         }
       }
 

@@ -75,12 +75,14 @@ void ParallelHashExecutor::InitHashKeys() {
 void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   PL_ASSERT(task->GetTaskType() == TASK_HASH);
   executor::HashTask *hash_task = static_cast<executor::HashTask *>(task.get());
+  executor::ParallelHashExecutor *hash_executor =
+      static_cast<executor::ParallelHashExecutor *>(task->trackable);
 
   // Construct the hash table by going over each child logical tile and hashing
   auto task_id = hash_task->task_id;
   auto child_tiles = hash_task->result_tile_lists;
-  auto &hash_table = hash_task->hash_executor->GetHashTable();
-  auto &column_ids = hash_task->hash_executor->GetHashKeyIds();
+  auto &hash_table = hash_executor->GetHashTable();
+  auto &column_ids = hash_executor->GetHashKeyIds();
   size_t num_tuples = 0;
 
   for (size_t tile_itr = 0; tile_itr < (*child_tiles)[task_id].size();
@@ -119,9 +121,9 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
     }
   }
   LOG_DEBUG("Task %d hashed %d tuples", (int)task_id, (int)num_tuples);
-  hash_task->hash_executor->IncrementNumTuple(num_tuples);
+  hash_executor->IncrementNumTuple(num_tuples);
 
-  if (hash_task->hash_executor->TaskComplete()) {
+  if (hash_executor->TaskComplete()) {
     LOG_INFO("All the hash tasks have completed");
     // TODO Invoke DependencyComplete()
   }

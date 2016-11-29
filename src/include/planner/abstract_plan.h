@@ -25,6 +25,7 @@
 #include "common/serializer.h"
 #include "common/types.h"
 #include "common/value.h"
+#include "planner/abstract_dependent.h"
 
 namespace peloton {
 
@@ -107,11 +108,6 @@ class AbstractPlan : public Printable {
   }
   virtual int SerializeSize() { return 0; }
 
-  // TODO Move me to private
-  void SetDependentParent(AbstractPlan *dependent_parent) {
-    dependent_parent_ = dependent_parent;
-  }
-
  protected:
   // only used by its derived classes (when deserialization)
   AbstractPlan *Parent() { return parent_; }
@@ -122,9 +118,6 @@ class AbstractPlan : public Printable {
 
   // The immediate parent plan node
   AbstractPlan *parent_ = nullptr;
-
-  // The parent planner
-  AbstractPlan *dependent_parent_ = nullptr;
 };
 
 }  // namespace planner

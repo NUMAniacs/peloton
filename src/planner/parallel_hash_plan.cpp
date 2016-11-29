@@ -106,12 +106,12 @@ ParallelHashPlan::DependencyCompleteHelper(
     }
 
     std::shared_ptr<executor::AbstractTask> next_task;
-
     if (partition != INVALID_PARTITION_ID) {
-      next_task.reset(new executor::HashTask(this, hash_executor, task_id,
-                                             partition, result_tile_lists));
+      next_task.reset(
+          new executor::HashTask(this, task_id, partition, result_tile_lists));
     }
-    // next_task->Init(next_callback, num_tasks);
+    next_task->Init(hash_executor.get(), task->dependent->parent_dependent,
+                    num_tasks);
     tasks.push_back(next_task);
   }
 

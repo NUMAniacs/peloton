@@ -33,7 +33,7 @@ class DataTable;
 
 namespace planner {
 
-class ParallelSeqScanPlan : public AbstractScan {
+class ParallelSeqScanPlan : public AbstractScan, public Dependent {
  public:
   ParallelSeqScanPlan(const ParallelSeqScanPlan &) = delete;
   ParallelSeqScanPlan &operator=(const ParallelSeqScanPlan &) = delete;
@@ -41,11 +41,11 @@ class ParallelSeqScanPlan : public AbstractScan {
   ParallelSeqScanPlan &operator=(ParallelSeqScanPlan &&) = delete;
 
   ParallelSeqScanPlan(storage::DataTable *table,
-              expression::AbstractExpression *predicate,
-              const std::vector<oid_t> &column_ids, bool is_for_update = false)
+                      expression::AbstractExpression *predicate,
+                      const std::vector<oid_t> &column_ids,
+                      bool is_for_update = false)
       : AbstractScan(table, predicate, column_ids) {
     LOG_DEBUG("Creating a Parallel Sequential Scan Plan");
-
     SetForUpdateFlag(is_for_update);
   }
 
@@ -76,7 +76,8 @@ class ParallelSeqScanPlan : public AbstractScan {
     return std::unique_ptr<AbstractPlan>(new_plan);
   }
 
- private:
+  void DependencyComplete(
+      UNUSED_ATTRIBUTE std::shared_ptr<executor::AbstractTask> task) {}
 };
 
 }  // namespace planner

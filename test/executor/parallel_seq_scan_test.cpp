@@ -37,6 +37,7 @@
 #include "storage/tile_group_factory.h"
 
 #include "executor/executor_tests_util.h"
+#include "executor/parallel_seq_scan_tests_util.h"
 #include "executor/mock_executor.h"
 #include "executor/abstract_task.h"
 #include "common/harness.h"

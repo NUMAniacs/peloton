@@ -20,7 +20,7 @@ class AbstractExpression;
 }
 namespace planner {
 
-class ParallelHashJoinPlan : public AbstractJoinPlan {
+class ParallelHashJoinPlan : public AbstractJoinPlan, public Dependent {
  public:
   ParallelHashJoinPlan(const ParallelHashJoinPlan &) = delete;
   ParallelHashJoinPlan &operator=(const ParallelHashJoinPlan &) = delete;
@@ -60,6 +60,12 @@ class ParallelHashJoinPlan : public AbstractJoinPlan {
         std::move(GetProjInfo()->Copy()), schema_copy, outer_column_ids_);
     return std::unique_ptr<AbstractPlan>(new_plan);
   }
+
+  // TODO Implement this method
+  void DependencyComplete(std::shared_ptr<executor::AbstractTask> task) {
+    PL_ASSERT(task != nullptr);
+    PL_ASSERT(false);
+  };
 
  private:
   std::vector<oid_t> outer_column_ids_;

@@ -51,7 +51,7 @@ typedef std::vector<LogicalTileList> LogicalTileLists;
 enum TaskType {
   TASK_PARTITION_UNAWARE = 0,
   TASK_INSERT = 1,
-  TASK_SEQ_SCAN_TASK = 2,
+  TASK_SEQ_SCAN = 2,
   TASK_HASH = 3,
 };
 
@@ -167,15 +167,10 @@ class HashTask : public PartitionAwareTask {
   /*
    * @param bulk_insert_count: The total bulk insert count in insert plan node
    */
-  explicit HashTask(const planner::AbstractPlan *node,
-                    std::shared_ptr<ParallelHashExecutor> hash_executor,
-                    size_t task_id, size_t partition_id,
+  explicit HashTask(const planner::AbstractPlan *node, size_t task_id,
+                    size_t partition_id,
                     std::shared_ptr<LogicalTileLists> result_tile_lists)
-      : PartitionAwareTask(node, task_id, partition_id, result_tile_lists),
-        hash_executor(hash_executor) {}
-
-  // The hash executor object
-  std::shared_ptr<ParallelHashExecutor> hash_executor;
+      : PartitionAwareTask(node, task_id, partition_id, result_tile_lists) {}
 };
 
 // The class for parallel seq scan tasks
