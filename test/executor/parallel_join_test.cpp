@@ -412,6 +412,10 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
               new expression::TupleValueExpression(common::Type::INTEGER, 1,
                                                    1)});
 
+      // Create executor context
+      std::shared_ptr<executor::ExecutorContext> context(
+          new executor::ExecutorContext(nullptr));
+
       // Create hash plan node
       std::unique_ptr<planner::ParallelHashPlan> hash_plan_node(
           new planner::ParallelHashPlan(hash_keys));
@@ -426,11 +430,10 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
       // Create seq scan executor
       std::shared_ptr<executor::ParallelSeqScanExecutor> seq_scan_executor(
-          new executor::ParallelSeqScanExecutor(nullptr, nullptr));
+          new executor::ParallelSeqScanExecutor(nullptr, context.get()));
 
       // Create hash executor
-      std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
-          new executor::ParallelHashExecutor(hash_plan_node.get(), nullptr));
+      std::shared_ptr<executor::ParallelHashExecutor> hash_executor;
 
       // Construct the hash join executor
       executor::ParallelHashJoinExecutor hash_join_executor(
@@ -449,8 +452,6 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
         // Insert to the list
         seq_scan_tasks.push_back(task);
       }
-
-      seq_scan_executor->SetNumTasks(num_seq_scan_tasks);
 
       // Loop until the last seq scan task completes
       for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {

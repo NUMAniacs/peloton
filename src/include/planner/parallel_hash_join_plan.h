@@ -61,10 +61,9 @@ class ParallelHashJoinPlan : public AbstractJoinPlan, public Dependent {
     return std::unique_ptr<AbstractPlan>(new_plan);
   }
 
-  // TODO Implement this method
   void DependencyComplete(std::shared_ptr<executor::AbstractTask> task) {
     PL_ASSERT(task != nullptr);
-    PL_ASSERT(false);
+    // TODO Implement me
   };
 
  private:

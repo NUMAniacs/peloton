@@ -21,6 +21,8 @@
 #include "common/partition_macros.h"
 #include "planner/parallel_hash_plan.h"
 #include "executor/abstract_task.h"
+#include "executor/parallel_seq_scan_executor.h"
+#include "executor/executor_context.h"
 #include "common/init.h"
 
 namespace peloton {
@@ -43,11 +45,13 @@ ParallelHashPlan::DependencyCompleteHelper(
   size_t total_num_tuples = 0;
 
   // Group the results based on partitions
+  LOG_DEBUG("Re-group results into %d partitions", (int)num_partitions);
   executor::LogicalTileLists partitioned_result_tile_lists(num_partitions);
   for (auto &result_tile_list : *(task->result_tile_lists.get())) {
     for (auto &result_tile : result_tile_list) {
       total_num_tuples += result_tile->GetTupleCount();
       size_t partition = result_tile->GetPartition();
+      // TODO Handle non-partitioned tables
       if (force_single_partition) {
         partition = 0;
       }
@@ -83,17 +87,23 @@ ParallelHashPlan::DependencyCompleteHelper(
   // A list of all tasks to execute
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
 
+  // Copy executor context
+  executor::ParallelSeqScanExecutor *seq_scan_executor =
+      dynamic_cast<executor::ParallelSeqScanExecutor *>(task->trackable);
+  // XXX Only handle the case for parallel_seq_scan now
+  PL_ASSERT(seq_scan_executor != nullptr);
+  std::shared_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(
+          seq_scan_executor->GetExecutorContext()->GetTransaction()));
+
   // Construct the hash executor
   std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
-      new executor::ParallelHashExecutor(this, nullptr));
-  hash_executor->SetNumTasks(num_tasks);
+      new executor::ParallelHashExecutor(this, context.get()));
+
   // Reserve space for hash table
   hash_executor->Reserve(total_num_tuples);
   hash_executor->Init();
   LOG_DEBUG("Number of tuples from child: %d", (int)total_num_tuples);
-
-  // TODO Add dummy child node to retrieve result from?
-  // hash_executor.AddChild(&right_table_scan_executor);
 
   for (size_t task_id = 0; task_id < num_tasks; task_id++) {
     // Construct a hash task
@@ -107,8 +117,8 @@ ParallelHashPlan::DependencyCompleteHelper(
 
     std::shared_ptr<executor::AbstractTask> next_task;
     if (partition != INVALID_PARTITION_ID) {
-      next_task.reset(
-          new executor::HashTask(this, task_id, partition, result_tile_lists));
+      next_task.reset(new executor::HashTask(
+          this, hash_executor, context, task_id, partition, result_tile_lists));
     }
     next_task->Init(hash_executor.get(), task->dependent->parent_dependent,
                     num_tasks);
@@ -124,6 +134,7 @@ ParallelHashPlan::DependencyCompleteHelper(
   }
 
   LOG_DEBUG("%d hash tasks submitted", (int)tasks.size());
+
   // XXX This is a hack to let join test pass
   hash_executor->SetChildTiles(result_tile_lists);
   return std::move(hash_executor);

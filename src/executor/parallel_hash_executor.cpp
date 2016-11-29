@@ -38,9 +38,6 @@ ParallelHashExecutor::ParallelHashExecutor(const planner::AbstractPlan *node,
  */
 bool ParallelHashExecutor::DInit() {
   if (initialized_ == false) {
-    // TODO Add reference node to the seq scan executors
-    // PL_ASSERT(children_.size() == 1);
-
     // Initialize executor state
     result_itr = 0;
 
@@ -68,7 +65,8 @@ void ParallelHashExecutor::InitHashKeys() {
     auto tuple_value =
         reinterpret_cast<const expression::TupleValueExpression *>(
             hashkey.get());
-    column_ids_.push_back(tuple_value->GetColumnId());
+    auto column_id = tuple_value->GetColumnId();
+    column_ids_.push_back(column_id);
   }
 }
 
@@ -125,7 +123,7 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
 
   if (hash_executor->TaskComplete()) {
     LOG_INFO("All the hash tasks have completed");
-    // TODO Invoke DependencyComplete()
+    task->dependent->DependencyComplete(task);
   }
 }
 

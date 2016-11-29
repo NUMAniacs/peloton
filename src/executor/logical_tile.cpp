@@ -28,9 +28,12 @@ namespace executor {
 
 #define SCHEMA_PREALLOCATION_SIZE 20
 
-LogicalTile::LogicalTile(size_t partition) : partition_(partition) {
+LogicalTile::LogicalTile(size_t partition) {
   // Preallocate schema
   schema_.reserve(SCHEMA_PREALLOCATION_SIZE);
+  if (partition == LOCAL_NUMA_REGION) {
+    partition_ = PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE());
+  }
 }
 
 void *LogicalTile::operator new(size_t size, int partition) {

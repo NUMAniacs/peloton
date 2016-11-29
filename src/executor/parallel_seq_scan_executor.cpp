@@ -214,5 +214,34 @@ LogicalTile* ParallelSeqScanExecutor::GetOutput() {
   return result_tile;
 }
 
+void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
+  PL_ASSERT(task->GetTaskType() == TASK_SEQ_SCAN);
+  auto seq_scan_executor_ref =
+      static_cast<ParallelSeqScanExecutor *>(task->trackable);
+
+  // Make a copy of the executor context
+  ExecutorContext context(
+      seq_scan_executor_ref->GetExecutorContext()->GetTransaction());
+  context.SetTask(task);
+
+  // Generate seq scan executors
+  ParallelSeqScanExecutor executor(task->node, &context);
+
+  bool status = executor.Init();
+  if (status == true) {
+    while (status) {
+      status = executor.Execute();
+    }
+  } else {
+    // TODO handle failure
+    PL_ASSERT(false);
+  }
+
+  if (seq_scan_executor_ref->TaskComplete()) {
+    LOG_INFO("All the parallel seq scan tasks have completed");
+    task->dependent->DependencyComplete(task);
+  }
+}
+
 }  // namespace executor
 }  // namespace peloton

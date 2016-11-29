@@ -25,6 +25,7 @@
 #include "common/serializer.h"
 #include "common/types.h"
 #include "common/value.h"
+#include "common/macros.h"
 
 namespace peloton {
 

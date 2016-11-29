@@ -35,6 +35,7 @@ class AbstractPlan;
 namespace executor {
 class ParallelHashExecutor;
 class Trackable;
+class ExecutorContext;
 }
 
 namespace executor {
@@ -67,16 +68,8 @@ class AbstractTask {
       : node(node), result_tile_lists(result_tile_lists) {}
 
   // Initialize the task with callbacks
-  inline void Init(executor::Trackable *trackable,
-                   planner::Dependent *dependent, int num_tasks) {
-    this->trackable = trackable;
-    this->dependent = dependent;
-    this->num_tasks = num_tasks;
-    if (result_tile_lists != nullptr) {
-      result_tile_lists->resize(num_tasks);
-    }
-    initialized = true;
-  }
+  void Init(executor::Trackable *trackable, planner::Dependent *dependent,
+            size_t num_tasks);
 
   // Plan node corresponding to this task.
   const planner::AbstractPlan *node;
@@ -167,10 +160,21 @@ class HashTask : public PartitionAwareTask {
   /*
    * @param bulk_insert_count: The total bulk insert count in insert plan node
    */
-  explicit HashTask(const planner::AbstractPlan *node, size_t task_id,
+  explicit HashTask(const planner::AbstractPlan *node,
+                    std::shared_ptr<ParallelHashExecutor> hash_executor,
+                    std::shared_ptr<ExecutorContext> context, size_t task_id,
                     size_t partition_id,
                     std::shared_ptr<LogicalTileLists> result_tile_lists)
-      : PartitionAwareTask(node, task_id, partition_id, result_tile_lists) {}
+      : PartitionAwareTask(node, task_id, partition_id, result_tile_lists),
+        hash_executor(hash_executor),
+        context(context) {}
+
+  // Keep a reference to the hash executor so that it's not free'd during
+  // execution
+  std::shared_ptr<ParallelHashExecutor> hash_executor;
+
+  // Keep a reference to the shared executor context
+  std::shared_ptr<ExecutorContext> context;
 };
 
 // The class for parallel seq scan tasks
@@ -182,7 +186,7 @@ class SeqScanTask : public PartitionAwareTask {
  public:
   ~SeqScanTask() {}
 
-  TaskType GetTaskType() { return TASK_INSERT; }
+  TaskType GetTaskType() { return TASK_SEQ_SCAN; }
 
   /**
    * @brief Constructor for seqscan Task.

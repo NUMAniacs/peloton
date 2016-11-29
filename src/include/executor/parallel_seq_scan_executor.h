@@ -30,6 +30,13 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor, public Trackable {
                                    ExecutorContext *executor_context);
   LogicalTile *GetOutput();
 
+  void static ExecuteTask(std::shared_ptr<AbstractTask> task);
+
+  // TODO Should we move this to abstract class?
+  inline ExecutorContext *GetExecutorContext() const {
+    return executor_context_;
+  }
+
  protected:
   bool DInit();
 

@@ -22,6 +22,7 @@
 #include "executor/parallel_hash_executor.h"
 #include "executor/parallel_seq_scan_executor.h"
 #include "planner/parallel_seq_scan_plan.h"
+#include "executor/plan_executor.h"
 
 #include "expression/abstract_expression.h"
 #include "expression/tuple_value_expression.h"
@@ -41,82 +42,48 @@
 #include "executor/executor_tests_util.h"
 #include "executor/join_tests_util.h"
 #include "executor/parallel_join_tests_util.h"
+#include "executor/parallel_seq_scan_tests_util.h"
 
 namespace peloton {
 namespace test {
 
 class ParallelHashTests : public PelotonTest {};
 
+/**
+ * @brief Set of tuple_ids that will satisfy the predicate in our test cases.
+ */
+const std::set<oid_t> g_tuple_ids({0, 3});
+
+// Column ids to be added to logical tile after scan.
+const std::vector<oid_t> column_ids({0, 1, 3});
+
 TEST_F(ParallelHashTests, BasicTest) {
   // start executor pool
   ExecutorPoolHarness::GetInstance();
 
-  // Create a table and wrap it in logical tile
-  size_t tile_group_size = TESTS_TUPLES_PER_TILEGROUP;
-  size_t tile_group_count = 10;
-  size_t num_seq_scan_tasks = PL_NUM_PARTITIONS();
+  // Create table
+  size_t active_tile_group_count =
+      PL_NUM_PARTITIONS() * PL_GET_PARTITION_SIZE() * 4;
+  std::unique_ptr<storage::DataTable> table(
+      ParallelSeqScanTestsUtil::CreateTable(active_tile_group_count));
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
-
-  // Table has 10 tile groups
-  std::unique_ptr<storage::DataTable> table(
-      ExecutorTestsUtil::CreateTable(tile_group_size));
-  ExecutorTestsUtil::PopulateTable(table.get(),
-                                   tile_group_size * tile_group_count, false,
-                                   false, false, txn);
-
-  txn_manager.CommitTransaction(txn);
-
-  LOG_TRACE("%s", table->GetInfo().c_str());
-
-  // Result of seq scans
-  std::shared_ptr<executor::LogicalTileLists> table_logical_tile_lists(
-      new executor::LogicalTileLists());
-
-  std::vector<std::unique_ptr<executor::LogicalTile>> table_logical_tile_ptrs;
-
-  // Wrap the input tables with logical tiles
-  for (size_t table_tile_group_itr = 0; table_tile_group_itr < tile_group_count;
-       table_tile_group_itr++) {
-    std::unique_ptr<executor::LogicalTile> table_logical_tile(
-        executor::LogicalTileFactory::WrapTileGroup(
-            table->GetTileGroup(table_tile_group_itr), UNDEFINED_NUMA_REGION));
-    table_logical_tile_ptrs.push_back(std::move(table_logical_tile));
-  }
-
-  //===--------------------------------------------------------------------===//
-  // Setup child tile results
-  //===--------------------------------------------------------------------===//
-  {
-    size_t tile_begin_itr = 0;
-    size_t num_tile_group_per_task = tile_group_count / num_seq_scan_tasks;
-    // Split the populated right table tiles into multiple tasks
-    for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
-
-      // XXX Assume partition == task_id
-      size_t partition = task_id;
-      if (task_id != num_seq_scan_tasks - 1) {
-        // The first few tasks have the same number of tiles
-        ParallelJoinTestsUtil::PopulateTileResults(
-            tile_begin_itr, num_tile_group_per_task, table_logical_tile_lists,
-            task_id, partition, table_logical_tile_ptrs);
-        tile_begin_itr += num_tile_group_per_task;
-      } else {
-        // The last task
-        ParallelJoinTestsUtil::PopulateTileResults(
-            tile_begin_itr, tile_group_count - tile_begin_itr,
-            table_logical_tile_lists, task_id, partition,
-            table_logical_tile_ptrs);
-      }
-    }
-  }
 
   //===--------------------------------------------------------------------===//
   // Setup hash plan nodes and executors and run them
   //===--------------------------------------------------------------------===//
 
-  // Create hash plan node
+  // Create a blocking wait at the top
+  std::unique_ptr<bridge::BlockingWait> wait(new bridge::BlockingWait(1));
+
+  // Create parallel seq scan node
+  std::unique_ptr<planner::ParallelSeqScanPlan> seq_scan_node(
+      new planner::ParallelSeqScanPlan(
+          table.get(), ParallelSeqScanTestsUtil::CreatePredicate(g_tuple_ids),
+          column_ids));
+
+  // Create hash keys for hash plan node
   expression::AbstractExpression *table_attr_1 =
       new expression::TupleValueExpression(common::Type::INTEGER, 1, 1);
 
@@ -124,51 +91,97 @@ TEST_F(ParallelHashTests, BasicTest) {
   hash_keys.emplace_back(table_attr_1);
 
   // Create hash plan node
-  planner::ParallelHashPlan hash_plan_node(hash_keys);
+  std::unique_ptr<planner::ParallelHashPlan> hash_plan_node(
+      new planner::ParallelHashPlan(hash_keys));
+
+  // Set the dependent of plans MANUALLY
+  seq_scan_node->parent_dependent = hash_plan_node.get();
+  hash_plan_node->parent_dependent = wait.get();
+
+  // Create executor context
+  std::unique_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(txn));
+
+  // TODO Want to pass the context from one task to another
 
   // Create seq scan executor
+  // We probably don't need this executor instantiated
   std::shared_ptr<executor::ParallelSeqScanExecutor> seq_scan_executor(
-      new executor::ParallelSeqScanExecutor(nullptr, nullptr));
+      new executor::ParallelSeqScanExecutor(seq_scan_node.get(),
+                                            context.get()));
 
-  // Create hash executor
-  std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
-      new executor::ParallelHashExecutor(&hash_plan_node, nullptr));
-
+  // Vector of seq scan tasks
   std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
-  for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
+  ParallelSeqScanTestsUtil::GenerateMultiTileGroupTasks(
+      table.get(), seq_scan_node.get(), seq_scan_tasks);
 
-    // Create dummy seq scan task
-    std::shared_ptr<executor::AbstractTask> task(new executor::SeqScanTask(
-        &hash_plan_node, INVALID_TASK_ID, INVALID_PARTITION_ID,
-        table_logical_tile_lists));
-
-    // Init task with num tasks
-    task->Init(seq_scan_executor.get(), &hash_plan_node, num_seq_scan_tasks);
-
-    // Insert to the list
-    seq_scan_tasks.push_back(task);
+  size_t num_seq_scan_tasks = seq_scan_tasks.size();
+  for (size_t i = 0; i < num_seq_scan_tasks; i++) {
+    auto partition_aware_task =
+        std::dynamic_pointer_cast<executor::PartitionAwareTask>(
+            seq_scan_tasks[i]);
+    partition_aware_task->Init(seq_scan_executor.get(), hash_plan_node.get(),
+                               num_seq_scan_tasks);
+    partitioned_executor_thread_pool.SubmitTask(
+        partition_aware_task->partition_id,
+        executor::ParallelSeqScanExecutor::ExecuteTask,
+        std::move(seq_scan_tasks[i]));
   }
 
-  seq_scan_executor->SetNumTasks(num_seq_scan_tasks);
+  wait->WaitForCompletion();
+  txn_manager.CommitTransaction(txn);
+
+  //  // Create hash executor
+  //  std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
+  //      new executor::ParallelHashExecutor(hash_plan_node.get(), nullptr));
+
+  //  std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
+  //  for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
+  //
+  // Create seq scan tasks
+  //    std::shared_ptr<executor::AbstractTask> task(new executor::SeqScanTask(
+  //        hash_plan_node.get(), INVALID_TASK_ID, INVALID_PARTITION_ID,
+  //        table_logical_tile_lists));
+
+  // Init task with num tasks
+  //    task->Init(seq_scan_executor.get(), hash_plan_node.get(),
+  // num_seq_scan_tasks);
+
+  // Insert to the list
+  //    seq_scan_tasks.push_back(task);
+  //  }
+
+  //  seq_scan_executor->SetNumTasks(num_seq_scan_tasks);
+
+  // TODO Execute seq scan in parallel, at the end of seq scan task, invoke
+  // callback on parent node (hash planner node)
+
+  // Generate a seq scan node with parent points to hash plan node
+
+  // TODO Generate a list of tasks
+
+  // Submit task to thread pool, which generates the executor.
+
+  // child_executor = new executor::SeqScanExecutor(plan, executor_context);
 
   // Loop until the last seq scan task completes
-  for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
-    auto task = seq_scan_tasks[task_id];
-    if (task->trackable->TaskComplete()) {
-      PL_ASSERT(task_id == num_seq_scan_tasks - 1);
-      hash_executor = hash_plan_node.DependencyCompleteHelper(task, false);
-    }
-  }
+  //  for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
+  //    auto task = seq_scan_tasks[task_id];
+  //    if (task->trackable->TaskComplete()) {
+  //      PL_ASSERT(task_id == num_seq_scan_tasks - 1);
+  //      hash_executor = hash_plan_node->DependencyCompleteHelper(task, false);
+  //    }
+  //  }
 
-  while (true) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    size_t num_tuples = hash_executor->GetTotalNumTuples();
-    EXPECT_TRUE(tile_group_size * tile_group_count >= num_tuples);
-    // All tuples have been processed
-    if (tile_group_size * tile_group_count == num_tuples) {
-      break;
-    }
-  }
+  //  while (true) {
+  //    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  //    size_t num_tuples = hash_executor->GetTotalNumTuples();
+  //    EXPECT_TRUE(tile_group_size * tile_group_count >= num_tuples);
+  //    // All tuples have been processed
+  //    if (tile_group_size * tile_group_count == num_tuples) {
+  //      break;
+  //    }
+  //  }
 }
 
 }  // namespace test
