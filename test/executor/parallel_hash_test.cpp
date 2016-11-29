@@ -102,8 +102,6 @@ TEST_F(ParallelHashTests, BasicTest) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
 
-  // TODO Want to pass the context from one task to another
-
   // Create seq scan executor
   // We probably don't need this executor instantiated
   std::shared_ptr<executor::ParallelSeqScanExecutor> seq_scan_executor(
@@ -131,48 +129,8 @@ TEST_F(ParallelHashTests, BasicTest) {
   wait->WaitForCompletion();
   txn_manager.CommitTransaction(txn);
 
-  //  // Create hash executor
-  //  std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
-  //      new executor::ParallelHashExecutor(hash_plan_node.get(), nullptr));
-
-  //  std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
-  //  for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
-  //
-  // Create seq scan tasks
-  //    std::shared_ptr<executor::AbstractTask> task(new executor::SeqScanTask(
-  //        hash_plan_node.get(), INVALID_TASK_ID, INVALID_PARTITION_ID,
-  //        table_logical_tile_lists));
-
-  // Init task with num tasks
-  //    task->Init(seq_scan_executor.get(), hash_plan_node.get(),
-  // num_seq_scan_tasks);
-
-  // Insert to the list
-  //    seq_scan_tasks.push_back(task);
-  //  }
-
-  //  seq_scan_executor->SetNumTasks(num_seq_scan_tasks);
-
-  // TODO Execute seq scan in parallel, at the end of seq scan task, invoke
-  // callback on parent node (hash planner node)
-
-  // Generate a seq scan node with parent points to hash plan node
-
-  // TODO Generate a list of tasks
-
-  // Submit task to thread pool, which generates the executor.
-
-  // child_executor = new executor::SeqScanExecutor(plan, executor_context);
-
-  // Loop until the last seq scan task completes
-  //  for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
-  //    auto task = seq_scan_tasks[task_id];
-  //    if (task->trackable->TaskComplete()) {
-  //      PL_ASSERT(task_id == num_seq_scan_tasks - 1);
-  //      hash_executor = hash_plan_node->DependencyCompleteHelper(task, false);
-  //    }
-  //  }
-
+  // TODO Because we don't have the reference to the hash executor, so we cannot
+  // validate the number of tuples in the hash table now..
   //  while (true) {
   //    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   //    size_t num_tuples = hash_executor->GetTotalNumTuples();

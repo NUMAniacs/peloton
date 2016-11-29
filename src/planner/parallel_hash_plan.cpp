@@ -125,15 +125,20 @@ ParallelHashPlan::DependencyCompleteHelper(
     tasks.push_back(next_task);
   }
 
-  for (auto task : tasks) {
-    executor::HashTask *hash_task =
-        static_cast<executor::HashTask *>(task.get());
-    partitioned_executor_thread_pool.SubmitTask(
-        hash_task->partition_id, executor::ParallelHashExecutor::ExecuteTask,
-        std::move(task));
+  if (num_tasks == 0) {
+    // No task to do. Immediately notify dependent
+    task->dependent->parent_dependent->DependencyComplete(task);
+  } else {
+    for (auto task : tasks) {
+      executor::HashTask *hash_task =
+          static_cast<executor::HashTask *>(task.get());
+      partitioned_executor_thread_pool.SubmitTask(
+          hash_task->partition_id, executor::ParallelHashExecutor::ExecuteTask,
+          std::move(task));
+    }
   }
 
-  LOG_DEBUG("%d hash tasks submitted", (int)tasks.size());
+  LOG_DEBUG("%d hash tasks submitted", (int)num_tasks);
 
   // XXX This is a hack to let join test pass
   hash_executor->SetChildTiles(result_tile_lists);

@@ -23,6 +23,7 @@
 #include "executor/parallel_seq_scan_executor.h"
 #include "executor/merge_join_executor.h"
 #include "executor/nested_loop_join_executor.h"
+#include "executor/plan_executor.h"
 
 #include "expression/abstract_expression.h"
 #include "expression/tuple_value_expression.h"
@@ -412,7 +413,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
               new expression::TupleValueExpression(common::Type::INTEGER, 1,
                                                    1)});
 
-      // Create executor context
+      // Create executor context with empty txn
       std::shared_ptr<executor::ExecutorContext> context(
           new executor::ExecutorContext(nullptr));
 
@@ -425,8 +426,12 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
           new planner::ParallelHashJoinPlan(join_type, std::move(predicate),
                                             std::move(projection), schema));
 
+      // Create a blocking wait at the top of hash executor because the hash
+      // join executor is not ready yet..
+      std::unique_ptr<bridge::BlockingWait> wait(new bridge::BlockingWait(1));
+
       // Set the dependent of hash plan MANUALLY
-      hash_plan_node->parent_dependent = hash_join_plan_node.get();
+      hash_plan_node->parent_dependent = wait.get();
 
       // Create seq scan executor
       std::shared_ptr<executor::ParallelSeqScanExecutor> seq_scan_executor(
@@ -462,10 +467,9 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
         }
       }
 
-      // XXX Wait for all hash_executor tasks to finish
-      // This is a temporary code because we don't have hash join executor ready
-      while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      wait->WaitForCompletion();
+      // Valid the number of hash tuples
+      {
         size_t num_tuples = hash_executor->GetTotalNumTuples();
         size_t expected_num_tuples =
             tile_group_size * right_table_tile_group_count;
@@ -473,11 +477,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
             join_test_type == BOTH_TABLES_EMPTY) {
           expected_num_tuples = 0;
         }
-        EXPECT_TRUE(expected_num_tuples >= num_tuples);
-        // All tuples have been processed
-        if (expected_num_tuples == num_tuples) {
-          break;
-        }
+        EXPECT_TRUE(expected_num_tuples == num_tuples);
       }
 
       // Construct the executor tree
