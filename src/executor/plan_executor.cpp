@@ -48,6 +48,9 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   peloton_status p_status;
   ExchangeParams *exchg_params = *exchg_params_arg;
 
+  auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count());
+
   if (FLAGS_stats_mode != STATS_TYPE_INVALID) {
     // XXX Should pass query parameters, too
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
@@ -136,6 +139,9 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   // clean up executor tree
   CleanExecutorTree(executor_tree.get());
 
+  auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+  exchg_params->exec_histograms[PL_GET_PARTITION_NODE()] += (end-start)/1000;
   exchg_params->TaskComplete(p_status);
 }
 

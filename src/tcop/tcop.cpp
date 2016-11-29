@@ -141,6 +141,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
 
+  std::unordered_map<int, double> exec_histograms;
+
   auto plan_tree = statement->GetPlanTree().get();
   switch (plan_tree->GetPlanNodeType()) {
     // For insert queries, determine the tuple's partition before execute it
@@ -246,7 +248,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(
         new bridge::ExchangeParams(txn, statement, params, tasks[i], result_format,
-                                   init_failure, tasks.size(), i));
+                                   init_failure, tasks.size(), i, exec_histograms));
     exchg_params_list.push_back(exchg_params);
 
     switch (plan_tree->GetPlanNodeType()) {
@@ -323,7 +325,11 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       std::chrono::steady_clock::now().time_since_epoch()).count());
 
   if (print_time == true) {
-    LOG_ERROR("%f", (end-start)/1000);
+    std::stringstream histogram;
+    for (auto itr=exec_histograms.begin(); itr!=exec_histograms.end(); itr++) {
+      histogram << itr->first << " " << itr->second << std::endl;
+    }
+    LOG_ERROR("%s%f", histogram.str().c_str(), (end-start)/1000);
   }
 
   if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {

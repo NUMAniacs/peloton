@@ -19,6 +19,8 @@
 #include "common/logger.h"
 #include "common/platform.h"
 #include "common/exception.h"
+#include "common/partition_macros.h"
+#include "common/macros.h"
 #include "catalog/foreign_key.h"
 #include "catalog/catalog.h"
 #include "concurrency/transaction_manager_factory.h"
@@ -34,7 +36,6 @@
 #include "storage/abstract_table.h"
 #include "storage/database.h"
 #include "storage/data_table.h"
-#include "common/partition_macros.h"
 
 //===--------------------------------------------------------------------===//
 // Configuration Variables
@@ -854,7 +855,7 @@ std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
 
   LOG_TRACE("GetTileGroup %d", (int)tile_group_offset);
 
-  auto tile_group_id = invalid_tile_group_id;
+  UNUSED_ATTRIBUTE auto tile_group_id = invalid_tile_group_id;
 
   for (size_t partition = 0; partition < num_partitions_; partition++) {
     if (tile_group_offset >= GetPartitionTileGroupCount(partition)) {

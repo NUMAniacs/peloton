@@ -104,6 +104,7 @@ struct ExchangeParams {
   ExchangeParams *self;
   size_t num_partitions;
   size_t partition_id;
+  std::unordered_map<int, double> exec_histograms;
 
   inline ExchangeParams(concurrency::Transaction *txn,
                         const std::shared_ptr<Statement> &statement,
@@ -111,7 +112,8 @@ struct ExchangeParams {
                         const std::shared_ptr<executor::AbstractTask> &task,
                         const std::vector<int> &result_format,
                         const bool &init_failure, const size_t num_partitions,
-                        const size_t partition_id)
+                        const size_t partition_id,
+                        const std::unordered_map<int, double>& exec_histograms)
       : txn(txn),
         statement(statement),
         params(params),
@@ -119,7 +121,8 @@ struct ExchangeParams {
         result_format(result_format),
         init_failure(init_failure),
         num_partitions(num_partitions),
-        partition_id(partition_id) {
+        partition_id(partition_id),
+        exec_histograms(exec_histograms) {
     self = this;
   }
 
