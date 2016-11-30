@@ -21,6 +21,7 @@
 #include "common/serializer.h"
 #include "common/types.h"
 #include "expression/abstract_expression.h"
+#include "executor/abstract_task.h"
 
 namespace peloton {
 
@@ -53,7 +54,9 @@ class ParallelSeqScanPlan : public AbstractScan, public Dependent {
 
   ParallelSeqScanPlan() : AbstractScan() {}
 
-  inline PlanNodeType GetPlanNodeType() const { return PLAN_NODE_TYPE_PARALLEL_SEQSCAN; }
+  inline PlanNodeType GetPlanNodeType() const {
+    return PLAN_NODE_TYPE_PARALLEL_SEQSCAN;
+  }
 
   const std::string GetInfo() const { return "SeqScan"; }
 
@@ -78,6 +81,10 @@ class ParallelSeqScanPlan : public AbstractScan, public Dependent {
 
   void DependencyComplete(
       UNUSED_ATTRIBUTE std::shared_ptr<executor::AbstractTask> task) {}
+
+  void GenerateTasks(
+      std::vector<std::shared_ptr<executor::AbstractTask>> &tasks,
+      std::shared_ptr<executor::LogicalTileLists> result_tile_lists);
 };
 
 }  // namespace planner

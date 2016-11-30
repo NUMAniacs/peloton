@@ -214,18 +214,16 @@ LogicalTile* ParallelSeqScanExecutor::GetOutput() {
   return result_tile;
 }
 
+// TODO We should have a generic ExecuteTask static function
 void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   PL_ASSERT(task->GetTaskType() == TASK_SEQ_SCAN);
-  auto seq_scan_executor_ref =
-      static_cast<ParallelSeqScanExecutor *>(task->trackable);
 
-  // Make a copy of the executor context
-  ExecutorContext context(
-      seq_scan_executor_ref->GetExecutorContext()->GetTransaction());
-  context.SetTask(task);
+  std::shared_ptr<executor::ExecutorContext> context =
+      PartitionAwareTask::CopyContext(task.get());
+  context->SetTask(task);
 
   // Generate seq scan executors
-  ParallelSeqScanExecutor executor(task->node, &context);
+  ParallelSeqScanExecutor executor(task->node, context.get());
 
   bool status = executor.Init();
   if (status == true) {
@@ -237,7 +235,7 @@ void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
     PL_ASSERT(false);
   }
 
-  if (seq_scan_executor_ref->TaskComplete()) {
+  if (task->trackable->TaskComplete()) {
     LOG_INFO("All the parallel seq scan tasks have completed");
     task->dependent->DependencyComplete(task);
   }

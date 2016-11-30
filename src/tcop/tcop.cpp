@@ -192,29 +192,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     case PlanNodeType::PLAN_NODE_TYPE_PARALLEL_SEQSCAN: {
       planner::ParallelSeqScanPlan *parallel_seq_scan_plan =
           static_cast<planner::ParallelSeqScanPlan *>(plan_tree);
-      auto target_table = parallel_seq_scan_plan->GetTable();
-      auto partition_count = target_table->GetPartitionCount();
-
-      // Assuming that we always have at least one partition,
-      // deploy partitioned seq scan
-      for (size_t i = 0; i < partition_count; i++) {
-        auto num_tile_groups = target_table->GetPartitionTileGroupCount(i);
-        size_t num_tile_groups_per_task =
-            (num_tile_groups + TASK_TILEGROUP_COUNT - 1) / TASK_TILEGROUP_COUNT;
-        for (size_t j = 0; j < num_tile_groups; j += num_tile_groups_per_task) {
-          // create a new task
-          executor::SeqScanTask *seq_scan_task = new executor::SeqScanTask(
-              plan_tree, tasks.size(), i, result_tile_lists);
-          for (size_t k = j;
-               k < j + num_tile_groups_per_task && k < num_tile_groups; k++) {
-            // append the next tile group
-            seq_scan_task->tile_group_ptrs.push_back(
-                target_table->GetTileGroupFromPartition(i, k));
-          }
-          tasks.push_back(
-              std::shared_ptr<executor::AbstractTask>(seq_scan_task));
-        }
-      }
+      parallel_seq_scan_plan->GenerateTasks(tasks, result_tile_lists);
       break;
     }
     default: {

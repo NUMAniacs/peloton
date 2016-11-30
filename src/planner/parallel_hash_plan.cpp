@@ -36,65 +36,19 @@ std::shared_ptr<executor::ParallelHashExecutor>
 ParallelHashPlan::DependencyCompleteHelper(
     std::shared_ptr<executor::AbstractTask> task, bool force_single_partition) {
 
-  // Get the total number of partition
-  size_t num_partitions = PL_NUM_PARTITIONS();
-  if (force_single_partition) {
-    num_partitions = 1;
-  }
-
-  size_t total_num_tuples = 0;
-
-  // Group the results based on partitions
-  LOG_DEBUG("Re-group results into %d partitions", (int)num_partitions);
-  executor::LogicalTileLists partitioned_result_tile_lists(num_partitions);
-  for (auto &result_tile_list : *(task->result_tile_lists.get())) {
-    for (auto &result_tile : result_tile_list) {
-      total_num_tuples += result_tile->GetTupleCount();
-      size_t partition = result_tile->GetPartition();
-      // TODO Handle non-partitioned tables
-      if (force_single_partition) {
-        partition = 0;
-      }
-      partitioned_result_tile_lists[partition]
-          .emplace_back(result_tile.release());
-    }
-  }
-
   // Populate tasks for each partition and re-chunk the tiles
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
-  for (size_t partition = 0; partition < num_partitions; partition++) {
-    executor::LogicalTileList next_result_tile_list;
 
-    for (auto &result_tile : partitioned_result_tile_lists[partition]) {
-      // TODO we should re-chunk based on TASK_TUPLE_COUNT
-      next_result_tile_list.push_back(std::move(result_tile));
-      // Reached the limit of each chunk
-      if (next_result_tile_list.size() >= TASK_TILEGROUP_COUNT) {
-        result_tile_lists->push_back(std::move(next_result_tile_list));
-        next_result_tile_list = executor::LogicalTileList();
-      }
-    }
-    // Check the remaining result tiles
-    if (next_result_tile_list.size() > 0) {
-      result_tile_lists->push_back(std::move(next_result_tile_list));
-    }
-  }
+  size_t total_num_tuples = executor::PartitionAwareTask::ReChunkResultTiles(
+      task.get(), result_tile_lists, force_single_partition);
 
   size_t num_tasks = result_tile_lists->size();
-  LOG_DEBUG("Number of tasks after re-chunk: %d", (int)num_tasks);
 
   // A list of all tasks to execute
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
 
-  // Copy executor context
-  executor::ParallelSeqScanExecutor *seq_scan_executor =
-      dynamic_cast<executor::ParallelSeqScanExecutor *>(task->trackable);
-  // XXX Only handle the case for parallel_seq_scan now
-  PL_ASSERT(seq_scan_executor != nullptr);
-  std::shared_ptr<executor::ExecutorContext> context(
-      new executor::ExecutorContext(
-          seq_scan_executor->GetExecutorContext()->GetTransaction()));
+  auto context = executor::PartitionAwareTask::CopyContext(task.get());
 
   // Construct the hash executor
   std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
@@ -103,7 +57,6 @@ ParallelHashPlan::DependencyCompleteHelper(
   // Reserve space for hash table
   hash_executor->Reserve(total_num_tuples);
   hash_executor->Init();
-  LOG_DEBUG("Number of tuples from child: %d", (int)total_num_tuples);
 
   for (size_t task_id = 0; task_id < num_tasks; task_id++) {
     // Construct a hash task

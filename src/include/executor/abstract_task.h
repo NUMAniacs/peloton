@@ -78,6 +78,7 @@ class AbstractTask {
   // buffered here. (further used by joins)
   std::shared_ptr<LogicalTileLists> result_tile_lists;
 
+  // TODO replace it with shared_ptr?
   // The callback to call after task completes
   Trackable *trackable = nullptr;
 
@@ -106,6 +107,15 @@ class PartitionAwareTask : public AbstractTask {
   inline LogicalTileList &GetResultTileList() {
     return (*result_tile_lists)[task_id];
   }
+
+  // TODO remove force_single_partition param;
+  static size_t ReChunkResultTiles(
+      AbstractTask *task,
+      std::shared_ptr<executor::LogicalTileLists> &result_tile_lists,
+      bool force_single_partition);
+
+  static std::shared_ptr<executor::ExecutorContext> CopyContext(
+      AbstractTask *task);
 
   // The id of this task
   size_t task_id;
