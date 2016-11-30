@@ -72,7 +72,7 @@ public class ExchangeTest {
 
   private static final int BATCH_SIZE = 10000;
 
-  private static final int MULTI_QUERY_SIZE = 25;
+  private static final int MULTI_QUERY_SIZE = 10;
 
   private static int numRows;
 
@@ -131,7 +131,7 @@ public class ExchangeTest {
     int numBatches = (numRows + BATCH_SIZE - 1)/BATCH_SIZE;
     conn.setAutoCommit(true);
     Statement stmt = conn.createStatement();
-
+    boolean result;
     List<String> values = Arrays.asList(new String[MULTI_QUERY_SIZE]);
 
     for (int i=1; i<=numBatches; i++) {
@@ -143,11 +143,16 @@ public class ExchangeTest {
         }
 
         try{
-          stmt.execute(INSERT_PREFIX + StringUtils.join(values, ",") +";");
+          result = stmt.execute(INSERT_PREFIX + StringUtils.join(values, ",") +"; ");
         }catch(SQLException e){
           e.printStackTrace();
           throw e.getNextException();
         }
+
+        if (result != false) 
+	    throw new SQLException("Incorrect query execute status");
+        if(stmt.getUpdateCount() != MULTI_QUERY_SIZE)
+	    throw new SQLException("Unexpected update count: "+stmt.getUpdateCount()+"/"+MULTI_QUERY_SIZE);
       }
 
       insertCount += numInsertions;
@@ -454,9 +459,9 @@ public class ExchangeTest {
     }
     if (isExecute) {
       et.TimeAndExecuteQuery(et, test1);
-      et.TimeAndExecuteQuery(et, test2);
-      et.TimeAndExecuteQuery(et, test3);
-      et.TimeAndExecuteQuery(et, test4);
+      //et.TimeAndExecuteQuery(et, test2);
+      //et.TimeAndExecuteQuery(et, test3);
+      //et.TimeAndExecuteQuery(et, test4);
       et.PrintTimes();
     }
 

@@ -592,7 +592,7 @@ std::unique_ptr<planner::AbstractScan> SimpleOptimizer::CreateScanPlan(
     // Create sequential scan plan
     LOG_TRACE("Creating a sequential scan plan");
     std::unique_ptr<planner::AbstractScan> child_SelectPlan;
-    if (target_table->GetTupleCount() >= 1000) {
+    if (target_table->GetTupleCount() >= 1000000) {
       child_SelectPlan.reset(new planner::ParallelSeqScanPlan(select_stmt));
       LOG_TRACE("Parallel Sequential scan plan created");
     } else {
