@@ -459,9 +459,9 @@ public class ExchangeTest {
     }
     if (isExecute) {
       et.TimeAndExecuteQuery(et, test1);
-      //et.TimeAndExecuteQuery(et, test2);
-      //et.TimeAndExecuteQuery(et, test3);
-      //et.TimeAndExecuteQuery(et, test4);
+      et.TimeAndExecuteQuery(et, test2);
+      et.TimeAndExecuteQuery(et, test3);
+      et.TimeAndExecuteQuery(et, test4);
       et.PrintTimes();
     }
 
