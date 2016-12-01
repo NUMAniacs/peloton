@@ -29,12 +29,14 @@ namespace executor {
  * @brief Hash executor.
  *
  */
-class ParallelHashExecutor : public AbstractExecutor, public Trackable {
+class ParallelHashExecutor : public AbstractExecutor {
+
  public:
+  // <tile_itr, tuple_itr, task_itr>
+  typedef std::tuple<size_t, oid_t, size_t> LookupValue;
+
   /** @brief Type definitions for hash table */
-  typedef std::unordered_set<std::tuple<size_t, oid_t, size_t>,
-                             boost::hash<std::tuple<size_t, oid_t, size_t>>>
-      HashSet;
+  typedef std::unordered_set<LookupValue, boost::hash<LookupValue>> HashSet;
 
   // A wrapper over std::unordered_set with spin locks
   struct ConcurrentSet {
@@ -58,8 +60,6 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
   explicit ParallelHashExecutor(const planner::AbstractPlan *node,
                                 ExecutorContext *executor_context);
 
-  // TODO We should reserve the size of the cuckoomap if we know the number of
-  // tuples to insert
   typedef cuckoohash_map<
       expression::ContainerTuple<LogicalTile>,           // Key
       std::shared_ptr<ConcurrentSet>,                    // T
@@ -74,12 +74,6 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
   // Execute the hash task
   static void ExecuteTask(std::shared_ptr<AbstractTask> hash_task);
 
-  // TODO This is a hack. Remove me when we hook up hash executor with seq scan
-  // executor
-  void SetChildTiles(std::shared_ptr<LogicalTileLists> child_tiles) {
-    child_tiles_ = child_tiles;
-  }
-
   inline size_t GetTotalNumTuples() const { return total_num_tuples_.load(); }
 
   inline void IncrementNumTuple(size_t num_tuples) {
@@ -87,6 +81,10 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
   }
 
   inline void Reserve(size_t num_tuples) { hash_table_.reserve(num_tuples); }
+
+ public:
+  /** @brief Input tiles from child node */
+  std::shared_ptr<LogicalTileLists> child_tiles;
 
  protected:
   // Initialize the values of the hash keys from plan node
@@ -99,9 +97,6 @@ class ParallelHashExecutor : public AbstractExecutor, public Trackable {
  private:
   /** @brief Hash table */
   ParallelHashMapType hash_table_;
-
-  /** @brief Input tiles from child node */
-  std::shared_ptr<LogicalTileLists> child_tiles_;
 
   std::vector<oid_t> column_ids_;
 

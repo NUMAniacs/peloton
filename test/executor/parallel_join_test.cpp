@@ -13,7 +13,6 @@
 #include <memory>
 
 #include "common/harness.h"
-
 #include "common/types.h"
 #include "executor/logical_tile.h"
 #include "executor/logical_tile_factory.h"
@@ -30,6 +29,7 @@
 #include "expression/expression_util.h"
 
 #include "planner/parallel_hash_join_plan.h"
+#include "planner/parallel_seq_scan_plan.h"
 #include "planner/parallel_hash_plan.h"
 #include "planner/merge_join_plan.h"
 #include "planner/nested_loop_join_plan.h"
@@ -45,6 +45,7 @@
 #include "executor/executor_tests_util.h"
 #include "executor/join_tests_util.h"
 #include "executor/parallel_join_tests_util.h"
+#include "executor/parallel_seq_scan_tests_util.h"
 
 using ::testing::NotNull;
 using ::testing::Return;
@@ -57,21 +58,22 @@ namespace test {
 
 class ParallelJoinTests : public PelotonTest {};
 
+// Column ids to be added to logical tile after scan.
+const std::vector<oid_t> column_ids({0, 1, 3});
+
 std::vector<PlanNodeType> join_algorithms = {PLAN_NODE_TYPE_PARALLEL_HASHJOIN};
 
-std::vector<PelotonJoinType> join_types = {JOIN_TYPE_INNER, JOIN_TYPE_LEFT,
-                                           JOIN_TYPE_RIGHT, JOIN_TYPE_OUTER};
+std::vector<PelotonJoinType> join_types = {JOIN_TYPE_INNER
+                                           //  , JOIN_TYPE_LEFT,
+                                           // JOIN_TYPE_RIGHT,
+                                           // JOIN_TYPE_OUTER
+};
 
 void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
                      oid_t join_test_type);
 
 enum JOIN_TEST_TYPE {
   BASIC_TEST = 0,
-  BOTH_TABLES_EMPTY = 1,
-  COMPLICATED_TEST = 2,
-  SPEED_TEST = 3,
-  LEFT_TABLE_EMPTY = 4,
-  RIGHT_TABLE_EMPTY = 5,
 };
 
 TEST_F(ParallelJoinTests, BasicTest) {
@@ -83,92 +85,20 @@ TEST_F(ParallelJoinTests, BasicTest) {
   }
 }
 
-TEST_F(ParallelJoinTests, EmptyTablesTest) {
-  // Go over all join algorithms
-  for (auto join_algorithm : join_algorithms) {
-    LOG_INFO("JOIN ALGORITHM :: %s",
-             PlanNodeTypeToString(join_algorithm).c_str());
-    ExecuteJoinTest(join_algorithm, JOIN_TYPE_INNER, BOTH_TABLES_EMPTY);
-  }
-}
-
-TEST_F(ParallelJoinTests, JoinTypesTest) {
-  // Go over all join algorithms
-  for (auto join_algorithm : join_algorithms) {
-    LOG_INFO("JOIN ALGORITHM :: %s",
-             PlanNodeTypeToString(join_algorithm).c_str());
-    // Go over all join types
-    for (auto join_type : join_types) {
-      LOG_INFO("JOIN TYPE :: %d", join_type);
-      // Execute the join test
-      ExecuteJoinTest(join_algorithm, join_type, BASIC_TEST);
-    }
-  }
-}
-
-TEST_F(ParallelJoinTests, ComplicatedTest) {
-  // Go over all join algorithms
-  for (auto join_algorithm : join_algorithms) {
-    LOG_INFO("JOIN ALGORITHM :: %s",
-             PlanNodeTypeToString(join_algorithm).c_str());
-    // Go over all join types
-    for (auto join_type : join_types) {
-      LOG_INFO("JOIN TYPE :: %d", join_type);
-      // Execute the join test
-      ExecuteJoinTest(join_algorithm, join_type, COMPLICATED_TEST);
-    }
-  }
-}
-
-TEST_F(ParallelJoinTests, LeftTableEmptyTest) {
-  // Go over all join algorithms
-  for (auto join_algorithm : join_algorithms) {
-    LOG_INFO("JOIN ALGORITHM :: %s",
-             PlanNodeTypeToString(join_algorithm).c_str());
-    // Go over all join types
-    for (auto join_type : join_types) {
-      LOG_INFO("JOIN TYPE :: %d", join_type);
-      // Execute the join test
-      ExecuteJoinTest(join_algorithm, join_type, LEFT_TABLE_EMPTY);
-    }
-  }
-}
-
-TEST_F(ParallelJoinTests, RightTableEmptyTest) {
-  // Go over all join algorithms
-  for (auto join_algorithm : join_algorithms) {
-    LOG_INFO("JOIN ALGORITHM :: %s",
-             PlanNodeTypeToString(join_algorithm).c_str());
-    // Go over all join types
-    for (auto join_type : join_types) {
-      LOG_INFO("JOIN TYPE :: %d", join_type);
-      // Execute the join test
-      ExecuteJoinTest(join_algorithm, join_type, RIGHT_TABLE_EMPTY);
-    }
-  }
-}
-
-TEST_F(ParallelJoinTests, JoinPredicateTest) {
-  oid_t join_test_types = 1;
-
-  // Go over all join test types
-  for (oid_t join_test_type = 0; join_test_type < join_test_types;
-       join_test_type++) {
-    LOG_INFO("JOIN TEST_F ------------------------ :: %u", join_test_type);
-
-    // Go over all join algorithms
-    for (auto join_algorithm : join_algorithms) {
-      LOG_INFO("JOIN ALGORITHM :: %s",
-               PlanNodeTypeToString(join_algorithm).c_str());
-      // Go over all join types
-      for (auto join_type : join_types) {
-        LOG_INFO("JOIN TYPE :: %d", join_type);
-        // Execute the join test
-        ExecuteJoinTest(join_algorithm, join_type, join_test_type);
-      }
-    }
-  }
-}
+// XXX Currently we only support inner join now
+// TEST_F(ParallelJoinTests, JoinTypesTest) {
+//  // Go over all join algorithms
+//  for (auto join_algorithm : join_algorithms) {
+//    LOG_INFO("JOIN ALGORITHM :: %s",
+//             PlanNodeTypeToString(join_algorithm).c_str());
+//    // Go over all join types
+//    for (auto join_type : join_types) {
+//      LOG_INFO("JOIN TYPE :: %d", join_type);
+//      // Execute the join test
+//      ExecuteJoinTest(join_algorithm, join_type, BASIC_TEST);
+//    }
+//  }
+//}
 
 void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
                      oid_t join_test_type) {
@@ -176,15 +106,13 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   ExecutorPoolHarness::GetInstance();
 
   //===--------------------------------------------------------------------===//
-  // Mock table scan executors
+  // Setup left and right tables
   //===--------------------------------------------------------------------===//
-  MockExecutor left_table_scan_executor;
 
   // Create a table and wrap it in logical tile
   size_t tile_group_size = TESTS_TUPLES_PER_TILEGROUP;
   size_t left_table_tile_group_count = 3;
   size_t right_table_tile_group_count = 2;
-  size_t num_seq_scan_tasks = PL_NUM_PARTITIONS();
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
@@ -208,177 +136,16 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   LOG_TRACE("%s", left_table->GetInfo().c_str());
   LOG_TRACE("%s", right_table->GetInfo().c_str());
 
-  if (join_test_type == COMPLICATED_TEST) {
-    // Modify some values in left and right tables for complicated test
-    auto left_source_tile = left_table->GetTileGroup(2)->GetTile(0);
-    auto right_dest_tile = right_table->GetTileGroup(1)->GetTile(0);
-    auto right_source_tile = left_table->GetTileGroup(0)->GetTile(0);
-
-    auto source_tile_tuple_count = left_source_tile->GetAllocatedTupleCount();
-    auto source_tile_column_count = left_source_tile->GetColumnCount();
-
-    // LEFT - 3 rd tile --> RIGHT - 2 nd tile
-    for (oid_t tuple_itr = 3; tuple_itr < source_tile_tuple_count;
-         tuple_itr++) {
-      for (oid_t col_itr = 0; col_itr < source_tile_column_count; col_itr++) {
-        common::Value val = (left_source_tile->GetValue(tuple_itr, col_itr));
-        right_dest_tile->SetValue(val, tuple_itr, col_itr);
-      }
-    }
-
-    // RIGHT - 1 st tile --> RIGHT - 2 nd tile
-    // RIGHT - 2 nd tile --> RIGHT - 2 nd tile
-    for (oid_t col_itr = 0; col_itr < source_tile_column_count; col_itr++) {
-      common::Value val1 = (right_source_tile->GetValue(4, col_itr));
-      right_dest_tile->SetValue(val1, 0, col_itr);
-      common::Value val2 = (right_dest_tile->GetValue(3, col_itr));
-      right_dest_tile->SetValue(val2, 2, col_itr);
-    }
-  }
-
-  // Result of seq scans
-  std::shared_ptr<executor::LogicalTileLists> right_table_logical_tile_lists(
-      new executor::LogicalTileLists());
-
-  std::vector<std::unique_ptr<executor::LogicalTile>>
-      left_table_logical_tile_ptrs;
-  std::vector<std::unique_ptr<executor::LogicalTile>>
-      right_table_logical_tile_ptrs;
-
-  // Wrap the input tables with logical tiles
-  for (size_t left_table_tile_group_itr = 0;
-       left_table_tile_group_itr < left_table_tile_group_count;
-       left_table_tile_group_itr++) {
-    std::unique_ptr<executor::LogicalTile> left_table_logical_tile(
-        executor::LogicalTileFactory::WrapTileGroup(
-            left_table->GetTileGroup(left_table_tile_group_itr),
-            UNDEFINED_NUMA_REGION));
-    left_table_logical_tile_ptrs.push_back(std::move(left_table_logical_tile));
-  }
-
-  for (size_t right_table_tile_group_itr = 0;
-       right_table_tile_group_itr < right_table_tile_group_count;
-       right_table_tile_group_itr++) {
-    std::unique_ptr<executor::LogicalTile> right_table_logical_tile(
-        executor::LogicalTileFactory::WrapTileGroup(
-            right_table->GetTileGroup(right_table_tile_group_itr),
-            UNDEFINED_NUMA_REGION));
-    right_table_logical_tile_ptrs.push_back(
-        std::move(right_table_logical_tile));
-  }
-
-  // Left scan executor returns logical tiles from the left table
-  EXPECT_CALL(left_table_scan_executor, DInit()).WillOnce(Return(true));
-
-  //===--------------------------------------------------------------------===//
-  // Setup left table
-  //===--------------------------------------------------------------------===//
-  if (join_test_type == BASIC_TEST || join_test_type == COMPLICATED_TEST ||
-      join_test_type == SPEED_TEST) {
-
-    JoinTestsUtil::ExpectNormalTileResults(left_table_tile_group_count,
-                                           &left_table_scan_executor,
-                                           left_table_logical_tile_ptrs);
-
-  } else if (join_test_type == BOTH_TABLES_EMPTY) {
-    JoinTestsUtil::ExpectEmptyTileResult(&left_table_scan_executor);
-  } else if (join_test_type == LEFT_TABLE_EMPTY) {
-    JoinTestsUtil::ExpectEmptyTileResult(&left_table_scan_executor);
-  } else if (join_test_type == RIGHT_TABLE_EMPTY) {
-    if (join_type == JOIN_TYPE_INNER || join_type == JOIN_TYPE_RIGHT) {
-      JoinTestsUtil::ExpectMoreThanOneTileResults(&left_table_scan_executor,
-                                                  left_table_logical_tile_ptrs);
-    } else {
-      JoinTestsUtil::ExpectNormalTileResults(left_table_tile_group_count,
-                                             &left_table_scan_executor,
-                                             left_table_logical_tile_ptrs);
-    }
-  }
-
-  //===--------------------------------------------------------------------===//
-  // Setup right table
-  //===--------------------------------------------------------------------===//
-
-  if (join_test_type == BASIC_TEST || join_test_type == COMPLICATED_TEST ||
-      join_test_type == SPEED_TEST) {
-    size_t tile_begin_itr = 0;
-    size_t num_tile_group_per_task =
-        right_table_tile_group_count / num_seq_scan_tasks;
-    // Split the populated right table tiles into multiple tasks
-    for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
-      // XXX Assume partition == task_id
-      size_t partition = task_id;
-      if (task_id != num_seq_scan_tasks - 1) {
-        // The first few tasks have the same number of tiles
-        ParallelJoinTestsUtil::PopulateTileResults(
-            tile_begin_itr, num_tile_group_per_task,
-            right_table_logical_tile_lists, task_id, partition,
-            right_table_logical_tile_ptrs);
-        tile_begin_itr += num_tile_group_per_task;
-      } else {
-        // The last task
-        ParallelJoinTestsUtil::PopulateTileResults(
-            tile_begin_itr, right_table_tile_group_count - tile_begin_itr,
-            right_table_logical_tile_lists, task_id, partition,
-            right_table_logical_tile_ptrs);
-      }
-    }
-  } else if (join_test_type == BOTH_TABLES_EMPTY) {
-    // Populate an empty result
-    size_t task_id = 0;
-    size_t partition = 0;
-    size_t tile_begin_itr = 0;
-    size_t result_count = 0;
-    ParallelJoinTestsUtil::PopulateTileResults(
-        tile_begin_itr, result_count, right_table_logical_tile_lists, task_id,
-        partition, right_table_logical_tile_ptrs);
-
-  } else if (join_test_type == LEFT_TABLE_EMPTY) {
-    if (join_type == JOIN_TYPE_INNER || join_type == JOIN_TYPE_LEFT) {
-      // For hash join, we always build the hash table from right child
-      if (join_algorithm == PLAN_NODE_TYPE_PARALLEL_HASHJOIN) {
-        size_t task_id = 0;
-        size_t partition = 0;
-        size_t tile_begin_itr = 0;
-        ParallelJoinTestsUtil::PopulateTileResults(
-            tile_begin_itr, right_table_tile_group_count,
-            right_table_logical_tile_lists, task_id, partition,
-            right_table_logical_tile_ptrs);
-      } else {
-        // TODO Handle the case for other join types
-        // ExpectMoreThanOneTileResults(&right_table_scan_executor,
-        //                           right_table_logical_tile_ptrs);
-        PL_ASSERT(false);
-      }
-
-    } else if (join_type == JOIN_TYPE_OUTER || join_type == JOIN_TYPE_RIGHT) {
-      size_t task_id = 0;
-      size_t partition = 0;
-
-      size_t tile_begin_itr = 0;
-      ParallelJoinTestsUtil::PopulateTileResults(
-          tile_begin_itr, right_table_tile_group_count,
-          right_table_logical_tile_lists, task_id, partition,
-          right_table_logical_tile_ptrs);
-    }
-  } else if (join_test_type == RIGHT_TABLE_EMPTY) {
-    // Populate an empty result
-    size_t task_id = 0;
-    size_t partition = 0;
-
-    size_t tile_begin_itr = 0;
-    size_t result_count = 0;
-    ParallelJoinTestsUtil::PopulateTileResults(
-        tile_begin_itr, result_count, right_table_logical_tile_lists, task_id,
-        partition, right_table_logical_tile_ptrs);
-  }
-
   //===--------------------------------------------------------------------===//
   // Setup join plan nodes and executors and run them
   //===--------------------------------------------------------------------===//
 
   oid_t result_tuple_count = 0;
   oid_t tuples_with_null = 0;
+
+  // Begin txn
+  txn = txn_manager.BeginTransaction();
+
   auto projection = JoinTestsUtil::CreateProjection();
   // setup the projection schema
   auto schema = JoinTestsUtil::CreateJoinSchema();
@@ -387,11 +154,20 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   std::unique_ptr<const expression::AbstractExpression> predicate(
       JoinTestsUtil::CreateJoinPredicate());
 
-  // Differ based on join algorithm
   switch (join_algorithm) {
 
     case PLAN_NODE_TYPE_PARALLEL_HASHJOIN: {
-      // Create hash plan node
+
+      // ================================
+      //             Plans
+      // ================================
+
+      // Create parallel seq scan node on right table
+      std::unique_ptr<planner::ParallelSeqScanPlan> right_seq_scan_node(
+          new planner::ParallelSeqScanPlan(right_table.get(), nullptr,
+                                           column_ids));
+
+      // Create hash plan node expressions
       expression::AbstractExpression *right_table_attr_1 =
           new expression::TupleValueExpression(common::Type::INTEGER, 1, 1);
 
@@ -413,93 +189,87 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
               new expression::TupleValueExpression(common::Type::INTEGER, 1,
                                                    1)});
 
-      // Create executor context with empty txn
-      std::shared_ptr<executor::ExecutorContext> context(
-          new executor::ExecutorContext(nullptr));
-
-      // Create hash plan node
+      // Create hash planner node
       std::unique_ptr<planner::ParallelHashPlan> hash_plan_node(
           new planner::ParallelHashPlan(hash_keys));
+
+      // Create parallel seq scan node on left table
+      std::unique_ptr<planner::ParallelSeqScanPlan> left_seq_scan_node(
+          new planner::ParallelSeqScanPlan(left_table.get(), nullptr,
+                                           column_ids));
 
       // Create hash join plan node.
       std::unique_ptr<planner::ParallelHashJoinPlan> hash_join_plan_node(
           new planner::ParallelHashJoinPlan(join_type, std::move(predicate),
                                             std::move(projection), schema));
+      hash_join_plan_node->AddChild(std::move(left_seq_scan_node));
 
       // Create a blocking wait at the top of hash executor because the hash
       // join executor is not ready yet..
-      std::unique_ptr<bridge::BlockingWait> wait(new bridge::BlockingWait(1));
+      std::unique_ptr<bridge::BlockingWait> wait(new bridge::BlockingWait());
 
       // Set the dependent of hash plan MANUALLY
-      hash_plan_node->parent_dependent = wait.get();
+      right_seq_scan_node->parent_dependent = hash_plan_node.get();
+      hash_plan_node->parent_dependent = hash_join_plan_node.get();
+      hash_join_plan_node->parent_dependent = wait.get();
 
-      // Create seq scan executor
-      std::shared_ptr<executor::ParallelSeqScanExecutor> seq_scan_executor(
-          new executor::ParallelSeqScanExecutor(nullptr, context.get()));
+      // ================================
+      //         Executors
+      // ================================
 
-      // Create hash executor
-      std::shared_ptr<executor::ParallelHashExecutor> hash_executor;
+      // Create executor context with empty txn
+      std::shared_ptr<executor::ExecutorContext> context(
+          new executor::ExecutorContext(txn));
 
-      // Construct the hash join executor
-      executor::ParallelHashJoinExecutor hash_join_executor(
-          hash_join_plan_node.get(), nullptr);
-
+      // Vector of seq scan tasks
       std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
-      for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
-        // Create dummy seq scan task
-        std::shared_ptr<executor::AbstractTask> task(new executor::SeqScanTask(
-            hash_plan_node.get(), INVALID_TASK_ID, INVALID_PARTITION_ID,
-            right_table_logical_tile_lists));
+      ParallelSeqScanTestsUtil::GenerateMultiTileGroupTasks(
+          right_table.get(), right_seq_scan_node.get(), seq_scan_tasks);
 
-        // Init task with num tasks
-        task->Init(seq_scan_executor.get(), hash_plan_node.get(),
-                   num_seq_scan_tasks);
-        // Insert to the list
-        seq_scan_tasks.push_back(task);
-      }
+      // Create trackable for seq scan
+      size_t num_seq_scan_tasks = seq_scan_tasks.size();
+      std::shared_ptr<executor::Trackable> trackable(
+          new executor::Trackable(num_seq_scan_tasks));
 
-      // Loop until the last seq scan task completes
-      for (size_t task_id = 0; task_id < num_seq_scan_tasks; task_id++) {
-        auto task = seq_scan_tasks[task_id];
-        if (task->trackable->TaskComplete()) {
-          PL_ASSERT(task_id == num_seq_scan_tasks - 1);
-          hash_executor = hash_plan_node->DependencyCompleteHelper(task, true);
-        }
+      // Launch all the tasks
+      for (size_t i = 0; i < num_seq_scan_tasks; i++) {
+        auto partition_aware_task =
+            std::dynamic_pointer_cast<executor::PartitionAwareTask>(
+                seq_scan_tasks[i]);
+        partition_aware_task->Init(trackable, hash_plan_node.get(),
+                                   num_seq_scan_tasks, txn);
+        partitioned_executor_thread_pool.SubmitTask(
+            partition_aware_task->partition_id,
+            executor::ParallelSeqScanExecutor::ExecuteTask,
+            std::move(seq_scan_tasks[i]));
       }
 
       wait->WaitForCompletion();
-      // Valid the number of hash tuples
+
+      executor::HashJoinTask *hash_join_task =
+          static_cast<executor::HashJoinTask *>(wait->last_task.get());
+      // Validate hash join result tiles
       {
-        size_t num_tuples = hash_executor->GetTotalNumTuples();
-        size_t expected_num_tuples =
-            tile_group_size * right_table_tile_group_count;
-        if (join_test_type == RIGHT_TABLE_EMPTY ||
-            join_test_type == BOTH_TABLES_EMPTY) {
-          expected_num_tuples = 0;
-        }
-        EXPECT_TRUE(expected_num_tuples == num_tuples);
-      }
-
-      // Construct the executor tree
-      hash_join_executor.AddChild(&left_table_scan_executor);
-      PL_ASSERT(hash_executor != nullptr);
-      hash_join_executor.AddChild(hash_executor.get());
-
-      // Init the executor tree
-      EXPECT_TRUE(hash_join_executor.Init());
-
-      while (hash_join_executor.Execute() == true) {
-        std::unique_ptr<executor::LogicalTile> result_logical_tile(
-            hash_join_executor.GetOutput());
-
-        if (result_logical_tile != nullptr) {
-          result_tuple_count += result_logical_tile->GetTupleCount();
-          tuples_with_null += JoinTestsUtil::CountTuplesWithNullFields(
-              result_logical_tile.get());
-          JoinTestsUtil::ValidateJoinLogicalTile(result_logical_tile.get());
-          LOG_TRACE("%s", result_logical_tile->GetInfo().c_str());
+        auto child_tiles = hash_join_task->result_tile_lists;
+        auto num_tasks = child_tiles->size();
+        // For all tasks
+        for (size_t task_itr = 0; task_itr < num_tasks; task_itr++) {
+          auto &target_tile_list = (*child_tiles)[task_itr];
+          // For all tiles of this task
+          for (size_t tile_itr = 0; tile_itr < target_tile_list.size();
+               tile_itr++) {
+            if (target_tile_list[tile_itr]->GetTupleCount() > 0) {
+              auto result_tile = target_tile_list[tile_itr].get();
+              result_tuple_count += result_tile->GetTupleCount();
+              tuples_with_null +=
+                  JoinTestsUtil::CountTuplesWithNullFields(result_tile);
+              JoinTestsUtil::ValidateJoinLogicalTile(result_tile);
+              LOG_TRACE("%s", result_tile->GetInfo().c_str());
+            }
+          }
         }
       }
+
     } break;
 
     default:
@@ -507,6 +277,8 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
                       std::to_string(join_algorithm));
       break;
   }
+  // Commit the txn
+  txn_manager.CommitTransaction(txn);
 
   //===--------------------------------------------------------------------===//
   // Execute test
@@ -533,117 +305,6 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
       case JOIN_TYPE_OUTER:
         EXPECT_EQ(result_tuple_count, 15);
         EXPECT_EQ(tuples_with_null, 5);
-        break;
-
-      default:
-        throw Exception("Unsupported join type : " + std::to_string(join_type));
-        break;
-    }
-
-  } else if (join_test_type == BOTH_TABLES_EMPTY) {
-    // Check output
-    switch (join_type) {
-      case JOIN_TYPE_INNER:
-        EXPECT_EQ(result_tuple_count, 0);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      case JOIN_TYPE_LEFT:
-        EXPECT_EQ(result_tuple_count, 0);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      case JOIN_TYPE_RIGHT:
-        EXPECT_EQ(result_tuple_count, 0);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      case JOIN_TYPE_OUTER:
-        EXPECT_EQ(result_tuple_count, 0);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      default:
-        throw Exception("Unsupported join type : " + std::to_string(join_type));
-        break;
-    }
-
-  } else if (join_test_type == COMPLICATED_TEST) {
-    // Check output
-    switch (join_type) {
-      case JOIN_TYPE_INNER:
-        EXPECT_EQ(result_tuple_count, 10);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      case JOIN_TYPE_LEFT:
-        EXPECT_EQ(result_tuple_count, 17);
-        EXPECT_EQ(tuples_with_null, 7);
-        break;
-
-      case JOIN_TYPE_RIGHT:
-        EXPECT_EQ(result_tuple_count, 10);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      case JOIN_TYPE_OUTER:
-        EXPECT_EQ(result_tuple_count, 17);
-        EXPECT_EQ(tuples_with_null, 7);
-        break;
-
-      default:
-        throw Exception("Unsupported join type : " + std::to_string(join_type));
-        break;
-    }
-
-  } else if (join_test_type == LEFT_TABLE_EMPTY) {
-    // Check output
-    switch (join_type) {
-      case JOIN_TYPE_INNER:
-        EXPECT_EQ(result_tuple_count, 0);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      case JOIN_TYPE_LEFT:
-        EXPECT_EQ(result_tuple_count, 0);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      case JOIN_TYPE_RIGHT:
-        EXPECT_EQ(result_tuple_count, 10);
-        EXPECT_EQ(tuples_with_null, 10);
-        break;
-
-      case JOIN_TYPE_OUTER:
-        EXPECT_EQ(result_tuple_count, 10);
-        EXPECT_EQ(tuples_with_null, 10);
-        break;
-
-      default:
-        throw Exception("Unsupported join type : " + std::to_string(join_type));
-        break;
-    }
-  } else if (join_test_type == RIGHT_TABLE_EMPTY) {
-    // Check output
-    switch (join_type) {
-      case JOIN_TYPE_INNER:
-        EXPECT_EQ(result_tuple_count, 0);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      case JOIN_TYPE_LEFT:
-        EXPECT_EQ(result_tuple_count, 15);
-        EXPECT_EQ(tuples_with_null, 15);
-        break;
-
-      case JOIN_TYPE_RIGHT:
-        EXPECT_EQ(result_tuple_count, 0);
-        EXPECT_EQ(tuples_with_null, 0);
-        break;
-
-      case JOIN_TYPE_OUTER:
-        EXPECT_EQ(result_tuple_count, 15);
-        EXPECT_EQ(tuples_with_null, 15);
         break;
 
       default:

@@ -40,7 +40,7 @@ namespace executor {
  */
 ParallelSeqScanExecutor::ParallelSeqScanExecutor(
     const planner::AbstractPlan *node, ExecutorContext *executor_context)
-    : AbstractScanExecutor(node, executor_context), Trackable() {}
+    : AbstractScanExecutor(node, executor_context) {}
 
 /**
  * @brief Let base class DInit() first, then do mine.
@@ -201,6 +201,9 @@ bool ParallelSeqScanExecutor::DExecute() {
       return true;
     }
   }
+  LOG_DEBUG("Total number of result tiles for task %d: %d",
+            (int)seq_scan_task_->task_id,
+            (int)seq_scan_task_->GetResultTileList().size());
   return false;
 }
 
@@ -217,9 +220,10 @@ LogicalTile* ParallelSeqScanExecutor::GetOutput() {
 // TODO We should have a generic ExecuteTask static function
 void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   PL_ASSERT(task->GetTaskType() == TASK_SEQ_SCAN);
+  PL_ASSERT(task->initialized);
 
-  std::shared_ptr<executor::ExecutorContext> context =
-      PartitionAwareTask::CopyContext(task.get());
+  std::shared_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(task->txn));
   context->SetTask(task);
 
   // Generate seq scan executors

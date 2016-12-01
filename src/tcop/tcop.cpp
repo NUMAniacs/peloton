@@ -215,11 +215,12 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
   std::vector<std::shared_ptr<bridge::ExchangeParams>> exchg_params_list;
   final_status.m_processed = 0;
-  bridge::BlockingWait wait(tasks.size());
+  bridge::BlockingWait wait;
+  std::shared_ptr<executor::Trackable> trackable(
+      new executor::Trackable(tasks.size()));
 
   for (auto task : tasks) {
-    // We create the callbacks only after we know the total number of tasks
-    task->Init(&wait, &wait, tasks.size());
+    task->Init(trackable, &wait, tasks.size(), txn);
 
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(

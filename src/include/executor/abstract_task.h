@@ -39,6 +39,10 @@ class Trackable;
 class ExecutorContext;
 }
 
+namespace concurrency {
+class Transaction;
+}
+
 namespace executor {
 
 /*
@@ -70,19 +74,18 @@ class AbstractTask {
       : node(node), result_tile_lists(result_tile_lists) {}
 
   // Initialize the task with callbacks
-  void Init(executor::Trackable *trackable, planner::Dependent *dependent,
-            size_t num_tasks);
+  void Init(std::shared_ptr<Trackable> trackable, planner::Dependent *dependent,
+            size_t num_tasks, concurrency::Transaction *txn);
 
   // Plan node corresponding to this task.
   const planner::AbstractPlan *node;
 
   // The shared result vector for each task. All the intermediate result are
-  // buffered here. (further used by joins)
+  // buffered here
   std::shared_ptr<LogicalTileLists> result_tile_lists;
 
-  // TODO replace it with shared_ptr?
-  // The callback to call after task completes
-  Trackable *trackable = nullptr;
+  // The trackable to call after task completes
+  std::shared_ptr<Trackable> trackable = nullptr;
 
   // The callback to call after dependency completes
   planner::Dependent *dependent = nullptr;
@@ -90,8 +93,8 @@ class AbstractTask {
   // Whether the task is initialized
   bool initialized = false;
 
-  // The total number of tasks
-  size_t num_tasks = INVALID_NUM_TASK;
+  // The txn for this task
+  concurrency::Transaction *txn = nullptr;
 };
 
 // The *abstract* task class for partition-aware / parallel tasks
@@ -110,14 +113,9 @@ class PartitionAwareTask : public AbstractTask {
     return (*result_tile_lists)[task_id];
   }
 
-  // TODO remove force_single_partition param;
   static size_t ReChunkResultTiles(
       AbstractTask *task,
-      std::shared_ptr<executor::LogicalTileLists> &result_tile_lists,
-      bool force_single_partition);
-
-  static std::shared_ptr<executor::ExecutorContext> CopyContext(
-      AbstractTask *task);
+      std::shared_ptr<executor::LogicalTileLists> &result_tile_lists);
 
   // The id of this task
   size_t task_id;
@@ -163,6 +161,25 @@ class InsertTask : public PartitionAwareTask {
 };
 
 // The class for hash tasks
+class HashJoinTask : public PartitionAwareTask {
+ public:
+  ~HashJoinTask() {}
+
+  TaskType GetTaskType() { return TASK_HASHJOIN; }
+
+  explicit HashJoinTask(const planner::AbstractPlan *node,
+                        std::shared_ptr<ParallelHashExecutor> hash_executor,
+                        size_t task_id, size_t partition_id,
+                        std::shared_ptr<LogicalTileLists> result_tile_lists)
+      : PartitionAwareTask(node, task_id, partition_id, result_tile_lists),
+        hash_executor(hash_executor) {}
+
+  // Keep a reference to the hash executor so that it's not free'd during
+  // execution
+  std::shared_ptr<ParallelHashExecutor> hash_executor;
+};
+
+// The class for hash tasks
 class HashTask : public PartitionAwareTask {
  public:
   ~HashTask() {}
@@ -171,19 +188,14 @@ class HashTask : public PartitionAwareTask {
 
   explicit HashTask(const planner::AbstractPlan *node,
                     std::shared_ptr<ParallelHashExecutor> hash_executor,
-                    std::shared_ptr<ExecutorContext> context, size_t task_id,
-                    size_t partition_id,
+                    size_t task_id, size_t partition_id,
                     std::shared_ptr<LogicalTileLists> result_tile_lists)
       : PartitionAwareTask(node, task_id, partition_id, result_tile_lists),
-        hash_executor(hash_executor),
-        context(context) {}
+        hash_executor(hash_executor) {}
 
   // Keep a reference to the hash executor so that it's not free'd during
   // execution
   std::shared_ptr<ParallelHashExecutor> hash_executor;
-
-  // Keep a reference to the shared executor context
-  std::shared_ptr<ExecutorContext> context;
 };
 
 // The class for parallel seq scan tasks

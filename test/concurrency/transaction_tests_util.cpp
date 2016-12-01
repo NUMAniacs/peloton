@@ -476,27 +476,26 @@ bool TransactionTestsUtil::ExecuteParallelScan(
   // Seq scan
   std::vector<oid_t> column_ids = {0, 1};
 
-  planner::ParallelSeqScanPlan
-      parallel_seq_scan_node(table, predicate, column_ids, select_for_update);
+  planner::ParallelSeqScanPlan parallel_seq_scan_node(
+      table, predicate, column_ids, select_for_update);
 
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
 
   // spawn all the executors
-  for (size_t p=0; p<table->GetPartitionCount(); p++) {
+  for (size_t p = 0; p < table->GetPartitionCount(); p++) {
     for (size_t i = 0; i < table->GetPartitionTileGroupCount(p); i++) {
-      executor::SeqScanTask *task =
-          new executor::SeqScanTask(&parallel_seq_scan_node, tasks.size(), p,
-                                    result_tile_lists);
+      executor::SeqScanTask *task = new executor::SeqScanTask(
+          &parallel_seq_scan_node, tasks.size(), p, result_tile_lists);
       task->tile_group_ptrs.push_back(table->GetTileGroupFromPartition(p, i));
       tasks.push_back(std::shared_ptr<executor::AbstractTask>(task));
     }
   }
 
-  bridge::BlockingWait wait(tasks.size());
+  bridge::BlockingWait wait;
 
   for (size_t i = 0; i < tasks.size(); i++) {
-    tasks[i]->Init(&wait, &wait, tasks.size());
+    tasks[i]->Init(nullptr, &wait, tasks.size(), transaction);
     args.push_back(std::shared_ptr<ParallelScanArgs>(new ParallelScanArgs(
         transaction, &parallel_seq_scan_node, tasks[i], select_for_update)));
     partitioned_executor_thread_pool.SubmitTaskRandom(ThreadExecuteScan,
@@ -521,8 +520,6 @@ void TransactionTestsUtil::ThreadExecuteScan(ParallelScanArgs **args) {
   context->SetTask(task);
   executor::ParallelSeqScanExecutor parallel_seq_scan_executor((*args)->node,
                                                                context.get());
-  executor::Trackable *trackable = &parallel_seq_scan_executor;
-  trackable->SetNumTasks(task->num_tasks);
 
   EXPECT_TRUE(parallel_seq_scan_executor.Init());
   if (parallel_seq_scan_executor.Execute() == false) {

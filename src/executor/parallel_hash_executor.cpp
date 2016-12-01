@@ -28,9 +28,7 @@ namespace executor {
  */
 ParallelHashExecutor::ParallelHashExecutor(const planner::AbstractPlan *node,
                                            ExecutorContext *executor_context)
-    : AbstractExecutor(node, executor_context),
-      Trackable(),
-      total_num_tuples_(0) {}
+    : AbstractExecutor(node, executor_context), total_num_tuples_(0) {}
 
 /**
  * @brief Do some basic checks and initialize executor state.
@@ -73,8 +71,7 @@ void ParallelHashExecutor::InitHashKeys() {
 void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   PL_ASSERT(task->GetTaskType() == TASK_HASH);
   executor::HashTask *hash_task = static_cast<executor::HashTask *>(task.get());
-  executor::ParallelHashExecutor *hash_executor =
-      static_cast<executor::ParallelHashExecutor *>(task->trackable);
+  auto hash_executor = hash_task->hash_executor;
 
   // Construct the hash table by going over each child logical tile and hashing
   auto task_id = hash_task->task_id;
@@ -108,7 +105,7 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
         }
         PL_ASSERT(success);
       } else {
-        // Found
+        // Found key
         LOG_TRACE("key found %d", (int)tuple_id);
       }
       value->Insert(std::make_tuple(tile_itr, tuple_id, task_id));
@@ -121,39 +118,15 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   LOG_DEBUG("Task %d hashed %d tuples", (int)task_id, (int)num_tuples);
   hash_executor->IncrementNumTuple(num_tuples);
 
-  if (hash_executor->TaskComplete()) {
+  if (task->trackable->TaskComplete()) {
     LOG_INFO("All the hash tasks have completed");
     task->dependent->DependencyComplete(task);
   }
 }
 
-// TODO remove me
+// This function is not being used;
 bool ParallelHashExecutor::DExecute() {
-  LOG_TRACE("Hash Executor");
-  auto num_tasks = child_tiles_->size();
-
-  if (num_tasks == 0) {
-    return false;
-  }
-
-  while (task_itr < num_tasks) {
-    auto &target_tile_list = (*child_tiles_)[task_itr];
-    // Return logical tiles one at a time
-    while (result_itr < target_tile_list.size()) {
-      if (target_tile_list[result_itr]->GetTupleCount() == 0) {
-        result_itr++;
-        continue;
-      } else {
-        SetOutput(target_tile_list[result_itr++].release());
-        LOG_DEBUG("Hash Executor : true -- return tile one at a time ");
-        return true;
-      }
-    }
-    task_itr++;
-    result_itr = 0;
-  }
-
-  LOG_DEBUG("Hash Executor : false -- done ");
+  PL_ASSERT(false);
   return false;
 }
 

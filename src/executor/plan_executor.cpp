@@ -304,7 +304,6 @@ executor::AbstractExecutor *BuildExecutorTree(
       PL_ASSERT(executor_context->GetTask() != nullptr);
       executor::ParallelSeqScanExecutor *seq_scan_executor =
           new executor::ParallelSeqScanExecutor(plan, executor_context);
-      seq_scan_executor->SetNumTasks(executor_context->GetTask()->num_tasks);
       child_executor = seq_scan_executor;
       break;
     }

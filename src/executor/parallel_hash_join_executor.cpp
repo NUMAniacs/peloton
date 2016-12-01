@@ -30,12 +30,12 @@ namespace executor {
  */
 ParallelHashJoinExecutor::ParallelHashJoinExecutor(
     const planner::AbstractPlan *node, ExecutorContext *executor_context)
-    : AbstractJoinExecutor(node, executor_context) {}
+    : AbstractParallelJoinExecutor(node, executor_context) {}
 
 bool ParallelHashJoinExecutor::DInit() {
   PL_ASSERT(children_.size() == 2);
 
-  auto status = AbstractJoinExecutor::DInit();
+  auto status = AbstractParallelJoinExecutor::DInit();
   if (status == false) return status;
 
   PL_ASSERT(children_[1]->GetRawNode()->GetPlanNodeType() ==
@@ -75,9 +75,22 @@ bool ParallelHashJoinExecutor::DExecute() {
 
     // Get all the tiles from RIGHT child
     if (right_child_done_ == false) {
-      while (children_[1]->Execute()) {
-        BufferRightTile(children_[1]->GetOutput());
+      auto child_tiles = hash_executor_->child_tiles;
+      auto num_tasks = child_tiles->size();
+      size_t num_tiles = 0;
+      for (size_t task_itr = 0; task_itr < num_tasks; task_itr++) {
+        tile_offsets_.push_back(num_tiles);
+        auto &target_tile_list = (*child_tiles)[task_itr];
+        for (size_t tile_itr = 0; tile_itr < target_tile_list.size();
+             tile_itr++) {
+          if (target_tile_list[tile_itr]->GetTupleCount() > 0) {
+            // TODO Eliminate buffer right tile function
+            BufferRightTile(target_tile_list[tile_itr].get());
+            num_tiles++;
+          }
+        }
       }
+      LOG_DEBUG("Number of right tiles buffered: %d", (int)num_tiles);
       right_child_done_ = true;
     }
 
@@ -125,8 +138,15 @@ bool ParallelHashJoinExecutor::DExecute() {
 
         // Go over the matching right tuples
         for (auto &location : right_tuples) {
+
+          auto task_id = std::get<2>(location);
+          PL_ASSERT(task_id < tile_offsets_.size());
+          size_t right_tile_itr =
+              tile_offsets_[task_id] + std::get<0>(location);
+          size_t right_tuple_itr = std::get<1>(location);
+
           // Check if we got a new right tile itr
-          if (prev_tile != location.first) {
+          if (prev_tile != right_tile_itr) {
             // Check if we have any join tuples
             if (pos_lists_builder.Size() > 0) {
               LOG_DEBUG("Join tile size : %lu \n", pos_lists_builder.Size());
@@ -136,7 +156,9 @@ bool ParallelHashJoinExecutor::DExecute() {
             }
 
             // Get the logical tile from right child
-            LogicalTile *right_tile = right_result_tiles_[location.first].get();
+            PL_ASSERT(right_tile_itr < right_result_tiles_.size());
+            LogicalTile *right_tile = right_result_tiles_[right_tile_itr];
+            PL_ASSERT(right_tile != nullptr);
 
             // Build output logical tile
             output_tile = BuildOutputLogicalTile(left_tile, right_tile);
@@ -146,16 +168,16 @@ bool ParallelHashJoinExecutor::DExecute() {
                 LogicalTile::PositionListsBuilder(left_tile, right_tile);
 
             pos_lists_builder.SetRightSource(
-                &right_result_tiles_[location.first]->GetPositionLists());
+                &right_result_tiles_[right_tile_itr]->GetPositionLists());
           }
 
           // Add join tuple
-          pos_lists_builder.AddRow(left_tile_itr, location.second);
+          pos_lists_builder.AddRow(left_tile_itr, right_tuple_itr);
 
-          RecordMatchedRightRow(location.first, location.second);
+          RecordMatchedRightRow(right_tile_itr, right_tuple_itr);
 
           // Cache prev logical tile itr
-          prev_tile = location.first;
+          prev_tile = right_tile_itr;
         }
       }
     }
@@ -178,6 +200,52 @@ bool ParallelHashJoinExecutor::DExecute() {
       // Try again
       continue;
     }
+  }
+}
+
+void ParallelHashJoinExecutor::ExecuteTask(
+    std::shared_ptr<AbstractTask> task_bottom,
+    std::shared_ptr<AbstractTask> task_top) {
+
+  PL_ASSERT(task_top->GetTaskType() == TASK_HASHJOIN);
+  PL_ASSERT(task_top->initialized);
+  PL_ASSERT(task_bottom->initialized);
+
+  HashJoinTask *hash_join_task = static_cast<HashJoinTask *>(task_top.get());
+
+  // Create execution context
+  std::shared_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(hash_join_task->txn));
+  context->SetTask(task_bottom);
+
+  // Construct the hash join executor
+  std::shared_ptr<executor::ParallelHashJoinExecutor> hash_join_executor(
+      new executor::ParallelHashJoinExecutor(task_top->node, context.get()));
+
+  std::shared_ptr<executor::ParallelSeqScanExecutor> seq_scan_executor(
+      new executor::ParallelSeqScanExecutor(task_bottom->node, context.get()));
+
+  hash_join_executor->AddChild(seq_scan_executor.get());
+  hash_join_executor->AddChild(hash_join_task->hash_executor.get());
+
+  bool status = hash_join_executor->Init();
+  if (status == true) {
+    while (status) {
+      status = hash_join_executor->Execute();
+      // Set the result
+      auto result_tile = hash_join_executor->GetOutput();
+      if (result_tile != nullptr) {
+        hash_join_task->GetResultTileList().emplace_back(result_tile);
+      }
+    }
+  } else {
+    // TODO handle failure
+    PL_ASSERT(false);
+  }
+
+  if (task_top->trackable->TaskComplete()) {
+    LOG_INFO("All the parallel hash join tasks have completed");
+    task_top->dependent->DependencyComplete(task_top);
   }
 }
 

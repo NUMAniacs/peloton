@@ -100,24 +100,22 @@ TEST_F(ParallelHashTests, BasicTest) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
 
-  // Create seq scan executor
-  // We probably don't need this executor instantiated
-  std::shared_ptr<executor::ParallelSeqScanExecutor> seq_scan_executor(
-      new executor::ParallelSeqScanExecutor(seq_scan_node.get(),
-                                            context.get()));
-
   // Vector of seq scan tasks
   std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
   ParallelSeqScanTestsUtil::GenerateMultiTileGroupTasks(
       table.get(), seq_scan_node.get(), seq_scan_tasks);
-
   size_t num_seq_scan_tasks = seq_scan_tasks.size();
+
+  // Create trackable for seq scan
+  std::shared_ptr<executor::Trackable> trackable(
+      new executor::Trackable(num_seq_scan_tasks));
+
   for (size_t i = 0; i < num_seq_scan_tasks; i++) {
     auto partition_aware_task =
         std::dynamic_pointer_cast<executor::PartitionAwareTask>(
             seq_scan_tasks[i]);
-    partition_aware_task->Init(seq_scan_executor.get(), hash_plan_node.get(),
-                               num_seq_scan_tasks);
+    partition_aware_task->Init(trackable, hash_plan_node.get(),
+                               num_seq_scan_tasks, txn);
     partitioned_executor_thread_pool.SubmitTask(
         partition_aware_task->partition_id,
         executor::ParallelSeqScanExecutor::ExecuteTask,

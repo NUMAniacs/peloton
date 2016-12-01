@@ -32,26 +32,19 @@ class ExecutorContext;
 namespace executor {
 
 //===--------------------------------------------------------------------===//
-// Abstract Trackable
+// Trackable object for parallel task execution
 //===--------------------------------------------------------------------===//
 /*
 * This class is notified when a task completes.
 */
 class Trackable {
  public:
-  virtual ~Trackable() {}
-
-  Trackable() : tasks_complete_(0) {}
+  Trackable(size_t total_tasks)
+      : total_tasks_(total_tasks), tasks_complete_(0) {}
 
   // Returns true when all the tasks completed
   bool TaskComplete() {
-    if (total_tasks_ == INVALID_NUM_TASK) {
-      LOG_ERROR("The total number of tasks is not set yet");
-      PL_ASSERT(false);
-      return false;
-    }
-
-    int task_num = tasks_complete_.fetch_add(1);
+    size_t task_num = tasks_complete_.fetch_add(1);
     // All the tasks are completed
     if (task_num == total_tasks_ - 1) {
       return true;
@@ -59,10 +52,8 @@ class Trackable {
     return false;
   }
 
-  void SetNumTasks(int total_tasks) { total_tasks_ = total_tasks; }
-
-  int total_tasks_ = INVALID_NUM_TASK;
-  std::atomic<int> tasks_complete_;
+  size_t total_tasks_;
+  std::atomic<size_t> tasks_complete_;
 };
 
 class AbstractExecutor {

@@ -170,13 +170,15 @@ void ParallelScanTestBody(
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
-  bridge::BlockingWait wait(tasks.size());
+  bridge::BlockingWait wait;
+  std::shared_ptr<executor::Trackable> trackable(
+      new executor::Trackable(tasks.size()));
 
   for (size_t i = 0; i < tasks.size(); i++) {
     auto partition_aware_task =
         std::dynamic_pointer_cast<executor::PartitionAwareTask>(tasks[i]);
 
-    partition_aware_task->Init(&wait, &wait, tasks.size());
+    partition_aware_task->Init(trackable, &wait, tasks.size(), txn);
     args.push_back(std::shared_ptr<ParallelScanArgs>(
         new ParallelScanArgs(txn, node, tasks[i], false)));
     partitioned_executor_thread_pool.SubmitTask(

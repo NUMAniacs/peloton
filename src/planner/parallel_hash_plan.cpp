@@ -28,74 +28,69 @@
 namespace peloton {
 namespace planner {
 
-/*
- * Helper used for parallel join test. When force_single_partition is set to
- * true, it execute only one hash task instead of multiple ones
- */
-std::shared_ptr<executor::ParallelHashExecutor>
-ParallelHashPlan::DependencyCompleteHelper(
-    std::shared_ptr<executor::AbstractTask> task, bool force_single_partition) {
+void ParallelHashPlan::DependencyComplete(
+    std::shared_ptr<executor::AbstractTask> task) {
 
   // Populate tasks for each partition and re-chunk the tiles
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
 
+  // Rechunk the tasks
   size_t total_num_tuples = executor::PartitionAwareTask::ReChunkResultTiles(
-      task.get(), result_tile_lists, force_single_partition);
-
+      task.get(), result_tile_lists);
   size_t num_tasks = result_tile_lists->size();
 
   // A list of all tasks to execute
   std::vector<std::shared_ptr<executor::AbstractTask>> tasks;
 
-  auto context = executor::PartitionAwareTask::CopyContext(task.get());
-
   // Construct the hash executor
+  std::shared_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(task->txn));
   std::shared_ptr<executor::ParallelHashExecutor> hash_executor(
       new executor::ParallelHashExecutor(this, context.get()));
+  // Set the result of hash executor
+  hash_executor->child_tiles = result_tile_lists;
 
   // Reserve space for hash table
   hash_executor->Reserve(total_num_tuples);
   hash_executor->Init();
 
+  // Construct trackable object
+  std::shared_ptr<executor::Trackable> trackable(
+      new executor::Trackable(num_tasks));
+
   for (size_t task_id = 0; task_id < num_tasks; task_id++) {
     // Construct a hash task
     size_t partition = INVALID_PARTITION_ID;
-    if (force_single_partition) {
-      partition = 0;
-    } else {
-      PL_ASSERT(result_tile_lists->at(task_id).size() > 0);
-      partition = result_tile_lists->at(task_id)[0]->GetPartition();
-    }
+
+    PL_ASSERT(result_tile_lists->at(task_id).size() > 0);
+    partition = result_tile_lists->at(task_id)[0]->GetPartition();
 
     std::shared_ptr<executor::AbstractTask> next_task;
     if (partition != INVALID_PARTITION_ID) {
-      next_task.reset(new executor::HashTask(
-          this, hash_executor, context, task_id, partition, result_tile_lists));
+      next_task.reset(new executor::HashTask(this, hash_executor, task_id,
+                                             partition, result_tile_lists));
     }
-    next_task->Init(hash_executor.get(), task->dependent->parent_dependent,
-                    num_tasks);
+    next_task->Init(trackable, task->dependent->parent_dependent, num_tasks,
+                    task->txn);
     tasks.push_back(next_task);
   }
 
   if (num_tasks == 0) {
     // No task to do. Immediately notify dependent
     task->dependent->parent_dependent->DependencyComplete(task);
-  } else {
-    for (auto task : tasks) {
-      executor::HashTask *hash_task =
-          static_cast<executor::HashTask *>(task.get());
-      partitioned_executor_thread_pool.SubmitTask(
-          hash_task->partition_id, executor::ParallelHashExecutor::ExecuteTask,
-          std::move(task));
-    }
+    return;
   }
 
-  LOG_DEBUG("%d hash tasks submitted", (int)num_tasks);
+  for (auto new_task : tasks) {
+    executor::HashTask *hash_task =
+        static_cast<executor::HashTask *>(new_task.get());
 
-  // XXX This is a hack to let join test pass
-  hash_executor->SetChildTiles(result_tile_lists);
-  return std::move(hash_executor);
+    partitioned_executor_thread_pool.SubmitTask(
+        hash_task->partition_id, executor::ParallelHashExecutor::ExecuteTask,
+        std::move(new_task));
+  }
+  LOG_DEBUG("%d hash tasks submitted", (int)num_tasks);
 }
 }
 }

@@ -15,14 +15,14 @@
 #include <deque>
 #include <vector>
 
-#include "executor/abstract_join_executor.h"
+#include "executor/abstract_parallel_join_executor.h"
 #include "planner/parallel_hash_join_plan.h"
 #include "executor/parallel_hash_executor.h"
 
 namespace peloton {
 namespace executor {
 
-class ParallelHashJoinExecutor : public AbstractJoinExecutor {
+class ParallelHashJoinExecutor : public AbstractParallelJoinExecutor {
   ParallelHashJoinExecutor(const ParallelHashJoinExecutor &) = delete;
   ParallelHashJoinExecutor &operator=(const ParallelHashJoinExecutor &) =
       delete;
@@ -42,9 +42,10 @@ class ParallelHashJoinExecutor : public AbstractJoinExecutor {
  private:
   ParallelHashExecutor *hash_executor_ = nullptr;
 
+  // Record offsets to locate right tiles from different tasks
+  // We have this variable because we're re-using the BuildOutputTile function
+  // which assumes serial execution.
   std::vector<size_t> tile_offsets_;
-
-  bool hashed_ = false;
 
   std::deque<LogicalTile *> buffered_output_tiles;
   std::vector<std::unique_ptr<LogicalTile>> right_tiles_;

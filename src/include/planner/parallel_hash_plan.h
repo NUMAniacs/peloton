@@ -58,14 +58,7 @@ class ParallelHashPlan : public AbstractPlan, public Dependent {
 
   // When a dependency completes it will call this
   void DependencyComplete(std::shared_ptr<executor::AbstractTask> task)
-      override {
-    DependencyCompleteHelper(task, false);
-  }
-
-  // TODO Move me to private. Remove the force_single_result_partition param.
-  std::shared_ptr<executor::ParallelHashExecutor> DependencyCompleteHelper(
-      std::shared_ptr<executor::AbstractTask> task,
-      bool force_single_result_partition);
+      override;
 
  private:
   std::vector<HashKeyPtrType> hash_keys_;

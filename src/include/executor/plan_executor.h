@@ -57,11 +57,9 @@ typedef struct peloton_status {
 /*
 * This class can be notified when a task completes
 */
-class BlockingWait : public planner::Dependent, public executor::Trackable {
+class BlockingWait : public planner::Dependent {
  public:
-  BlockingWait(int total_tasks) : Dependent(), Trackable(), all_done(false) {
-    this->SetNumTasks(total_tasks);
-  }
+  BlockingWait() : Dependent(), all_done(false) {}
 
   ~BlockingWait() {}
 
@@ -80,6 +78,7 @@ class BlockingWait : public planner::Dependent, public executor::Trackable {
     while (!all_done) cv.wait(lk);
   }
 
+ public:
   std::shared_ptr<executor::AbstractTask> last_task;
 
  private:

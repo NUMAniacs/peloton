@@ -19,7 +19,7 @@
 namespace peloton {
 namespace executor {
 
-class ParallelSeqScanExecutor : public AbstractScanExecutor, public Trackable {
+class ParallelSeqScanExecutor : public AbstractScanExecutor {
  public:
   ParallelSeqScanExecutor(const ParallelSeqScanExecutor &) = delete;
   ParallelSeqScanExecutor &operator=(const ParallelSeqScanExecutor &) = delete;
