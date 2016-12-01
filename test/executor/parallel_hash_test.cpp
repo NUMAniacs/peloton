@@ -75,7 +75,7 @@ TEST_F(ParallelHashTests, BasicTest) {
   //===--------------------------------------------------------------------===//
 
   // Create a blocking wait at the top
-  std::unique_ptr<bridge::BlockingWait> wait(new bridge::BlockingWait(1));
+  std::unique_ptr<bridge::BlockingWait> wait(new bridge::BlockingWait());
 
   // Create parallel seq scan node
   std::unique_ptr<planner::ParallelSeqScanPlan> seq_scan_node(
