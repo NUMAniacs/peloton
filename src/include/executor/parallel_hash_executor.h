@@ -32,15 +32,16 @@ namespace executor {
 class ParallelHashExecutor : public AbstractExecutor, public Trackable {
  public:
   /** @brief Type definitions for hash table */
-  typedef std::unordered_set<std::pair<size_t, oid_t>,
-                             boost::hash<std::pair<size_t, oid_t>>> HashSet;
+  typedef std::unordered_set<std::tuple<size_t, oid_t, size_t>,
+                             boost::hash<std::tuple<size_t, oid_t, size_t>>>
+      HashSet;
 
   // A wrapper over std::unordered_set with spin locks
   struct ConcurrentSet {
     Spinlock lock;
     HashSet unordered_set;
 
-    void Insert(std::pair<size_t, oid_t> element) {
+    void Insert(std::tuple<size_t, oid_t, size_t> element) {
       lock.Lock();
       unordered_set.insert(element);
       lock.Unlock();

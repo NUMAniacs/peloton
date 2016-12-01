@@ -87,7 +87,7 @@ bool ParallelSeqScanExecutor::DExecute() {
   // Scanning over a logical tile.
   if (children_.size() == 1) {
     // FIXME Check all requirements for children_.size() == 0 case.
-    LOG_TRACE("Seq Scan executor :: 1 child ");
+    LOG_DEBUG("Seq Scan executor :: 1 child ");
 
     PL_ASSERT(target_table_ == nullptr);
     PL_ASSERT(column_ids_.size() == 0);

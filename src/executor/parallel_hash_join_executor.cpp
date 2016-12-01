@@ -16,8 +16,10 @@
 #include "common/logger.h"
 #include "executor/logical_tile_factory.h"
 #include "executor/parallel_hash_join_executor.h"
+#include "executor/parallel_seq_scan_executor.h"
 #include "expression/abstract_expression.h"
 #include "common/container_tuple.h"
+#include "executor/executor_context.h"
 
 namespace peloton {
 namespace executor {

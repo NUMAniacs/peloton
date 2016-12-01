@@ -31,6 +31,9 @@ class ParallelHashJoinExecutor : public AbstractJoinExecutor {
   explicit ParallelHashJoinExecutor(const planner::AbstractPlan *node,
                                     ExecutorContext *executor_context);
 
+  static void ExecuteTask(std::shared_ptr<AbstractTask> task_bottom,
+                          std::shared_ptr<AbstractTask> task_top);
+
  protected:
   bool DInit();
 
@@ -38,6 +41,8 @@ class ParallelHashJoinExecutor : public AbstractJoinExecutor {
 
  private:
   ParallelHashExecutor *hash_executor_ = nullptr;
+
+  std::vector<size_t> tile_offsets_;
 
   bool hashed_ = false;
 

@@ -66,11 +66,12 @@ class BlockingWait : public planner::Dependent, public executor::Trackable {
   ~BlockingWait() {}
 
   // when a task completes it will call this
-  void DependencyComplete(
-      UNUSED_ATTRIBUTE std::shared_ptr<executor::AbstractTask> task) override {
+  void DependencyComplete(std::shared_ptr<executor::AbstractTask> task)
+      override {
     std::unique_lock<std::mutex> lk(done_lock);
     all_done = true;
     cv.notify_all();
+    last_task = task;
   }
 
   // wait for all tasks to be complete
@@ -78,6 +79,8 @@ class BlockingWait : public planner::Dependent, public executor::Trackable {
     std::unique_lock<std::mutex> lk(done_lock);
     while (!all_done) cv.wait(lk);
   }
+
+  std::shared_ptr<executor::AbstractTask> last_task;
 
  private:
   bool all_done;

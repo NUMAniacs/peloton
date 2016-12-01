@@ -111,7 +111,7 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
         // Found
         LOG_TRACE("key found %d", (int)tuple_id);
       }
-      value->Insert(std::make_pair(tile_itr, tuple_id));
+      value->Insert(std::make_tuple(tile_itr, tuple_id, task_id));
       PL_ASSERT(hash_table.contains(key));
 
       // Increment the number of tuples hashed
@@ -127,6 +127,7 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   }
 }
 
+// TODO remove me
 bool ParallelHashExecutor::DExecute() {
   LOG_TRACE("Hash Executor");
   auto num_tasks = child_tiles_->size();

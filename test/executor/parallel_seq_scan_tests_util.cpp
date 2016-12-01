@@ -134,6 +134,7 @@ void ParallelSeqScanTestsUtil::GenerateMultiTileGroupTasks(
       tasks.push_back(std::shared_ptr<executor::AbstractTask>(seq_scan_task));
     }
   }
+  LOG_DEBUG("Number of seq scan tasks created: %d", (int)tasks.size());
 }
 
 }  // namespace test

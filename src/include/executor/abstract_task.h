@@ -34,6 +34,7 @@ class AbstractPlan;
 
 namespace executor {
 class ParallelHashExecutor;
+class ParallelSeqScanExecutor;
 class Trackable;
 class ExecutorContext;
 }
@@ -54,6 +55,7 @@ enum TaskType {
   TASK_INSERT = 1,
   TASK_SEQ_SCAN = 2,
   TASK_HASH = 3,
+  TASK_HASHJOIN = 4,
 };
 
 // The abstract task class
@@ -167,9 +169,6 @@ class HashTask : public PartitionAwareTask {
 
   TaskType GetTaskType() { return TASK_HASH; }
 
-  /*
-   * @param bulk_insert_count: The total bulk insert count in insert plan node
-   */
   explicit HashTask(const planner::AbstractPlan *node,
                     std::shared_ptr<ParallelHashExecutor> hash_executor,
                     std::shared_ptr<ExecutorContext> context, size_t task_id,

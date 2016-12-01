@@ -79,9 +79,7 @@ TEST_F(ParallelHashTests, BasicTest) {
 
   // Create parallel seq scan node
   std::unique_ptr<planner::ParallelSeqScanPlan> seq_scan_node(
-      new planner::ParallelSeqScanPlan(
-          table.get(), ParallelSeqScanTestsUtil::CreatePredicate(g_tuple_ids),
-          column_ids));
+      new planner::ParallelSeqScanPlan(table.get(), nullptr, column_ids));
 
   // Create hash keys for hash plan node
   expression::AbstractExpression *table_attr_1 =
@@ -128,18 +126,15 @@ TEST_F(ParallelHashTests, BasicTest) {
 
   wait->WaitForCompletion();
   txn_manager.CommitTransaction(txn);
+  executor::HashTask *hash_task =
+      static_cast<executor::HashTask *>(wait->last_task.get());
 
-  // TODO Because we don't have the reference to the hash executor, so we cannot
+  // Get hash executor
+  std::shared_ptr<executor::ParallelHashExecutor> hash_executor =
+      hash_task->hash_executor;
   // validate the number of tuples in the hash table now..
-  //  while (true) {
-  //    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  //    size_t num_tuples = hash_executor->GetTotalNumTuples();
-  //    EXPECT_TRUE(tile_group_size * tile_group_count >= num_tuples);
-  //    // All tuples have been processed
-  //    if (tile_group_size * tile_group_count == num_tuples) {
-  //      break;
-  //    }
-  //  }
+  size_t num_tuples = hash_executor->GetTotalNumTuples();
+  EXPECT_EQ(active_tile_group_count * TEST_TUPLES_PER_TILEGROUP, num_tuples);
 }
 
 }  // namespace test

@@ -16,10 +16,17 @@
 #include <vector>
 
 #include "common/types.h"
+#include "common/partition_macros.h"
 #include "expression/abstract_expression.h"
 #include "planner/project_info.h"
-
+#include "planner/parallel_seq_scan_plan.h"
 #include "planner/parallel_hash_join_plan.h"
+#include "executor/parallel_hash_join_executor.h"
+#include "executor/parallel_seq_scan_executor.h"
+#include "executor/abstract_task.h"
+#include "executor/parallel_hash_executor.h"
+#include "executor/executor_context.h"
+#include "common/init.h"
 
 namespace peloton {
 namespace planner {
