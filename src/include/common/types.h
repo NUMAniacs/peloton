@@ -996,7 +996,6 @@ struct ReadWriteSet {
 
 };
 
->>>>>>> ad036ba... Applied exchange_txn as patch over master
 
 //===--------------------------------------------------------------------===//
 // File Handle

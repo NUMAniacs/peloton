@@ -67,7 +67,7 @@ expression::AbstractExpression *ParallelSeqScanTestsUtil::CreatePredicate(
 
   expression::AbstractExpression *predicate =
       expression::ExpressionUtil::ConstantValueFactory(
-          common::ValueFactory::GetBooleanValue(0));
+          common::ValueFactory::GetBooleanValue(false));
 
   bool even = false;
   for (oid_t tuple_id : tuple_ids) {

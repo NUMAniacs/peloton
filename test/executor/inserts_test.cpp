@@ -189,14 +189,15 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
       DEFAULT_DB_NAME, "TEST_TABLE");
 
   size_t num_partition = PL_NUM_PARTITIONS();
-  LOG_DEBUG("Total number of partitions: %d",(int) num_partition);
+  LOG_DEBUG("Total number of partitions: %d", (int)num_partition);
   txn = txn_manager.BeginTransaction();
 
   // Expression for columns and table names
   char *name = new char[11]();
   strcpy(name, "TEST_TABLE");
-  expression::ParserExpression *table_name = new expression::ParserExpression(
-      EXPRESSION_TYPE_TABLE_REF, name, nullptr);
+  parser::TableInfo *table_info = new parser::TableInfo();
+  table_info->table_name = name;
+
   char *col_1 = new char[8]();
   strcpy(col_1, "dept_id");
   char *col_2 = new char[10]();
@@ -205,7 +206,7 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   // Build an insert stmt
   std::unique_ptr<parser::InsertStatement> insert_stmt(
       new parser::InsertStatement(INSERT_TYPE_VALUES));
-  insert_stmt->table_name = table_name;
+  insert_stmt->table_info_ = table_info;
   insert_stmt->columns = new std::vector<char *>;
   insert_stmt->columns->push_back(const_cast<char *>(col_1));
   insert_stmt->columns->push_back(const_cast<char *>(col_2));
@@ -232,9 +233,9 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   // Construct the task. Each partition has 1 tuple to insert
   for (size_t partition = 0; partition < num_partition; partition++) {
     size_t task_id = partition;
-    LOG_INFO("Execute insert task on partition %d", (int) partition);
-    executor::InsertTask *insert_task =
-        new executor::InsertTask(&node, node.GetBulkInsertCount(), task_id, partition);
+    LOG_INFO("Execute insert task on partition %d", (int)partition);
+    executor::InsertTask *insert_task = new executor::InsertTask(
+        &node, node.GetBulkInsertCount(), task_id, partition);
     insert_task->tuple_bitmap.clear();
     insert_task->tuple_bitmap.resize(node.GetBulkInsertCount(), false);
     // Only insert the tuple in this partition

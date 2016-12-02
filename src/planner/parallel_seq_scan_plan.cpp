@@ -32,7 +32,8 @@ namespace planner {
 /**
  * The ParallelSeqScanPlan has the following members:
  *   database_id, table_id, predicate, column_id, parent(might be NULL)
- * TODO: ParallelSeqScanPlan doesn't have children, so we don't need to handle it
+ * TODO: ParallelSeqScanPlan doesn't have children, so we don't need to handle
+ *it
  *
  * Therefore a ParallelSeqScanPlan is serialized as:
  * [(int) total size]
@@ -48,63 +49,6 @@ namespace planner {
  *
  * TODO: parent_ seems never be set or used
  */
-
-ParallelSeqScanPlan::ParallelSeqScanPlan(parser::SelectStatement *select_node) {
-  LOG_DEBUG("Creating a Parallel Sequential Scan Plan");
-  auto target_table = static_cast<storage::DataTable *>(
-      catalog::Catalog::GetInstance()->GetTableWithName(
-          select_node->from_table->GetDatabaseName(),
-          select_node->from_table->GetTableName()));
-  SetTargetTable(target_table);
-  ColumnIds().clear();
-  // Check if there is an aggregate function in query
-  bool function_found = false;
-  for (auto elem : *select_node->select_list) {
-    if (elem->GetExpressionType() == EXPRESSION_TYPE_FUNCTION_REF) {
-      function_found = true;
-      break;
-    }
-  }
-  // Pass all columns
-  // TODO: This isn't efficient. Needs to be fixed
-  if (function_found) {
-    auto &schema_columns = GetTable()->GetSchema()->GetColumns();
-    for (auto column : schema_columns) {
-      oid_t col_id = ParallelSeqScanPlan::GetColumnID(column.column_name);
-      SetColumnId(col_id);
-    }
-  }
-    // Pass columns in select_list
-  else {
-    if (select_node->select_list->at(0)->GetExpressionType() !=
-        EXPRESSION_TYPE_STAR) {
-      for (auto col : *select_node->select_list) {
-        LOG_TRACE("ExpressionType: %s",
-                  ExpressionTypeToString(col->GetExpressionType()).c_str());
-        auto col_name = col->GetName();
-        oid_t col_id = ParallelSeqScanPlan::GetColumnID(std::string(col_name));
-        SetColumnId(col_id);
-      }
-    } else {
-      auto allColumns = GetTable()->GetSchema()->GetColumns();
-      for (uint i = 0; i < allColumns.size(); i++) SetColumnId(i);
-    }
-  }
-
-  // Check for "For Update" flag
-  if (select_node->is_for_update == true) {
-    SetForUpdateFlag(true);
-  }
-
-  // Keep a copy of the where clause to be binded to values
-  if (select_node->where_clause != NULL) {
-    auto predicate = select_node->where_clause->Copy();
-    // Replace COLUMN_REF expressions with TupleValue expressions
-    expression::ExpressionUtil::ReplaceColumnExpressions(
-        GetTable()->GetSchema(), predicate);
-    SetPredicate(predicate);
-  }
-}
 
 bool ParallelSeqScanPlan::SerializeTo(SerializeOutput &output) {
   // A placeholder for the total size written at the end
@@ -308,7 +252,8 @@ oid_t ParallelSeqScanPlan::GetColumnID(std::string col_name) {
   return index;
 }
 
-void ParallelSeqScanPlan::SetParameterValues(std::vector<common::Value> *values) {
+void ParallelSeqScanPlan::SetParameterValues(
+    std::vector<common::Value> *values) {
   LOG_TRACE("Setting parameter values in Parallel Sequential Scan");
 
   for (auto &child_plan : GetChildren()) {

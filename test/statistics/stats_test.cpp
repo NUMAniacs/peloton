@@ -135,7 +135,8 @@ TEST_F(StatsTest, MultiThreadStatsTest) {
       new catalog::Schema({id_column, name_column}));
   catalog->CreateDatabase("emp_db", txn);
   catalog::Catalog::GetInstance()->CreateTable("emp_db", "department_table",
-                                               std::move(table_schema), txn);
+                                               std::move(table_schema), txn,
+                                               NO_PARTITION_COLUMN);
   txn_manager.CommitTransaction(txn);
 
   // Create multiple stat worker threads

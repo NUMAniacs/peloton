@@ -50,8 +50,6 @@ class ParallelSeqScanPlan : public AbstractScan, public Dependent {
     SetForUpdateFlag(is_for_update);
   }
 
-  ParallelSeqScanPlan(parser::SelectStatement *select_node);
-
   ParallelSeqScanPlan() : AbstractScan() {}
 
   inline PlanNodeType GetPlanNodeType() const {

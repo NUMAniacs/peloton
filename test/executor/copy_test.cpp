@@ -20,6 +20,7 @@
 #include "executor/copy_executor.h"
 #include "optimizer/simple_optimizer.h"
 #include "parser/parser.h"
+#include "tcop/tcop.h"
 #include "planner/seq_scan_plan.h"
 #include "statistics/stats_tests_util.h"
 
@@ -76,8 +77,9 @@ TEST_F(CopyTests, Copying) {
     std::vector<common::Value> params;
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
     std::vector<ResultType> result;
-    bridge::peloton_status status = bridge::PlanExecutor::ExecutePlan(
-        statement->GetPlanTree().get(), params, result, result_format);
+
+    bridge::peloton_status status = tcop::TrafficCop::ExchangeOperator(
+        statement, params, result, result_format);
     EXPECT_EQ(status.m_result, peloton::RESULT_SUCCESS);
     LOG_TRACE("Statement executed. Result: %d", status.m_result);
   }

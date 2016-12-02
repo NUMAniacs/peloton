@@ -49,8 +49,9 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   ExchangeParams *exchg_params = *exchg_params_arg;
 
   if (FLAGS_stats_mode != STATS_TYPE_INVALID) {
+    // XXX Should pass query parameters, too
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
-        exchg_params->statement->GetQueryString(), DEFAULT_DB_ID);
+        exchg_params->statement, nullptr);
   }
 
   LOG_TRACE("PlanExecutor Start ");
@@ -118,7 +119,6 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
               LOG_TRACE("column content: %s", tuple[col_index - 1].c_str());
             }
             exchg_params->result.push_back(res);
->>>>>>> ad036ba... Applied exchange_txn as patch over master
           }
         }
       }

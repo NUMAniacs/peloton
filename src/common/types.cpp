@@ -811,7 +811,6 @@ IndexConstraintType StringToIndexConstraintType(const std::string& str) {
 
 std::string PlanNodeTypeToString(PlanNodeType type) {
   switch (type) {
-<<<<<<< HEAD
     case PLAN_NODE_TYPE_INVALID: {
       return ("INVALID");
     }
