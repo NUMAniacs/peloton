@@ -19,6 +19,7 @@
 #include "executor/logical_tile.h"
 #include "executor/logical_tile_factory.h"
 #include "executor/mock_executor.h"
+#include "executor/abstract_task.h"
 
 namespace peloton {
 

@@ -72,7 +72,7 @@ public class ExchangeTest {
 
   private static final int BATCH_SIZE = 10000;
 
-  private static final int MULTI_QUERY_SIZE = 10;
+  private static final int MULTI_QUERY_SIZE = 40;
 
   private static int numRows;
 
