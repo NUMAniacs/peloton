@@ -36,6 +36,9 @@ namespace test {
 class CopyTests : public PelotonTest {};
 
 TEST_F(CopyTests, Copying) {
+  // Start the thread pool
+  ExecutorPoolHarness::GetInstance();
+
   auto catalog = catalog::Catalog::GetInstance();
   catalog->CreateDatabase("emp_db", nullptr);
   auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
