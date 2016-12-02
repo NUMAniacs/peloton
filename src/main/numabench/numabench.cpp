@@ -39,7 +39,7 @@ void RunBenchmark() {
   CreateNUMABenchDatabase();
 
   // Load the databases
-  LoadYCSBDatabase();
+  LoadNUMABenchDatabase();
 
   // Run the workload
   RunWorkload();

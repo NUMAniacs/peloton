@@ -31,6 +31,8 @@ extern configuration state;
 
 extern storage::DataTable* user_table;
 
+void RunHashJoin();
+
 void RunWorkload();
 
 bool RunMixed(ZipfDistribution &zipf, FastRandom &rng);

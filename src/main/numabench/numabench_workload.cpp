@@ -69,6 +69,36 @@
 #include "storage/data_table.h"
 #include "storage/table_factory.h"
 
+
+#include <memory>
+
+#include "common/harness.h"
+
+#include "common/types.h"
+
+#include "executor/hash_join_executor.h"
+#include "executor/hash_executor.h"
+#include "executor/parallel_hash_join_executor.h"
+#include "executor/parallel_hash_executor.h"
+#include "executor/merge_join_executor.h"
+#include "executor/nested_loop_join_executor.h"
+
+#include "planner/project_info.h"
+#include "executor/executor_tests_util.h"
+
+#include "planner/hash_join_plan.h"
+#include "planner/hash_plan.h"
+#include "planner/nested_loop_join_plan.h"
+#include "executor/join_tests_util.h"
+#include "expression/expression_util.h"
+
+#include "storage/data_table.h"
+#include "storage/tile.h"
+
+#include "concurrency/transaction_manager_factory.h"
+
+
+
 namespace peloton {
 namespace benchmark {
 namespace numabench {
@@ -258,6 +288,78 @@ void RunWorkload() {
 
 }
 
+void RunHashJoin() {
+  // Mock table scan executors
+  MockExecutor left_table_scan_executor, right_table_scan_executor;
+
+//  TODO: What type of join to use?
+  PelotonJoinType join_type = PelotonJoinType::JOIN_TYPE_RIGHT;
+  auto projection = test::JoinTestsUtil::CreateProjection();
+  // setup the projection schema
+  auto schema = test::JoinTestsUtil::CreateJoinSchema();
+
+  // Construct predicate
+  std::unique_ptr<const expression::AbstractExpression> predicate(
+          test::JoinTestsUtil::CreateJoinPredicate());
+
+  // Create hash plan node
+  expression::AbstractExpression *right_table_attr_1 =
+          new expression::TupleValueExpression(common::Type::INTEGER, 1, 1);
+
+  std::vector<std::unique_ptr<const expression::AbstractExpression>>
+          hash_keys;
+  hash_keys.emplace_back(right_table_attr_1);
+
+  std::vector<std::unique_ptr<const expression::AbstractExpression>>
+          left_hash_keys;
+  left_hash_keys.emplace_back(
+          std::unique_ptr<expression::AbstractExpression>{
+                  new expression::TupleValueExpression(common::Type::INTEGER, 0,
+                                                       1)});
+
+  std::vector<std::unique_ptr<const expression::AbstractExpression>>
+          right_hash_keys;
+  right_hash_keys.emplace_back(
+          std::unique_ptr<expression::AbstractExpression>{
+                  new expression::TupleValueExpression(common::Type::INTEGER, 1,
+                                                       1)});
+
+  // Create hash plan node
+  planner::HashPlan hash_plan_node(hash_keys);
+
+  // Construct the hash executor
+  executor::HashExecutor hash_executor(&hash_plan_node, nullptr);
+
+  // Create hash join plan node.
+  planner::HashJoinPlan hash_join_plan_node(join_type, std::move(predicate),
+                                            std::move(projection), schema);
+
+  // Construct the hash join executor
+  executor::HashJoinExecutor hash_join_executor(&hash_join_plan_node,
+                                                nullptr);
+
+  // Construct the executor tree
+  hash_join_executor.AddChild(&left_table_scan_executor);
+  hash_join_executor.AddChild(&hash_executor);
+
+  hash_executor.AddChild(&right_table_scan_executor);
+
+  // Run the hash_join_executor
+  hash_join_executor.Init()
+//  EXPECT_TRUE(hash_join_executor.Init());
+  while (hash_join_executor.Execute() == true) {
+    std::unique_ptr<executor::LogicalTile> result_logical_tile(
+            hash_join_executor.GetOutput());
+
+    if (result_logical_tile != nullptr) {
+      result_tuple_count += result_logical_tile->GetTupleCount();
+      tuples_with_null += test::JoinTestsUtil::CountTuplesWithNullFields(
+              result_logical_tile.get());
+      test::JoinTestsUtil::ValidateJoinLogicalTile(result_logical_tile.get());
+      LOG_TRACE("%s", result_logical_tile->GetInfo().c_str());
+    }
+  }
+}
 
 /////////////////////////////////////////////////////////
 // HARNESS
