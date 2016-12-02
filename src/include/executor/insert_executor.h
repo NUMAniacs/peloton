@@ -29,6 +29,8 @@ class InsertExecutor : public AbstractExecutor {
 
   explicit InsertExecutor(ExecutorContext *executor_context);
 
+  static void ExecuteTask(std::shared_ptr<AbstractTask> task);
+
  protected:
   bool DInit();
 

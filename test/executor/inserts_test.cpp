@@ -24,6 +24,7 @@
 #include "parser/statement_insert.h"
 #include "parser/statement_select.h"
 #include "planner/insert_plan.h"
+#include "executor/plan_executor.h"
 #include "executor/executor_tests_util.h"
 
 namespace peloton {
@@ -230,6 +231,10 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
 
+  std::shared_ptr<executor::Trackable> trackable(
+      new executor::Trackable(num_partition));
+  bridge::BlockingWait wait;
+
   // Construct the task. Each partition has 1 tuple to insert
   for (size_t partition = 0; partition < num_partition; partition++) {
     size_t task_id = partition;
@@ -241,23 +246,14 @@ TEST_F(InsertTests, InsertPartitionedRecord) {
     // Only insert the tuple in this partition
     insert_task->tuple_bitmap[partition] = true;
     std::shared_ptr<executor::AbstractTask> task(insert_task);
-    context->SetTask(task);
-    executor::InsertExecutor executor(context.get());
+    task->Init(trackable, &wait, num_partition, txn);
 
-    // Setup promise future for partitioned thread execution
-    // XXX We should use callbacks instead
-    boost::promise<bool> p;
-    boost::unique_future<bool> execute_status = p.get_future();
-
-    EXPECT_TRUE(executor.Init());
     partitioned_executor_thread_pool.SubmitTask(
-        partition, ExecutorTestsUtil::Execute, &executor, &p);
-
-    EXPECT_TRUE(execute_status.get());
-    EXPECT_EQ(partition + 1, (int)table->GetTupleCount());
+        partition, executor::InsertExecutor::ExecuteTask, std::move(task));
   }
-
+  wait.WaitForCompletion();
   txn_manager.CommitTransaction(txn);
+  EXPECT_EQ(num_partition, (int)table->GetTupleCount());
 
   size_t tile_group_per_region = parallelism / PL_NUM_PARTITIONS();
   // Check if the tuples go to the correct partition

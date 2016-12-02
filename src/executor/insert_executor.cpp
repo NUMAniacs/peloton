@@ -198,5 +198,33 @@ bool InsertExecutor::DExecute() {
   return true;
 }
 
+// TODO We should have a generic ExecuteTask static function
+void InsertExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
+  PL_ASSERT(task->GetTaskType() == TASK_INSERT);
+  PL_ASSERT(task->initialized);
+
+  std::shared_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(task->txn));
+  context->SetTask(task);
+
+  // Generate seq scan executors
+  InsertExecutor executor(context.get());
+
+  bool status = executor.Init();
+  if (status == true) {
+    while (status) {
+      status = executor.Execute();
+    }
+  } else {
+    // TODO handle failure
+    PL_ASSERT(false);
+  }
+
+  if (task->trackable->TaskComplete()) {
+    LOG_INFO("All the parallel seq scan tasks have completed");
+    task->dependent->DependencyComplete(task);
+  }
+}
+
 }  // namespace executor
 }  // namespace peloton
