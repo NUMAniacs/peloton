@@ -82,16 +82,6 @@ class TrafficCop {
       const std::vector<common::Value> &params,
       std::vector<ResultType>& result, const std::vector<int> &result_format);
 
-  /*
- * @brief Based on the Volcano 'Exchange' intra-query parallelism model.
- * This operator hands off the query from the libevent thread to the
- * query executor pool and blocks the libevent thread till the equery executes
- */
-  static bridge::peloton_status ExchangeOperator(
-      const std::shared_ptr<Statement> &statement,
-      const std::vector<common::Value> &params,
-      std::vector<ResultType>& result, const std::vector<int> &result_format);
-
   // InitBindPrepStmt - Prepare and bind a query from a query string
   std::shared_ptr<Statement> PrepareStatement(const std::string &statement_name,
                                               const std::string &query_string,

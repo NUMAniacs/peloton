@@ -42,7 +42,6 @@ namespace executor {
 ParallelSeqScanExecutor::ParallelSeqScanExecutor(
     const planner::AbstractPlan *node, ExecutorContext *executor_context)
     : AbstractScanExecutor(node, executor_context) {}
-    : AbstractScanExecutor(node, executor_context) {}
 
 /**
  * @brief Let base class DInit() first, then do mine.
@@ -151,7 +150,6 @@ bool ParallelSeqScanExecutor::DExecute() {
       for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
         ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
 
-
         auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, tuple_id);
 
         // check transaction visibility
@@ -159,9 +157,7 @@ bool ParallelSeqScanExecutor::DExecute() {
           // if the tuple is visible, then perform predicate evaluation.
           if (predicate_ == nullptr) {
             position_list.push_back(tuple_id);
-            auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
-                                                       txn_partition_id_);
-                                                       task_id_);
+            auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner);
             if (!res) {
               transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
               return res;
@@ -174,8 +170,7 @@ bool ParallelSeqScanExecutor::DExecute() {
             LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
             if (eval.IsTrue()) {
               position_list.push_back(tuple_id);
-              auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
-                                                         txn_partition_id_);
+              auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner);
               if (!res) {
                 transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
                 return res;
@@ -195,7 +190,7 @@ bool ParallelSeqScanExecutor::DExecute() {
       // Construct logical tile.
       // TODO We should construct the logical tile in the current partition
       std::unique_ptr<LogicalTile> logical_tile(
-          LogicalTileFactory::GetTile(DEFAULT_NUMA_REGION));
+          LogicalTileFactory::GetTile(seq_scan_task_->partition_id));
       logical_tile->AddColumns(tile_group, column_ids_);
       logical_tile->AddPositionList(std::move(position_list));
 

@@ -187,8 +187,7 @@ bool SeqScanExecutor::DExecute() {
           // if the tuple is visible, then perform predicate evaluation.
           if (predicate_ == nullptr) {
             position_list.push_back(tuple_id);
-            auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
-                                                       txn_partition_id_);
+            auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner);
             if (!res) {
               transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
               return res;
@@ -201,8 +200,7 @@ bool SeqScanExecutor::DExecute() {
             LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
             if (eval.IsTrue()) {
               position_list.push_back(tuple_id);
-              auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
-                                                         txn_partition_id_);
+              auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner);
               if (!res) {
                 transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
                 return res;
@@ -220,7 +218,7 @@ bool SeqScanExecutor::DExecute() {
       }
 
       // Construct logical tile.
-      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile(UNDEFINED_NUMA_REGION));
       logical_tile->AddColumns(tile_group, column_ids_);
       logical_tile->AddPositionList(std::move(position_list));
 

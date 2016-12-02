@@ -123,7 +123,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     const std::vector<common::Value> &params, std::vector<ResultType> &result,
     const std::vector<int> &result_format) {
 
-  int num_tasks = 1;
   bridge::peloton_status final_status;
 
   bool print_time = false;
@@ -243,7 +242,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
   for (size_t i=0; i<tasks.size(); i++) {
     // We create the callbacks only after we know the total number of tasks
-    tasks[i]->Init(&wait, tasks.size());
+    tasks[i]->Init(trackable, &wait, tasks.size(), txn);
 
     // in first pass make the exch params list
     std::shared_ptr<bridge::ExchangeParams> exchg_params(
