@@ -37,7 +37,7 @@ public class ExchangeTest {
       "CREATE TABLE A (id INT PRIMARY KEY, name TEXT, extra_id INT, single INT);";
 
   private final String PARTITON_DDL = 
-    "CREATE TABLE A (id INT PRIMARY KEY, name TEXT, extra_id INT, single INT) PARTITION BY id";
+    "CREATE TABLE A (id INT PRIMARY KEY, name TEXT, extra_id INT, single INT) PARTITION BY extra_id";
 
   public final static String[] nameTokens = { "BAR", "OUGHT", "ABLE", "PRI",
     "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING" };
@@ -48,9 +48,9 @@ public class ExchangeTest {
 
   private final String SEQSCAN = "SELECT * FROM A";
 
-  private final String NON_KEY_SCAN_10 = "SELECT * FROM A WHERE name = ?";
+  private final String NON_KEY_SCAN_10 = "SELECT * FROM A WHERE extra_id <= ?";
 
-  private final String NON_KEY_SCAN_1 = "SELECT * FROM A WHERE extra_id = ?";
+  private final String NON_KEY_SCAN_1 = "SELECT * FROM A WHERE extra_id <= ?";
 
   private final String NON_KEY_SCAN_50 = "SELECT * FROM A WHERE extra_id >= ?";
 
@@ -58,9 +58,9 @@ public class ExchangeTest {
 
   private final String COUNT_SEQSCAN = "SELECT COUNT(*) FROM A";
 
-  private final String COUNT_NON_KEY_SCAN_10 = "SELECT COUNT(*) FROM A WHERE name = ?";
+  private final String COUNT_NON_KEY_SCAN_10 = "SELECT COUNT(*) FROM A WHERE extra_id <= ?";
 
-  private final String COUNT_NON_KEY_SCAN_1 = "SELECT COUNT(*) FROM A WHERE extra_id = ?";
+  private final String COUNT_NON_KEY_SCAN_1 = "SELECT COUNT(*) FROM A WHERE extra_id <= ?";
 
   private final String COUNT_NON_KEY_SCAN_50 = "SELECT COUNT(*) FROM A WHERE extra_id >= ?";
 
@@ -120,7 +120,7 @@ public class ExchangeTest {
     sb.append("(");
     sb.append(key+",");
     sb.append("\'" + nameTokens[j%nameTokens.length] + "\',");
-    sb.append((key%100) + ",");
+    sb.append((key%1000) + ",");
     sb.append(key + ")");
     values.set(index, sb.toString());
   }
@@ -252,7 +252,7 @@ public class ExchangeTest {
     } else {
       pstmt = conn.prepareStatement(NON_KEY_SCAN_1);
     }
-    pstmt.setInt(1, 1);
+    pstmt.setInt(1, 10);
     pstmt.execute();
 
     ResultSet rs = pstmt.getResultSet();
@@ -297,7 +297,7 @@ public class ExchangeTest {
       pstmt = conn.prepareStatement(NON_KEY_SCAN_10);
     }
 
-    pstmt.setString(1, nameTokens[1]);
+    pstmt.setInt(1, 100);
     pstmt.execute();
 
     ResultSet rs = pstmt.getResultSet();
@@ -340,7 +340,7 @@ public class ExchangeTest {
       pstmt = conn.prepareStatement(NON_KEY_SCAN_50);
     }
 
-    pstmt.setInt(1, 50);
+    pstmt.setInt(1, 500);
     pstmt.execute();
 
     ResultSet rs = pstmt.getResultSet();
@@ -459,7 +459,7 @@ public class ExchangeTest {
     }
     if (isExecute) {
       et.TimeAndExecuteQuery(et, test1);
-      // et.TimeAndExecuteQuery(et, test2);
+      et.TimeAndExecuteQuery(et, test2);
       // et.TimeAndExecuteQuery(et, test3);
       // et.TimeAndExecuteQuery(et, test4);
       et.PrintTimes();
