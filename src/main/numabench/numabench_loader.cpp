@@ -39,8 +39,10 @@
 #include "storage/database.h"
 #include "executor/executor_tests_util.h"
 
-#include "common/harness.h"
 #include "parser/statement_insert.h"
+
+#define LINEITEM_TABLE_SIZE 6000000
+#define PART_TABLE_SIZE 200000
 
 namespace peloton {
 namespace benchmark {
@@ -109,13 +111,13 @@ void CreateNUMABenchDatabase() {
   // TODO: can I use std move here? I use it to create two tables.
   catalog->CreateTable(NUMABENCH_DB_NAME, "LEFT_TABLE",
                                                std::move(left_table_schema), txn,
-                                               NO_PARTITION_COLUMN);
+                                               1);
   txn_manager.CommitTransaction(txn);
   // create right table
   txn = txn_manager.BeginTransaction();
   catalog->CreateTable(NUMABENCH_DB_NAME, "RIGHT_TABLE",
                                                std::move(right_table_schema), txn,
-                                               NO_PARTITION_COLUMN);
+                                               2);
   txn_manager.CommitTransaction(txn);
 
 
@@ -240,11 +242,11 @@ void LoadNUMABenchDatabase() {
             new std::vector<std::vector<expression::AbstractExpression *> *>;
 
 
-    for (int tuple_id = 0; tuple_id < 6000000 * state.scale_factor; tuple_id++){
+    for (int tuple_id = 0; tuple_id < LINEITEM_TABLE_SIZE * state.scale_factor; tuple_id++){
       auto values_ptr = new std::vector<expression::AbstractExpression *>;
       insert_stmt->insert_values->push_back(values_ptr);
       int shipdate = rand()%60;
-      int partkey = rand()%(200000*state.scale_factor);
+      int partkey = rand()%(PART_TABLE_SIZE*state.scale_factor);
 
       values_ptr->push_back(new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(tuple_id)));
@@ -253,22 +255,18 @@ void LoadNUMABenchDatabase() {
       values_ptr->push_back(new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(partkey)));
 
-      //TODO if not partitioning send to random partition
-      int partition = common::ValueFactory::GetIntegerValue(partkey).Hash() % num_partition;
+      int partition_key = state.partition_right ? partkey : tuple_id;
+      int partition = common::ValueFactory::GetIntegerValue(partition_key).Hash() % num_partition;
       insert_tuple_bitmaps[partition][tuple_id % insert_size] = true;
 
       if ((tuple_id + 1) % insert_size == 0){
-        LOG_ERROR("finished writing tuple in part table: %d", tuple_id+1);
+        LOG_INFO("finished writing tuple in part table: %d", tuple_id+1);
         LoadHelper(num_partition, insert_stmt.get(), insert_size, insert_tuple_bitmaps);
-
-
       }
 
     }
   }
     {
-
-
 
       char *l_col_1 = new char[5]();
       strcpy(l_col_1, "p_id");
@@ -286,21 +284,23 @@ void LoadNUMABenchDatabase() {
       insert_stmt->insert_values =
               new std::vector<std::vector<expression::AbstractExpression *> *>;
 
-      for (int partkey = 0; partkey < 200000 * state.scale_factor; partkey++){
+      for (int partkey = 0; partkey < PART_TABLE_SIZE * state.scale_factor; partkey++){
         auto values_ptr = new std::vector<expression::AbstractExpression *>;
         insert_stmt->insert_values->push_back(values_ptr);
 
+        int tuple_id = partkey+PART_TABLE_SIZE*state.scale_factor;
         // this is so when we partition, we do not put in the same place as if
         // we partition on part_Key
         values_ptr->push_back(new expression::ConstantValueExpression(
-                common::ValueFactory::GetIntegerValue(partkey+200000*state.scale_factor)));
+                common::ValueFactory::GetIntegerValue(tuple_id)));
         values_ptr->push_back(new expression::ConstantValueExpression(
                 common::ValueFactory::GetIntegerValue(partkey)));
         //TODO if not partitioning send to random partition
-        int partition = common::ValueFactory::GetIntegerValue(partkey).Hash() % num_partition;
+        int partition_key = state.partition_left ? partkey : tuple_id;
+        int partition = common::ValueFactory::GetIntegerValue(partition_key).Hash() % num_partition;
         insert_tuple_bitmaps[partition][partkey % insert_size] = true;
         if ((partkey + 1) % insert_size == 0){
-          LOG_ERROR("finished writing tuple in part table: %d", partkey+1);
+          LOG_INFO("finished writing tuple in part table: %d", partkey+1);
           LoadHelper(num_partition, insert_stmt.get(), insert_size, insert_tuple_bitmaps);
         }
       }

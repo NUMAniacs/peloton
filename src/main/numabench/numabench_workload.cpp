@@ -168,8 +168,9 @@ void RunHashJoin() {
   //         Executors
   // ================================
 
+  auto begin = std::chrono::high_resolution_clock::now();
   // Create executor context with empty txn
-  auto txn = txn_manager.BeginReadonlyTransaction();
+  auto txn = state.read_only_txn ? txn_manager.BeginReadonlyTransaction() : txn_manager.BeginTransaction();
 
   std::shared_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
@@ -240,7 +241,12 @@ void RunHashJoin() {
       }
     }
   }
-  LOG_ERROR("Result_Tuples: %d", result_tuple_count);
+
+  auto end = std::chrono::high_resolution_clock::now();
+
+  state.execution_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end-begin).count();
+  LOG_INFO("Result_Tuples: %d", result_tuple_count);
+  LOG_INFO("Parallel Hash Join took %ldms", time_ms);
 }
 
 }  // namespace numabench

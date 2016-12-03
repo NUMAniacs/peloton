@@ -35,9 +35,6 @@ void RunBenchmark() {
 
   PelotonInit::Initialize();
 
-  if (state.gc_mode == true) {
-    gc::GCManagerFactory::Configure(state.gc_backend_count);
-  }
 //  I think this happens in Initialize
 //  gc::GCManagerFactory::GetInstance().StartGC();
 

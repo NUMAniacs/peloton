@@ -38,57 +38,20 @@ static const oid_t numabench_field_length = 100;
 
 class configuration {
  public:
-
-  // index type
-  IndexType index;
-
   // size of the table
   int scale_factor;
 
-  // execution duration (in s)
-  double duration;
+  // use a read only transaction for the hash join
+  bool read_only_txn;
 
-  // profile duration (in s)
-  double profile_duration;
+  // partition the left table by the join key
+  bool partition_left;
 
-  // number of backends
-  int backend_count;
+  // partition the right table by the join key
+  bool partition_right;
 
-  // column count
-  int column_count;
-
-  // operation count in a transaction
-  int operation_count;
-
-  // update ratio
-  double update_ratio;
-
-  // contention level
-  double zipf_theta;
-
-  // exponential backoff
-  bool exp_backoff;
-
-  // store strings
-  bool string_mode;
-
-  // garbage collection
-  bool gc_mode;
-
-  // number of gc threads
-  bool gc_backend_count;
-
-  // throughput
-  double throughput = 0;
-
-  // abort rate
-  double abort_rate = 0;
-
-  std::vector<double> profile_throughput;
-
-  std::vector<double> profile_abort_rate;
-
-  std::vector<int> profile_memory;
+  // time of the hash join in milliseconds
+  long execution_time_ms = 0;
 
 };
 
@@ -98,25 +61,7 @@ void Usage(FILE *out);
 
 void ParseArguments(int argc, char *argv[], configuration &state);
 
-void ValidateIndex(const configuration &state);
-
 void ValidateScaleFactor(const configuration &state);
-
-void ValidateDuration(const configuration &state);
-
-void ValidateProfileDuration(const configuration &state);
-
-void ValidateBackendCount(const configuration &state);
-
-void ValidateColumnCount(const configuration &state);
-
-void ValidateOperationCount(const configuration &state);
-
-void ValidateUpdateRatio(const configuration &state);
-
-void ValidateZipfTheta(const configuration &state);
-
-void ValidateGCBackendCount(const configuration &state);
 
 void WriteOutput();
 
