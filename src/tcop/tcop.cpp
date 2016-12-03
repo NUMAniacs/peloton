@@ -227,7 +227,13 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   bool single_statement_txn = true;
   bool init_failure = false;
 
-  auto txn = txn_manager.BeginTransaction();
+  concurrency::Transaction *txn = nullptr;
+
+  if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_PARALLEL_SEQSCAN) {
+    txn = txn_manager.BeginReadonlyTransaction();
+  } else {
+    txn = txn_manager.BeginTransaction();
+  }
 
   PL_ASSERT(txn);
 
