@@ -246,7 +246,7 @@ void RunHashJoin() {
 
   state.execution_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end-begin).count();
   LOG_INFO("Result_Tuples: %d", result_tuple_count);
-  LOG_INFO("Parallel Hash Join took %ldms", time_ms);
+  LOG_INFO("Parallel Hash Join took %ldms", state.execution_time_ms);
 }
 
 }  // namespace numabench
