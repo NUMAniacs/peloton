@@ -47,12 +47,6 @@ void CleanExecutorTree(executor::AbstractExecutor *root);
 void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   peloton_status p_status;
   ExchangeParams *exchg_params = *exchg_params_arg;
-  bool print_time = false;
-  if (exchg_params->statement->GetPlanTree()->GetPlanNodeType() == PLAN_NODE_TYPE_PARALLEL_SEQSCAN)
-    print_time =true;
-
-  auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-      std::chrono::steady_clock::now().time_since_epoch()).count());
 
   if (FLAGS_stats_mode != STATS_TYPE_INVALID) {
     // XXX Should pass query parameters, too
@@ -90,9 +84,6 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   // Initialize the executor tree
   status = executor_tree->Init();
 
-  double exec_start = 0;
-  double total_time = 0;
-
   // Abort and cleanup
   if (status == false) {
     exchg_params->init_failure = true;
@@ -105,10 +96,9 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
     while (status == true) {
       status = executor_tree->Execute();
 
-      if (PL_GET_PARTITION_NODE() == 0 && print_time == true) {
-        exec_start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count());
-      }
+      auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count());
+
       // FIXME We should push the logical tile to the result field in the tasks
       // instead of being processed here immediately)
       std::unique_ptr<executor::LogicalTile> logical_tile(
@@ -141,26 +131,21 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
         }
         exchg_params->num_tuples += answer_tuples.size();
       }
-      if (PL_GET_PARTITION_NODE() == 0 && print_time == true) {
-        auto exec_end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count());
-        total_time += (exec_end-exec_start)/1000;
-      }
+
+      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count());
+
+      exchg_params->exec_time  += (end-start)/1000;
     }
     // Set the result
     p_status.m_processed = executor_context->num_processed;
     p_status.m_result_slots = nullptr;
   }
 
-  if (print_time)
-    LOG_ERROR("Total Time:%f", total_time);
   // clean up executor tree
   CleanExecutorTree(executor_tree.get());
 
-  auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count());
   exchg_params->cpu_id = PL_GET_PARTITION_NODE();
-  exchg_params->exec_time  = (end-start)/1000;
   exchg_params->TaskComplete(p_status);
 }
 
