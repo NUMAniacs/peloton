@@ -268,15 +268,21 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     }
   }
 
+  auto setup_end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count());
+
   std::map<int, std::pair<double, double>> access_histograms;
   std::unordered_map<int, std::pair<double, size_t>> exec_histograms;
 
 
+  auto coalesce_start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count());
   // wait for tasks to complete
   wait.WaitForCompletion();
   for (size_t i=0; i<exchg_params_list.size(); i++) {
     // wait for executor thread to return result
     auto temp_status = exchg_params_list[i]->p_status;
+
     init_failure &= exchg_params_list[i]->init_failure;
     if (init_failure == false) {
       // proceed only if none of the threads so far have failed
@@ -342,8 +348,10 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         highest_time = itr->second.first;
     }
 
-    LOG_ERROR("\n%sHighest time:%f\nCommit Time:%f\n%f", histogram.str().c_str(),
-              highest_time, (end - commit_start)/1000, (end-start)/1000);
+    LOG_ERROR("\n%sHighest time:%f\nSetup Time:%f\nCoalesce Time:%f\nCommit Time:%f\n%f",
+              histogram.str().c_str(), highest_time, (setup_end - start)/1000,
+              (commit_start - coalesce_start)/1000, (end - commit_start)/1000,
+              (end - start)/1000);
   }
 
   if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {
