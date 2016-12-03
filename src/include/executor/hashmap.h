@@ -12,6 +12,7 @@
 
 #pragma once
 #include "common/platform.h"
+#include "common/macros.h"
 
 namespace peloton {
 
@@ -30,39 +31,9 @@ class Hashmap {
   // Classes and types
   typedef std::pair<Key, Value> KVPair;
 
-  enum Status : char {
-    FAIL_DUPLICATE_KEY,
-    FAIL_BUCKET_FULL,
-    SUCCESS,
-  };
-
-  class Bucket {
-   public:
+  struct Bucket {
     std::array<KVPair, BUCKET_SIZE> kv_pairs;
     std::bitset<BUCKET_SIZE> occupied;
-
-    // Insert a kv pair to this bucket
-    Status Insert(KVPair &pair) {
-      for (size_t i = 0; i < BUCKET_SIZE; i++) {
-        if (occupied[i] == false) {
-          kv_pairs[i] = pair;
-          occupied[i] = true;
-          return SUCCESS;
-
-        } else {
-          // TODO Check duplicates
-          return FAIL_DUPLICATE_KEY;
-        }
-      }
-      return FAIL_BUCKET_FULL;
-    }
-
-    // Get a value from this bucket
-    Status Get(Key &key, Value &val) {
-      (void)key;
-      (void)val;
-      return SUCCESS;
-    }
   };
 
  public:
@@ -73,36 +44,73 @@ class Hashmap {
     locks_.resize(num_buckets_);
   }
 
-  // Duplication is not checked during put.
-  void Put(Key &key, Value &val) {
-    KVPair kv_pair(key, val);
+  // Returns false for duplicate keys
+  bool Put(Key &key, Value &val) {
     size_t hash = GetHash(key);
-    // TODO Check the status
-    bool success = false;
-    while (success == false) {
+    while (true) {
       locks_[hash].Lock();
-      success = buckets_[hash].Insert(kv_pair);
+      Bucket &bucket = buckets_[hash];
+      for (size_t i = 0; i < BUCKET_SIZE; i++) {
+
+        // Found an empty slot. Success
+        if (bucket.occupied[i] == false) {
+          bucket.kv_pairs[i] = KVPair(key, val);
+          bucket.occupied[i] = true;
+          locks_[hash].Unlock();
+          return true;
+        } else {
+          // Duplicate keys
+          if (equal_fct_(key, bucket.kv_pairs[i].first)) {
+            locks_[hash].Unlock();
+            return false;
+          }
+        }
+      }
       locks_[hash].Unlock();
       hash = Probe(hash);
     }
+    return false;
   }
 
-  // Get the value specified by the key. No lock is acquired
-  bool Get(Key &key, Value &val) const { return false; }
+  // Get the value specified by the key.
+  // XXX Do we need locks for GET()?
+  bool Get(Key &key, Value &val) {
+    size_t hash = GetHash(key);
+    while (true) {
+      Bucket &bucket = buckets_[hash];
+      for (size_t i = 0; i < BUCKET_SIZE; i++) {
+        // An empty slot. Fail to found one
+        if (bucket.occupied[i] == false) {
+          return false;
+        } else {
+          // Matched key
+          if (equal_fct_(key, bucket.kv_pairs[i].first)) {
+            val = bucket.kv_pairs[i].second;
+            return true;
+          }
+        }
+      }
+      hash = Probe(hash);
+    }
+    return false;
+  }
 
   // Functions
  private:
-  inline size_t Probe(size_t hash) {
+  inline size_t Probe(size_t hash) const {
     return (hash + PROBE_STEP_SIZE) % num_buckets_;
   }
 
-  inline size_t GetHash(Key &key) { return hasher_(key) % num_buckets_; }
+  inline size_t GetHash(Key &key) const { return hasher_(key) % num_buckets_; }
 
   // Members
  private:
   std::vector<Bucket> buckets_;
   std::vector<Spinlock> locks_;
+
   Hash hasher_;
+  Pred equal_fct_;
+
   size_t num_buckets_ = 0;
 };
 
