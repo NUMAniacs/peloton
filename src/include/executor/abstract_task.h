@@ -100,6 +100,8 @@ class AbstractTask {
 
   // The txn for this task
   concurrency::Transaction *txn = nullptr;
+
+  double exec_time = 0;
 };
 
 // The *abstract* task class for partition-aware / parallel tasks

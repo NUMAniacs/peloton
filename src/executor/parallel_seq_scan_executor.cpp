@@ -137,6 +137,8 @@ bool ParallelSeqScanExecutor::DExecute() {
     while (tile_group_itr_ != tile_group_end_itr_) {
       auto tile_group = *tile_group_itr_;
 
+      auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count());
       // move to next tile group
       tile_group_itr_++;
 
@@ -181,6 +183,11 @@ bool ParallelSeqScanExecutor::DExecute() {
           }
         }
       }
+
+      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count());
+
+      seq_scan_task_->exec_time += (end-start)/1000;
 
       // Don't return empty tiles
       if (position_list.size() == 0) {
