@@ -87,6 +87,9 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   // Initialize the executor tree
   status = executor_tree->Init();
 
+  double exec_start = 0;
+  double total_time = 0;
+
   // Abort and cleanup
   if (status == false) {
     exchg_params->init_failure = true;
@@ -94,8 +97,6 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   } else {
     LOG_TRACE("Running the executor tree");
     exchg_params->result.clear();
-
-    double exec_start = 0;
 
     // Execute the tree until we get result tiles from root node
     while (status == true) {
@@ -140,7 +141,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
       if (PL_GET_PARTITION_NODE() == 0) {
         auto exec_end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count());
-        LOG_ERROR("%f", (exec_end-exec_start)/1000);
+        total_time += (exec_end-exec_start)/1000;
       }
     }
     // Set the result
@@ -148,6 +149,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
     p_status.m_result_slots = nullptr;
   }
 
+  LOG_ERROR("Total Time:%f", total_time);
   // clean up executor tree
   CleanExecutorTree(executor_tree.get());
 

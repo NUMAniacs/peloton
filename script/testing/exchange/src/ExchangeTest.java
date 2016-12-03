@@ -58,9 +58,9 @@ public class ExchangeTest {
 
   private final String COUNT_SEQSCAN = "SELECT COUNT(*) FROM A";
 
-  private final String COUNT_NON_KEY_SCAN_10 = "SELECT COUNT(*) FROM A WHERE extra_id <= ?";
+  private final String COUNT_NON_KEY_SCAN_10 = "SELECT COUNT(*) FROM A WHERE extra_id < ?";
 
-  private final String COUNT_NON_KEY_SCAN_1 = "SELECT COUNT(*) FROM A WHERE extra_id <= ?";
+  private final String COUNT_NON_KEY_SCAN_1 = "SELECT COUNT(*) FROM A WHERE extra_id < ?";
 
   private final String COUNT_NON_KEY_SCAN_50 = "SELECT COUNT(*) FROM A WHERE extra_id >= ?";
 
