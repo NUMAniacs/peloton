@@ -271,6 +271,7 @@ void ParallelSeqScanPlan::GenerateTasks(
   // deploy partitioned seq scan
   for (size_t i = 0; i < partition_count; i++) {
     auto num_tile_groups = target_table->GetPartitionTileGroupCount(i);
+    LOG_ERROR("Partition ID:%ld NumTasks:%ld", i, num_tile_groups);
     size_t num_tile_groups_per_task =
         (num_tile_groups + TASK_TILEGROUP_COUNT - 1) / TASK_TILEGROUP_COUNT;
     for (size_t j = 0; j < num_tile_groups; j += num_tile_groups_per_task) {

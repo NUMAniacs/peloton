@@ -238,6 +238,9 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   std::shared_ptr<executor::Trackable> trackable(
       new executor::Trackable(tasks.size()));
 
+  auto setup_end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count());
+
   for (size_t i=0; i<tasks.size(); i++) {
     // We create the callbacks only after we know the total number of tasks
     tasks[i]->Init(trackable, &wait, tasks.size(), txn);
@@ -267,9 +270,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
       }
     }
   }
-
-  auto setup_end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-      std::chrono::steady_clock::now().time_since_epoch()).count());
 
   std::map<int, std::pair<double, double>> access_histograms;
   std::unordered_map<int, std::pair<double, size_t>> exec_histograms;
@@ -348,10 +348,11 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         highest_time = itr->second.first;
     }
 
-    LOG_ERROR("\n%sHighest time:%f\nSetup Time:%f\nCoalesce Time:%f\nCommit Time:%f\n%f",
+    LOG_ERROR("\n%sHighest time:%f\nSetup Time:%f\nSubmit Time:%f\nCoalesce Time:%f\nCommit "
+                  "Time:%f\n%f",
               histogram.str().c_str(), highest_time, (setup_end - start)/1000,
-              (commit_start - coalesce_start)/1000, (end - commit_start)/1000,
-              (end - start)/1000);
+              (coalesce_start - setup_end)/1000, (commit_start - coalesce_start)/1000,
+              (end - commit_start)/1000, (end - start)/1000);
   }
 
   if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {
