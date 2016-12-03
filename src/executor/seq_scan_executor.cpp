@@ -79,13 +79,6 @@ bool SeqScanExecutor::DInit() {
     // offset by the number of tiles that each thread processes
     current_tile_group_offset_ *= num_tile_groups_per_thread_;
 
-    // round up to the nearest value of parallelism count
-    num_tile_groups_per_thread_ =
-        (table_tile_group_count_ + num_tasks_ - 1)/num_tasks_;
-
-    // offset by the number of tiles that each thread processes
-    current_tile_group_offset_ *= num_tile_groups_per_thread_;
-
     if (column_ids_.empty()) {
       column_ids_.resize(target_table_->GetSchema()->GetColumnCount());
       std::iota(column_ids_.begin(), column_ids_.end(), 0);
@@ -180,6 +173,7 @@ bool SeqScanExecutor::DExecute() {
       for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
         ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
 
+
         auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, tuple_id);
 
         // check transaction visibility
@@ -218,7 +212,7 @@ bool SeqScanExecutor::DExecute() {
       }
 
       // Construct logical tile.
-      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile(UNDEFINED_NUMA_REGION));
+      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
       logical_tile->AddColumns(tile_group, column_ids_);
       logical_tile->AddPositionList(std::move(position_list));
 
