@@ -48,9 +48,9 @@ public class ExchangeTest {
 
   private final String SEQSCAN = "SELECT * FROM A";
 
-  private final String NON_KEY_SCAN_10 = "SELECT * FROM A WHERE extra_id <= ?";
+  private final String NON_KEY_SCAN_10 = "SELECT * FROM A WHERE extra_id < ?";
 
-  private final String NON_KEY_SCAN_1 = "SELECT * FROM A WHERE extra_id <= ?";
+  private final String NON_KEY_SCAN_1 = "SELECT * FROM A WHERE extra_id < ?";
 
   private final String NON_KEY_SCAN_50 = "SELECT * FROM A WHERE extra_id >= ?";
 

@@ -95,10 +95,16 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
     LOG_TRACE("Running the executor tree");
     exchg_params->result.clear();
 
+    double exec_start = 0;
+
     // Execute the tree until we get result tiles from root node
     while (status == true) {
       status = executor_tree->Execute();
 
+      if (PL_GET_PARTITION_NODE() == 0) {
+        exec_start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count());
+      }
       // FIXME We should push the logical tile to the result field in the tasks
       // instead of being processed here immediately)
       std::unique_ptr<executor::LogicalTile> logical_tile(
@@ -130,6 +136,11 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
           }
         }
         exchg_params->num_tuples += answer_tuples.size();
+      }
+      if (PL_GET_PARTITION_NODE() == 0) {
+        auto exec_end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count());
+        LOG_ERROR("%f", (exec_end-exec_start)/1000);
       }
     }
     // Set the result
