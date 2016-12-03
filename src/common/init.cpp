@@ -48,10 +48,6 @@ void PelotonInit::Initialize() {
   partitioned_executor_thread_pool.Initialize(
       (int)std::thread::hardware_concurrency());
 
-  // Initialize partitioned thread pool
-  partitioned_executor_thread_pool.Initialize(
-      (int)std::thread::hardware_concurrency());
-
   int parallelism = (std::thread::hardware_concurrency() + 1) / 2;
   storage::DataTable::SetActiveTileGroupCount(parallelism);
   storage::DataTable::SetActiveIndirectionArrayCount(parallelism);

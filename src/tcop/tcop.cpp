@@ -140,8 +140,6 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
 
-  std::unordered_map<int, double> exec_histograms;
-
   auto plan_tree = statement->GetPlanTree().get();
   switch (plan_tree->GetPlanNodeType()) {
     // For insert queries, determine the tuple's partition before execute it
@@ -271,6 +269,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   }
 
   std::map<int, std::pair<double, double>> access_histograms;
+  std::unordered_map<int, std::pair<double, size_t>> exec_histograms;
+
 
   // wait for tasks to complete
   wait.WaitForCompletion();
@@ -292,7 +292,10 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     }
 
     if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_PARALLEL_SEQSCAN) {
-      exec_histograms[exchg_params_list[i]->cpu_id] += exchg_params_list[i]->exec_time;
+      auto tg_processed = static_cast<executor::SeqScanTask *>(exchg_params_list[i]->task.get())
+          ->tile_group_ptrs.size();
+      exec_histograms[exchg_params_list[i]->cpu_id].first += exchg_params_list[i]->exec_time;
+      exec_histograms[exchg_params_list[i]->cpu_id].second += tg_processed;
     }
 
     if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {
@@ -329,10 +332,15 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
 
   if (print_time == true) {
     std::stringstream histogram;
+    double highest_time = 0;
     for (auto itr=exec_histograms.begin(); itr!=exec_histograms.end(); itr++) {
-      histogram << itr->first << " " << itr->second << std::endl;
+      histogram << itr->first << " " << itr->second.first << " "
+        << itr->second.second << std::endl;
+      if (itr->second.first > highest_time)
+        highest_time = itr->second.first;
     }
-    LOG_ERROR("%s%f", histogram.str().c_str(), (end-start)/1000);
+
+    LOG_ERROR("\n%sHighest time:%f\n%f", histogram.str().c_str(), highest_time, (end-start)/1000);
   }
 
   if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {

@@ -212,7 +212,7 @@ bool SeqScanExecutor::DExecute() {
       }
 
       // Construct logical tile.
-      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile(UNDEFINED_NUMA_REGION));
       logical_tile->AddColumns(tile_group, column_ids_);
       logical_tile->AddPositionList(std::move(position_list));
 
