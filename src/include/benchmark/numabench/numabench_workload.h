@@ -29,19 +29,10 @@ namespace numabench {
 
 extern configuration state;
 
-extern storage::DataTable* user_table;
-
 void RunHashJoin();
 
 void RunWorkload();
 
-bool RunMixed(ZipfDistribution &zipf, FastRandom &rng);
-
-/////////////////////////////////////////////////////////
-
-std::vector<std::vector<common::Value>> ExecuteRead(executor::AbstractExecutor* executor);
-
-void ExecuteUpdate(executor::AbstractExecutor* executor);
 
 
 }  // namespace numabench

@@ -35,7 +35,7 @@ ParallelHashJoinPlan::ParallelHashJoinPlan(
     PelotonJoinType join_type,
     std::unique_ptr<const expression::AbstractExpression> &&predicate,
     std::unique_ptr<const ProjectInfo> &&proj_info,
-    std::shared_ptr<const catalog::Schema> &proj_schema)
+    const std::shared_ptr<const catalog::Schema> &proj_schema)
     : AbstractJoinPlan(join_type, std::move(predicate), std::move(proj_info),
                        proj_schema) {}
 
@@ -43,7 +43,7 @@ ParallelHashJoinPlan::ParallelHashJoinPlan(
     PelotonJoinType join_type,
     std::unique_ptr<const expression::AbstractExpression> &&predicate,
     std::unique_ptr<const ProjectInfo> &&proj_info,
-    std::shared_ptr<const catalog::Schema> &proj_schema,
+    const std::shared_ptr<const catalog::Schema> &proj_schema,
     const std::vector<oid_t> &outer_hashkeys)  // outer_hashkeys is added for
                                                // IN-subquery
     : AbstractJoinPlan(join_type, std::move(predicate), std::move(proj_info),

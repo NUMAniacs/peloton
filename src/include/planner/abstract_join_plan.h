@@ -41,7 +41,7 @@ class AbstractJoinPlan : public AbstractPlan {
       PelotonJoinType joinType,
       std::unique_ptr<const expression::AbstractExpression> &&predicate,
       std::unique_ptr<const ProjectInfo> &&proj_info,
-      std::shared_ptr<const catalog::Schema> &proj_schema)
+      const std::shared_ptr<const catalog::Schema> &proj_schema)
       : AbstractPlan(),
         join_type_(joinType),
         predicate_(std::move(predicate)),

@@ -37,11 +37,10 @@
 #include "storage/data_table.h"
 #include "storage/table_factory.h"
 #include "storage/database.h"
+#include "executor/executor_tests_util.h"
 
 #include "common/harness.h"
 #include "parser/statement_insert.h"
-// Logging mode
-extern LoggingType peloton_logging_mode;
 
 namespace peloton {
 namespace benchmark {
@@ -52,9 +51,13 @@ storage::Database *numabench_database = nullptr;
 storage::DataTable *left_table = nullptr;
 storage::DataTable *right_table = nullptr;
 
-void CreateNUMABenchDatabase() {
+void ExecuteTask(executor::AbstractExecutor *executor,
+                                boost::promise<bool> *p) {
+  auto status = executor->Execute();
+  p->set_value(status);
+}
 
-  const bool is_inlined = false;
+void CreateNUMABenchDatabase() {
 
   /////////////////////////////////////////////////////////
   // Create database & tables
@@ -73,55 +76,108 @@ void CreateNUMABenchDatabase() {
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
   // TODO: who is the primary key?????
-  auto foo_column = catalog::Column(
+  auto l_id_col = catalog::Column(
           common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
-          "foo", true);
-  auto bar_column = catalog::Column(
+          "l_id", true);
+  auto l_shipdate_col = catalog::Column(
           common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
-          "bar", true);
+          "l_shipdate", true);
+  auto l_partkey_col = catalog::Column(
+          common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+          "l_partkey", true);
 
-  std::unique_ptr<catalog::Schema> table_schema(
-          new catalog::Schema({foo_column, bar_column}));
+  std::unique_ptr<catalog::Schema> right_table_schema(
+            new catalog::Schema({l_id_col, l_shipdate_col, l_partkey_col}));
 
-  catalog::Catalog::GetInstance()->CreateDatabase(NUMABENCH_DB_NAME, txn);
+  auto p_id_col = catalog::Column(
+          common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+          "p_id", true);
+  auto p_partkey_col = catalog::Column(
+          common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+          "p_partkey", true);
+  std::unique_ptr<catalog::Schema> left_table_schema(
+          new catalog::Schema({p_id_col, p_partkey_col}));
+
+
+
+
+  catalog->CreateDatabase(NUMABENCH_DB_NAME, txn);
   txn_manager.CommitTransaction(txn);
 
   // create left table
   txn = txn_manager.BeginTransaction();
   // TODO: can I use std move here? I use it to create two tables.
-  catalog::Catalog::GetInstance()->CreateTable(NUMABENCH_DB_NAME, "LEFT_TABLE",
-                                               std::move(table_schema), txn,
+  catalog->CreateTable(NUMABENCH_DB_NAME, "LEFT_TABLE",
+                                               std::move(left_table_schema), txn,
                                                NO_PARTITION_COLUMN);
   txn_manager.CommitTransaction(txn);
   // create right table
   txn = txn_manager.BeginTransaction();
-  catalog::Catalog::GetInstance()->CreateTable(DEFAULT_DB_NAME, "RIGHT_TABLE",
-                                               std::move(table_schema), txn,
+  catalog->CreateTable(NUMABENCH_DB_NAME, "RIGHT_TABLE",
+                                               std::move(right_table_schema), txn,
                                                NO_PARTITION_COLUMN);
   txn_manager.CommitTransaction(txn);
 
-//  // Primary index on user key
-//  std::vector<oid_t> key_attrs;
-//
-//  auto tuple_schema = user_table->GetSchema();
-//  catalog::Schema *key_schema;
-//  index::IndexMetadata *index_metadata;
-//  bool unique;
-//
-//  key_attrs = {0};
-//  key_schema = catalog::Schema::CopySchema(tuple_schema, key_attrs);
-//  key_schema->SetIndexedColumns(key_attrs);
-//
-//  unique = true;
-//
-//  index_metadata = new index::IndexMetadata(
-//    "primary_index", user_table_pkey_index_oid, user_table_oid,
-//    numabench_database_oid, state.index, INDEX_CONSTRAINT_TYPE_PRIMARY_KEY,
-//    tuple_schema, key_schema, key_attrs, unique);
-//
-//  std::shared_ptr<index::Index> pkey_index(
-//      index::IndexFactory::GetInstance(index_metadata));
-//  user_table->AddIndex(pkey_index);
+
+}
+
+void LoadHelper(unsigned int num_partition, parser::InsertStatement* insert_stmt, int insert_size, std::vector<std::vector<bool>>& insert_tuple_bitmaps){
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+
+  concurrency::Transaction * txns[num_partition];
+  executor::ExecutorContext * contexts[num_partition];
+  boost::promise<bool> * promises[num_partition];
+  executor::AbstractExecutor * executors[num_partition];
+  planner::InsertPlan node(insert_stmt);
+
+  // start the tasks
+  for (int partition = 0; partition < (int)num_partition; partition++){
+    auto txn = txn_manager.BeginTransaction();
+    auto context = new executor::ExecutorContext(txn);
+    auto p = new boost::promise<bool>;
+
+    auto insert_task = new executor::InsertTask(&node, insert_size, partition, partition);
+    insert_task->tuple_bitmap = insert_tuple_bitmaps[partition];
+    std::shared_ptr<executor::AbstractTask> task(insert_task);
+
+
+    context->SetTask(task);
+
+    executor::AbstractExecutor* executor = new executor::InsertExecutor(context);
+
+    txns[partition] = txn;
+    contexts[partition] = context;
+    promises[partition] = p;
+    executors[partition] = executor;
+
+    partitioned_executor_thread_pool.SubmitTask(
+                  partition, ExecuteTask, std::move(executor), std::move(p));
+  }
+
+  // wait for the tasks to finish and commit their transactions
+  for (int partition = 0; partition < (int)num_partition; partition++){
+    promises[partition]->get_future().get();
+    txn_manager.CommitTransaction(txns[partition]);
+  }
+
+  //clean up and reset tasks
+  // wait for the tasks to finish and commit their transactions
+  for (int partition = 0; partition < (int)num_partition; partition++){
+    // txns are cleaned up on commit
+    // tasks are cleaned up using shared ptrs
+    delete promises[partition];
+    delete executors[partition];
+    delete contexts[partition];
+    insert_tuple_bitmaps[partition].clear();
+    insert_tuple_bitmaps[partition].resize(insert_size, false);
+  }
+  for (auto val_list : *insert_stmt->insert_values){
+    for (auto val : *val_list){
+      delete val;
+    }
+    delete val_list;
+  }
+  insert_stmt->insert_values->clear();
 }
 
 void LoadNUMABenchDatabase() {
@@ -134,138 +190,122 @@ void LoadNUMABenchDatabase() {
   );
 
   size_t num_partition = PL_NUM_PARTITIONS();
-  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+
+
   char *left_table_name_str = new char[11]();
   strcpy(left_table_name_str, "LEFT_TABLE");
+  char *left_db_name_str = new char[strlen(NUMABENCH_DB_NAME)+1]();
+  strcpy(left_db_name_str, NUMABENCH_DB_NAME);
   char *right_table_name_str = new char[12]();
   strcpy(right_table_name_str, "RIGHT_TABLE");
-  expression::ParserExpression *left_table_name = new expression::ParserExpression(
-          EXPRESSION_TYPE_TABLE_REF, left_table_name_str, nullptr);
-  expression::ParserExpression *right_table_name = new expression::ParserExpression(
-          EXPRESSION_TYPE_TABLE_REF, right_table_name_str, nullptr);
-  char *col_1 = new char[4]();
-  strcpy(col_1, "foo");
-  char *col_2 = new char[4]();
-  strcpy(col_2, "bar");
+  char *right_db_name_str = new char[strlen(NUMABENCH_DB_NAME)+1]();
+  strcpy(right_db_name_str, NUMABENCH_DB_NAME);
+  auto *left_table_name = new parser::TableInfo();
+  left_table_name->table_name = left_table_name_str;
+  left_table_name->database_name = left_db_name_str;
+  auto *right_table_name = new parser::TableInfo();
+  right_table_name->table_name = right_table_name_str;
+  right_table_name->database_name = right_db_name_str;
 
-  {
-    // insert to left table; build an insert statement
-    // TODO: Why doesn't it work??? Do not have the constructor???
-    std::unique_ptr<parser::InsertStatement> insert_stmt(
-            new parser::InsertStatement(INSERT_TYPE_VALUES));
-//  std::unique_ptr<parser::InsertStatement> insert_stmt;
-    insert_stmt->table_name = left_table_name;
-    insert_stmt->columns = new std::vector<char *>;
-    insert_stmt->columns->push_back(const_cast<char *>(col_1));
-    insert_stmt->columns->push_back(const_cast<char *>(col_2));
-    insert_stmt->select = new parser::SelectStatement();
-    insert_stmt->insert_values =
-            new std::vector<std::vector<expression::AbstractExpression *> *>;
-
-    // Initialize one tuple per partition
-    for (size_t partition = 0; partition < num_partition; partition++) {
-      auto values_ptr = new std::vector<expression::AbstractExpression *>;
-      insert_stmt->insert_values->push_back(values_ptr);
-      values_ptr->push_back(new expression::ConstantValueExpression(
-              common::ValueFactory::GetIntegerValue(70)));
-      values_ptr->push_back(new expression::ConstantValueExpression(
-              common::ValueFactory::GetIntegerValue(90)));
-    }
-
-    // Construct insert plan
-    planner::InsertPlan node(insert_stmt.get());
-    // Construct the executor context
-    std::unique_ptr<executor::ExecutorContext> context(
-            new executor::ExecutorContext(txn));
-    // Construct the task. Each partition has 1 tuple to insert
-    for (size_t partition = 0; partition < num_partition; partition++) {
-      size_t task_id = partition;
-      LOG_INFO("Execute insert task on partition %d", (int) partition);
-      executor::InsertTask *insert_task =
-              new executor::InsertTask(&node, node.GetBulkInsertCount(), task_id, partition);
-      insert_task->tuple_bitmap.clear();
-      insert_task->tuple_bitmap.resize(node.GetBulkInsertCount(), false);
-      // Only insert the tuple in this partition
-      insert_task->tuple_bitmap[partition] = true;
-      std::shared_ptr<executor::AbstractTask> task(insert_task);
-      context->SetTask(task);
-      executor::InsertExecutor executor(context.get());
-
-      // Setup promise future for partitioned thread execution
-      // XXX We should use callbacks instead
-      boost::promise<bool> p;
-      boost::unique_future<bool> execute_status = p.get_future();
-
-//      EXPECT_TRUE(executor.Init());
-      partitioned_executor_thread_pool.SubmitTask(
-              partition, test::ExecutorTestsUtil::Execute, &executor, &p);
-
-//      EXPECT_TRUE(execute_status.get());
-//      EXPECT_EQ(partition + 1, (int) table->GetTupleCount());
-    }
-
-    txn_manager.CommitTransaction(txn);
+  std::vector<std::vector<bool>> insert_tuple_bitmaps;
+  insert_tuple_bitmaps.resize(num_partition);
+  // size to insert before firing off tasks and waiting
+  int insert_size = 10000;
+  for (int partition = 0; partition < (int) num_partition; partition++){
+    insert_tuple_bitmaps[partition].clear();
+    insert_tuple_bitmaps[partition].resize(insert_size, false);
   }
 
+
+
   {
-    // insert to right table; build an insert statement
-    // TODO: Why doesn't it work??? Do not have the constructor???
+
+    char *r_col_1 = new char[5]();
+    strcpy(r_col_1, "l_id");
+    char *r_col_2 = new char[11]();
+    strcpy(r_col_2, "l_shipdate");
+    char *r_col_3 = new char[10]();
+    strcpy(r_col_3, "l_partkey");
+    // insert to left table; build an insert statement
     std::unique_ptr<parser::InsertStatement> insert_stmt(
             new parser::InsertStatement(INSERT_TYPE_VALUES));
 //  std::unique_ptr<parser::InsertStatement> insert_stmt;
-    insert_stmt->table_name = right_table_name;
+    insert_stmt->table_info_ = right_table_name;
     insert_stmt->columns = new std::vector<char *>;
-    insert_stmt->columns->push_back(const_cast<char *>(col_1));
-    insert_stmt->columns->push_back(const_cast<char *>(col_2));
+    insert_stmt->columns->push_back(const_cast<char *>(r_col_1));
+    insert_stmt->columns->push_back(const_cast<char *>(r_col_2));
+    insert_stmt->columns->push_back(const_cast<char *>(r_col_3));
     insert_stmt->select = new parser::SelectStatement();
     insert_stmt->insert_values =
             new std::vector<std::vector<expression::AbstractExpression *> *>;
 
-    // Initialize one tuple per partition
-    for (size_t partition = 0; partition < num_partition; partition++) {
+
+    for (int tuple_id = 0; tuple_id < 6000000 * state.scale_factor; tuple_id++){
       auto values_ptr = new std::vector<expression::AbstractExpression *>;
       insert_stmt->insert_values->push_back(values_ptr);
+      int shipdate = rand()%60;
+      int partkey = rand()%(200000*state.scale_factor);
+
       values_ptr->push_back(new expression::ConstantValueExpression(
-              common::ValueFactory::GetIntegerValue(70)));
+              common::ValueFactory::GetIntegerValue(tuple_id)));
       values_ptr->push_back(new expression::ConstantValueExpression(
-              common::ValueFactory::GetIntegerValue(90)));
+              common::ValueFactory::GetIntegerValue(shipdate)));
+      values_ptr->push_back(new expression::ConstantValueExpression(
+              common::ValueFactory::GetIntegerValue(partkey)));
+
+      //TODO if not partitioning send to random partition
+      int partition = common::ValueFactory::GetIntegerValue(partkey).Hash() % num_partition;
+      insert_tuple_bitmaps[partition][tuple_id % insert_size] = true;
+
+      if ((tuple_id + 1) % insert_size == 0){
+        LOG_ERROR("finished writing tuple in part table: %d", tuple_id+1);
+        LoadHelper(num_partition, insert_stmt.get(), insert_size, insert_tuple_bitmaps);
+
+
+      }
+
     }
+  }
+    {
 
-    // Construct insert plan
-    planner::InsertPlan node(insert_stmt.get());
-    // Construct the executor context
-    std::unique_ptr<executor::ExecutorContext> context(
-            new executor::ExecutorContext(txn));
-    // Construct the task. Each partition has 1 tuple to insert
-    for (size_t partition = 0; partition < num_partition; partition++) {
-      size_t task_id = partition;
-      LOG_INFO("Execute insert task on partition %d", (int) partition);
-      executor::InsertTask *insert_task =
-              new executor::InsertTask(&node, node.GetBulkInsertCount(), task_id, partition);
-      insert_task->tuple_bitmap.clear();
-      insert_task->tuple_bitmap.resize(node.GetBulkInsertCount(), false);
-      // Only insert the tuple in this partition
-      insert_task->tuple_bitmap[partition] = true;
-      std::shared_ptr<executor::AbstractTask> task(insert_task);
-      context->SetTask(task);
-      executor::InsertExecutor executor(context.get());
 
-      // Setup promise future for partitioned thread execution
-      // XXX We should use callbacks instead
-      boost::promise<bool> p;
-      boost::unique_future<bool> execute_status = p.get_future();
 
-      // TODO: Why does not macro EXPECT_TRUE work?
-//      EXPECT_TRUE(executor.Init());
-      partitioned_executor_thread_pool.SubmitTask(
-              partition, test::ExecutorTestsUtil::Execute, &executor, &p);
+      char *l_col_1 = new char[5]();
+      strcpy(l_col_1, "p_id");
+      char *l_col_2 = new char[11]();
+      strcpy(l_col_2, "p_partkey");
+      // insert to left table; build an insert statement
+      std::unique_ptr<parser::InsertStatement> insert_stmt(
+              new parser::InsertStatement(INSERT_TYPE_VALUES));
 
-//      EXPECT_TRUE(execute_status.get());
-//      EXPECT_EQ(partition + 1, (int) table->GetTupleCount());
-    }
+      insert_stmt->table_info_ = left_table_name;
+      insert_stmt->columns = new std::vector<char *>;
+      insert_stmt->columns->push_back(const_cast<char *>(l_col_1));
+      insert_stmt->columns->push_back(const_cast<char *>(l_col_2));
+      insert_stmt->select = new parser::SelectStatement();
+      insert_stmt->insert_values =
+              new std::vector<std::vector<expression::AbstractExpression *> *>;
 
-    txn_manager.CommitTransaction(txn);
+      for (int partkey = 0; partkey < 200000 * state.scale_factor; partkey++){
+        auto values_ptr = new std::vector<expression::AbstractExpression *>;
+        insert_stmt->insert_values->push_back(values_ptr);
+
+        // this is so when we partition, we do not put in the same place as if
+        // we partition on part_Key
+        values_ptr->push_back(new expression::ConstantValueExpression(
+                common::ValueFactory::GetIntegerValue(partkey+200000*state.scale_factor)));
+        values_ptr->push_back(new expression::ConstantValueExpression(
+                common::ValueFactory::GetIntegerValue(partkey)));
+        //TODO if not partitioning send to random partition
+        int partition = common::ValueFactory::GetIntegerValue(partkey).Hash() % num_partition;
+        insert_tuple_bitmaps[partition][partkey % insert_size] = true;
+        if ((partkey + 1) % insert_size == 0){
+          LOG_ERROR("finished writing tuple in part table: %d", partkey+1);
+          LoadHelper(num_partition, insert_stmt.get(), insert_size, insert_tuple_bitmaps);
+        }
+      }
+
+
   }
 }
 

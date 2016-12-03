@@ -30,7 +30,7 @@ class ThreadPool {
                  dedicated_thread_count_(0),
                  work_(io_service_) { }
 
-  ~ThreadPool() { }
+  ~ThreadPool() { Shutdown();}
 
   void Initialize(const size_t &pool_size, const size_t &dedicated_thread_count) {
     pool_size_ = pool_size;

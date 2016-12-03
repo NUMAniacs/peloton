@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -24,387 +23,225 @@
 #include <cstddef>
 #include <limits>
 
+#include "expression/conjunction_expression.h"
+
 #include "benchmark/numabench/numabench_workload.h"
 #include "benchmark/numabench/numabench_configuration.h"
 #include "benchmark/numabench/numabench_loader.h"
 
-#include "catalog/manager.h"
-#include "catalog/schema.h"
+#include "planner/parallel_seq_scan_plan.h"
+#include "planner/parallel_hash_plan.h"
+#include "planner/parallel_hash_join_plan.h"
 
-#include "common/types.h"
-#include "common/value.h"
-#include "common/value_factory.h"
+#include "executor/parallel_seq_scan_executor.h"
+
+#include "executor/plan_executor.h"
+
 #include "common/logger.h"
-#include "common/timer.h"
-#include "common/generator.h"
-#include "common/platform.h"
 
-#include "concurrency/transaction.h"
-#include "concurrency/transaction_manager_factory.h"
-
-#include "executor/executor_context.h"
-#include "executor/abstract_executor.h"
-#include "executor/logical_tile.h"
-#include "executor/logical_tile_factory.h"
-#include "executor/materialization_executor.h"
-#include "executor/update_executor.h"
-#include "executor/index_scan_executor.h"
-
-#include "expression/abstract_expression.h"
-#include "expression/constant_value_expression.h"
-#include "expression/tuple_value_expression.h"
-#include "expression/comparison_expression.h"
-#include "expression/expression_util.h"
-
-#include "index/index_factory.h"
-
-#include "logging/log_manager.h"
-
-#include "planner/abstract_plan.h"
-#include "planner/materialization_plan.h"
-#include "planner/insert_plan.h"
-#include "planner/update_plan.h"
-#include "planner/index_scan_plan.h"
-
-#include "storage/data_table.h"
-#include "storage/table_factory.h"
-
-
-#include <memory>
-
-#include "common/harness.h"
-
-#include "common/types.h"
-
-#include "executor/hash_join_executor.h"
-#include "executor/hash_executor.h"
-#include "executor/parallel_hash_join_executor.h"
-#include "executor/parallel_hash_executor.h"
-#include "executor/merge_join_executor.h"
-#include "executor/nested_loop_join_executor.h"
-
-#include "planner/project_info.h"
-#include "executor/executor_tests_util.h"
-
-#include "planner/hash_join_plan.h"
-#include "planner/hash_plan.h"
-#include "planner/nested_loop_join_plan.h"
-#include "executor/join_tests_util.h"
-#include "expression/expression_util.h"
-
-#include "storage/data_table.h"
-#include "storage/tile.h"
-
-#include "concurrency/transaction_manager_factory.h"
-
-
+#include "catalog/catalog.h"
 
 namespace peloton {
 namespace benchmark {
 namespace numabench {
 
+extern storage::DataTable *left_table;
+extern storage::DataTable *right_table;
 
 /////////////////////////////////////////////////////////
 // WORKLOAD
 /////////////////////////////////////////////////////////
-
 
 volatile bool is_running = true;
 
 oid_t *abort_counts;
 oid_t *commit_counts;
 
-void RunBackend(oid_t thread_id) {
-
-  oid_t &execution_count_ref = abort_counts[thread_id];
-  oid_t &transaction_count_ref = commit_counts[thread_id];
-
-  ZipfDistribution zipf((state.scale_factor * DEFAULT_TUPLES_PER_TILEGROUP) - 1,
-                        state.zipf_theta);
-
-  FastRandom rng(rand());
-
-  // backoff
-  uint32_t backoff_shifts = 0;
-
-  while (true) {
-    if (is_running == false) {
-      break;
-    }
-    while (RunMixed(zipf, rng) == false) {
-      if (is_running == false) {
-        break;
-      }
-      execution_count_ref++;
-      // backoff
-      if (state.exp_backoff) {
-        if (backoff_shifts < 63) {
-          ++backoff_shifts;
-        }
-        uint64_t spins = 1UL << backoff_shifts;
-        spins *= 100;
-        while (spins) {
-          _mm_pause();
-          --spins;
-        }
-      }
-    }
-    backoff_shifts >>= 1;
-
-    transaction_count_ref++;
-  }
-}
-
 void RunWorkload() {
   // Execute the workload to build the log
-  std::vector<std::thread> thread_group;
-  oid_t num_threads = state.backend_count;
-
-
-  abort_counts = new oid_t[num_threads];
-  PL_MEMSET(abort_counts, 0, sizeof(oid_t) * num_threads);
-
-  commit_counts = new oid_t[num_threads];
-  PL_MEMSET(commit_counts, 0, sizeof(oid_t) * num_threads);
-
-  size_t profile_round = (size_t)(state.duration / state.profile_duration);
-
-  oid_t **abort_counts_profiles = new oid_t *[profile_round];
-  for (size_t round_id = 0; round_id < profile_round; ++round_id) {
-    abort_counts_profiles[round_id] = new oid_t[num_threads];
-  }
-
-  oid_t **commit_counts_profiles = new oid_t *[profile_round];
-  for (size_t round_id = 0; round_id < profile_round; ++round_id) {
-    commit_counts_profiles[round_id] = new oid_t[num_threads];
-  }
-
-  // Launch a group of threads
-  for (oid_t thread_itr = 0; thread_itr < num_threads; ++thread_itr) {
-    thread_group.push_back(std::move(std::thread(RunBackend, thread_itr)));
-  }
-
-  //////////////////////////////////////
-  oid_t last_tile_group_id = 0;
-  for (size_t round_id = 0; round_id < profile_round; ++round_id) {
-    std::this_thread::sleep_for(
-        std::chrono::milliseconds(int(state.profile_duration * 1000)));
-    PL_MEMCPY(abort_counts_profiles[round_id], abort_counts,
-           sizeof(oid_t) * num_threads);
-    PL_MEMCPY(commit_counts_profiles[round_id], commit_counts,
-           sizeof(oid_t) * num_threads);
-    
-    auto& manager = catalog::Manager::GetInstance();
-    oid_t current_tile_group_id = manager.GetCurrentTileGroupId();
-    if (round_id != 0) {
-      state.profile_memory.push_back(current_tile_group_id - last_tile_group_id);
-    }
-    last_tile_group_id = current_tile_group_id;
-  
-  }
-  
-  state.profile_memory.push_back(state.profile_memory.at(state.profile_memory.size() - 1));
-
-  is_running = false;
-
-  // Join the threads with the main thread
-  for (oid_t thread_itr = 0; thread_itr < num_threads; ++thread_itr) {
-    thread_group[thread_itr].join();
-  }
-
-  // calculate the throughput and abort rate for the first round.
-  oid_t total_commit_count = 0;
-  for (size_t i = 0; i < num_threads; ++i) {
-    total_commit_count += commit_counts_profiles[0][i];
-  }
-
-  oid_t total_abort_count = 0;
-  for (size_t i = 0; i < num_threads; ++i) {
-    total_abort_count += abort_counts_profiles[0][i];
-  }
-
-  state.profile_throughput.push_back(total_commit_count * 1.0 /
-                                      state.profile_duration);
-  state.profile_abort_rate.push_back(total_abort_count * 1.0 /
-                                      total_commit_count);
-
-  // calculate the throughput and abort rate for the remaining rounds.
-  for (size_t round_id = 0; round_id < profile_round - 1; ++round_id) {
-    total_commit_count = 0;
-    for (size_t i = 0; i < num_threads; ++i) {
-      total_commit_count += commit_counts_profiles[round_id + 1][i] -
-                            commit_counts_profiles[round_id][i];
-    }
-
-    total_abort_count = 0;
-    for (size_t i = 0; i < num_threads; ++i) {
-      total_abort_count += abort_counts_profiles[round_id + 1][i] -
-                           abort_counts_profiles[round_id][i];
-    }
-
-    state.profile_throughput.push_back(total_commit_count * 1.0 /
-                                        state.profile_duration);
-    state.profile_abort_rate.push_back(total_abort_count * 1.0 /
-                                        total_commit_count);
-  }
-
-  //////////////////////////////////////////////////
-  // calculate the aggregated throughput and abort rate.
-  total_commit_count = 0;
-  for (size_t i = 0; i < num_threads; ++i) {
-    total_commit_count += commit_counts_profiles[profile_round - 1][i];
-  }
-
-  total_abort_count = 0;
-  for (size_t i = 0; i < num_threads; ++i) {
-    total_abort_count += abort_counts_profiles[profile_round - 1][i];
-  }
-
-  state.throughput = total_commit_count * 1.0 / state.duration;
-  state.abort_rate = total_abort_count * 1.0 / total_commit_count;
-
-  //////////////////////////////////////////////////
-
-  // cleanup everything.
-  for (size_t round_id = 0; round_id < profile_round; ++round_id) {
-    delete[] abort_counts_profiles[round_id];
-    abort_counts_profiles[round_id] = nullptr;
-  }
-
-  for (size_t round_id = 0; round_id < profile_round; ++round_id) {
-    delete[] commit_counts_profiles[round_id];
-    commit_counts_profiles[round_id] = nullptr;
-  }
-
-  delete[] abort_counts_profiles;
-  abort_counts_profiles = nullptr;
-  delete[] commit_counts_profiles;
-  commit_counts_profiles = nullptr;
-
-  delete[] abort_counts;
-  abort_counts = nullptr;
-  delete[] commit_counts;
-  commit_counts = nullptr;
-
+  RunHashJoin();
 }
 
 void RunHashJoin() {
-  // Mock table scan executors
-  MockExecutor left_table_scan_executor, right_table_scan_executor;
 
-//  TODO: What type of join to use?
-  PelotonJoinType join_type = PelotonJoinType::JOIN_TYPE_RIGHT;
-  auto projection = test::JoinTestsUtil::CreateProjection();
-  // setup the projection schema
-  auto schema = test::JoinTestsUtil::CreateJoinSchema();
+  int result_tuple_count = 0;
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-  // Construct predicate
-  std::unique_ptr<const expression::AbstractExpression> predicate(
-          test::JoinTestsUtil::CreateJoinPredicate());
+  // Create the plan node
+  TargetList target_list;
+  DirectMapList direct_map_list;
 
-  // Create hash plan node
+  /////////////////////////////////////////////////////////
+  // PROJECTION 0
+  /////////////////////////////////////////////////////////
+
+  // direct map
+  direct_map_list.push_back(std::make_pair(0, std::make_pair(0, 0)));
+  direct_map_list.push_back(std::make_pair(1, std::make_pair(0, 1)));
+  direct_map_list.push_back(std::make_pair(2, std::make_pair(1, 0)));
+  direct_map_list.push_back(std::make_pair(3, std::make_pair(1, 1)));
+  direct_map_list.push_back(std::make_pair(3, std::make_pair(1, 2)));
+
+  auto projection = std::unique_ptr<const planner::ProjectInfo>(
+      new planner::ProjectInfo(std::move(target_list),
+          std::move(direct_map_list)));
+
+  expression::TupleValueExpression *left_table_expr =
+      new expression::TupleValueExpression(common::Type::INTEGER, 0, 1);
+  expression::TupleValueExpression *right_table_expr =
+      new expression::TupleValueExpression(common::Type::INTEGER, 1, 2);
+
+  auto predicate = std::unique_ptr < expression::AbstractExpression
+      > (new expression::ComparisonExpression(EXPRESSION_TYPE_COMPARE_EQUAL,
+          left_table_expr, right_table_expr));
+
+  //schema
+  // TODO: who is the primary key?????
+  auto p_id_col = catalog::Column(common::Type::INTEGER,
+      common::Type::GetTypeSize(common::Type::INTEGER), "p_id", true);
+  auto p_partkey_col = catalog::Column(common::Type::INTEGER,
+      common::Type::GetTypeSize(common::Type::INTEGER), "p_partkey", true);
+  auto l_id_col = catalog::Column(common::Type::INTEGER,
+      common::Type::GetTypeSize(common::Type::INTEGER), "l_id", true);
+  auto l_shipdate_col = catalog::Column(common::Type::INTEGER,
+      common::Type::GetTypeSize(common::Type::INTEGER), "l_shipdate", true);
+  auto l_partkey_col = catalog::Column(common::Type::INTEGER,
+      common::Type::GetTypeSize(common::Type::INTEGER), "l_partkey", true);
+
+  auto schema = std::shared_ptr < catalog::Schema > (new catalog::Schema( {
+      p_id_col, p_partkey_col, l_id_col, l_shipdate_col, l_partkey_col }));
+
+  // ================================
+  //             Plans
+  // ================================
+
+  // this is inefficient but is closer to what TPC-H Q14 actually does
+  auto right_predicate = new expression::ConjunctionExpression(
+      EXPRESSION_TYPE_CONJUNCTION_AND,
+      new expression::ComparisonExpression(
+          EXPRESSION_TYPE_COMPARE_GREATERTHANOREQUALTO,
+          new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
+          new expression::ConstantValueExpression(
+              common::ValueFactory::GetIntegerValue(23))),
+      new expression::ComparisonExpression(EXPRESSION_TYPE_COMPARE_LESSTHAN,
+          new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
+          new expression::ConstantValueExpression(
+              common::ValueFactory::GetIntegerValue(24))));
+
+  // Create parallel seq scan node on right table
+  std::unique_ptr<planner::ParallelSeqScanPlan> right_seq_scan_node(
+      new planner::ParallelSeqScanPlan(right_table, right_predicate,
+          std::vector<oid_t>( { 0, 1, 2 })));
+
+  // Create hash plan node expressions
   expression::AbstractExpression *right_table_attr_1 =
-          new expression::TupleValueExpression(common::Type::INTEGER, 1, 1);
+      new expression::TupleValueExpression(common::Type::INTEGER, 0, 1);
 
-  std::vector<std::unique_ptr<const expression::AbstractExpression>>
-          hash_keys;
+  std::vector<std::unique_ptr<const expression::AbstractExpression>> hash_keys;
   hash_keys.emplace_back(right_table_attr_1);
 
-  std::vector<std::unique_ptr<const expression::AbstractExpression>>
-          left_hash_keys;
-  left_hash_keys.emplace_back(
-          std::unique_ptr<expression::AbstractExpression>{
-                  new expression::TupleValueExpression(common::Type::INTEGER, 0,
-                                                       1)});
+  // Create hash planner node
+  std::unique_ptr<planner::ParallelHashPlan> hash_plan_node(
+      new planner::ParallelHashPlan(hash_keys));
 
-  std::vector<std::unique_ptr<const expression::AbstractExpression>>
-          right_hash_keys;
-  right_hash_keys.emplace_back(
-          std::unique_ptr<expression::AbstractExpression>{
-                  new expression::TupleValueExpression(common::Type::INTEGER, 1,
-                                                       1)});
-
-  // Create hash plan node
-  planner::HashPlan hash_plan_node(hash_keys);
-
-  // Construct the hash executor
-  executor::HashExecutor hash_executor(&hash_plan_node, nullptr);
+  // Create parallel seq scan node on left table
+  std::unique_ptr<planner::ParallelSeqScanPlan> left_seq_scan_node(
+      new planner::ParallelSeqScanPlan(left_table, nullptr,
+          std::vector<oid_t>( { 0, 1 })));
 
   // Create hash join plan node.
-  planner::HashJoinPlan hash_join_plan_node(join_type, std::move(predicate),
-                                            std::move(projection), schema);
+  std::unique_ptr<planner::ParallelHashJoinPlan> hash_join_plan_node(
+      new planner::ParallelHashJoinPlan(JOIN_TYPE_INNER, std::move(predicate),
+          std::move(projection), schema));
+  hash_join_plan_node->AddChild(std::move(left_seq_scan_node));
 
-  // Construct the hash join executor
-  executor::HashJoinExecutor hash_join_executor(&hash_join_plan_node,
-                                                nullptr);
+  // Create a blocking wait at the top of hash executor because the hash
+  // join executor is not ready yet..
+  std::unique_ptr<bridge::BlockingWait> wait(new bridge::BlockingWait());
 
-  // Construct the executor tree
-  hash_join_executor.AddChild(&left_table_scan_executor);
-  hash_join_executor.AddChild(&hash_executor);
+  // Set the dependent of hash plan MANUALLY
+  right_seq_scan_node->parent_dependent = hash_plan_node.get();
+  hash_plan_node->parent_dependent = hash_join_plan_node.get();
+  hash_join_plan_node->parent_dependent = wait.get();
 
-  hash_executor.AddChild(&right_table_scan_executor);
+  // ================================
+  //         Executors
+  // ================================
 
-  // Run the hash_join_executor
-  hash_join_executor.Init()
-//  EXPECT_TRUE(hash_join_executor.Init());
-  while (hash_join_executor.Execute() == true) {
-    std::unique_ptr<executor::LogicalTile> result_logical_tile(
-            hash_join_executor.GetOutput());
+  // Create executor context with empty txn
+  auto txn = txn_manager.BeginReadonlyTransaction();
 
-    if (result_logical_tile != nullptr) {
-      result_tuple_count += result_logical_tile->GetTupleCount();
-      tuples_with_null += test::JoinTestsUtil::CountTuplesWithNullFields(
-              result_logical_tile.get());
-      test::JoinTestsUtil::ValidateJoinLogicalTile(result_logical_tile.get());
-      LOG_TRACE("%s", result_logical_tile->GetInfo().c_str());
-    }
-  }
-}
+  std::shared_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(txn));
 
-/////////////////////////////////////////////////////////
-// HARNESS
-/////////////////////////////////////////////////////////
-
-std::vector<std::vector<common::Value >> ExecuteRead(executor::AbstractExecutor* executor) {
-  executor->Init();
-
-  std::vector<std::vector<common::Value >> logical_tile_values;
-
-  // Execute stuff
-  while (executor->Execute() == true) {
-    std::unique_ptr<executor::LogicalTile> result_tile(executor->GetOutput());
-
-    if(result_tile == nullptr) {
-      break;
-    }
-
-    auto column_count = result_tile->GetColumnCount();
-    LOG_TRACE("result column count = %d\n", (int)column_count);
-
-    for (oid_t tuple_id : *result_tile) {
-      expression::ContainerTuple<executor::LogicalTile> cur_tuple(result_tile.get(),
-                                                                  tuple_id);
-      std::vector<common::Value > tuple_values;
-      for (oid_t column_itr = 0; column_itr < column_count; column_itr++){
-         auto value = cur_tuple.GetValue(column_itr);
-         tuple_values.push_back(value);
+  // Vector of seq scan tasks
+  std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
+  std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
+      new executor::LogicalTileLists());
+  for (size_t p = 0; p < right_table->GetPartitionCount(); p++) {
+    auto partition_tilegroup_count = right_table->GetPartitionTileGroupCount(p);
+    size_t task_tilegroup_count = (partition_tilegroup_count
+        + PL_GET_PARTITION_SIZE() - 1) /
+    PL_GET_PARTITION_SIZE();
+    for (size_t i = 0; i < partition_tilegroup_count; i +=
+        task_tilegroup_count) {
+      executor::SeqScanTask *seq_scan_task = new executor::SeqScanTask(
+          right_seq_scan_node.get(), seq_scan_tasks.size(), p,
+          result_tile_lists);
+      for (size_t tile_group_offset_ = i;
+          tile_group_offset_ < i + task_tilegroup_count
+              && tile_group_offset_ < partition_tilegroup_count;
+          tile_group_offset_++) {
+        seq_scan_task->tile_group_ptrs.push_back(
+            right_table->GetTileGroupFromPartition(p, tile_group_offset_));
       }
-
-      // Move the tuple list
-      logical_tile_values.push_back(std::move(tuple_values));
+      seq_scan_tasks.push_back(
+          std::shared_ptr < executor::AbstractTask > (seq_scan_task));
     }
   }
+  LOG_DEBUG("Number of seq scan tasks created: %d", (int )seq_scan_tasks.size());
 
-  return std::move(logical_tile_values);
+  // Create trackable for seq scan
+  size_t num_seq_scan_tasks = seq_scan_tasks.size();
+  std::shared_ptr<executor::Trackable> trackable(
+      new executor::Trackable(num_seq_scan_tasks));
+
+  // Launch all the tasks
+  for (size_t i = 0; i < num_seq_scan_tasks; i++) {
+    auto partition_aware_task = std::dynamic_pointer_cast
+        < executor::PartitionAwareTask > (seq_scan_tasks[i]);
+    partition_aware_task->Init(trackable, hash_plan_node.get(),
+        num_seq_scan_tasks, txn);
+    partitioned_executor_thread_pool.SubmitTask(
+        partition_aware_task->partition_id,
+        executor::ParallelSeqScanExecutor::ExecuteTask,
+        std::move(seq_scan_tasks[i]));
+  }
+
+  wait->WaitForCompletion();
+
+  executor::HashJoinTask *hash_join_task =
+      static_cast<executor::HashJoinTask *>(wait->last_task.get());
+  // Validate hash join result tiles
+  {
+    auto child_tiles = hash_join_task->result_tile_lists;
+    auto num_tasks = child_tiles->size();
+    // For all tasks
+    for (size_t task_itr = 0; task_itr < num_tasks; task_itr++) {
+      auto &target_tile_list = (*child_tiles)[task_itr];
+      // For all tiles of this task
+      for (size_t tile_itr = 0; tile_itr < target_tile_list.size();
+          tile_itr++) {
+        if (target_tile_list[tile_itr]->GetTupleCount() > 0) {
+          auto result_tile = target_tile_list[tile_itr].get();
+          result_tuple_count += result_tile->GetTupleCount();
+          LOG_TRACE("%s", result_tile->GetInfo().c_str());
+        }
+      }
+    }
+  }
+  LOG_ERROR("Result_Tuples: %d", result_tuple_count);
 }
-
-void ExecuteUpdate(executor::AbstractExecutor* executor) {
-  executor->Init();
-  // Execute stuff
-  while (executor->Execute() == true);
-}
-
-
 
 }  // namespace numabench
 }  // namespace benchmark
