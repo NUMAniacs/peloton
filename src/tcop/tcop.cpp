@@ -309,6 +309,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   LOG_TRACE("About to commit: single stmt: %d, init_failure: %d, status: %d",
             single_statement_txn, init_failure, txn->GetResult());
 
+  auto commit_start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count());
   // should we commit or abort ?
   if (single_statement_txn == true || init_failure == true) {
     auto status = txn->GetResult();
@@ -340,7 +342,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
         highest_time = itr->second.first;
     }
 
-    LOG_ERROR("\n%sHighest time:%f\n%f", histogram.str().c_str(), highest_time, (end-start)/1000);
+    LOG_ERROR("\n%sHighest time:%f\nCommit Time:%f\n%f", histogram.str().c_str(),
+              highest_time, (end - commit_start)/1000, (end-start)/1000);
   }
 
   if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {
