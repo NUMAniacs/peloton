@@ -349,8 +349,8 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     double highest_time = 0;
     for (auto itr=exec_histograms.begin(); itr!=exec_histograms.end(); itr++) {
       auto exec_time = std::get<0>(itr->second);
-      histogram << itr->first << " " << std::get<0>(itr->second) << " "
-        << exec_time << " " << std::get<2>(itr->second) << std::endl;
+      histogram << itr->first << " " << exec_time << " "
+        << std::get<1>(itr->second) << " " << std::get<2>(itr->second) << std::endl;
       if (exec_time > highest_time)
         highest_time = exec_time;
     }

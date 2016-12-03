@@ -84,6 +84,8 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   // Initialize the executor tree
   status = executor_tree->Init();
 
+  exchg_params->exec_time = 0;
+
   // Abort and cleanup
   if (status == false) {
     exchg_params->init_failure = true;
@@ -94,10 +96,12 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
 
     // Execute the tree until we get result tiles from root node
     while (status == true) {
-      status = executor_tree->Execute();
-
       auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
           std::chrono::steady_clock::now().time_since_epoch()).count());
+      status = executor_tree->Execute();
+      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count());
+      exchg_params->exec_time  += (end-start)/1000;
 
       // FIXME We should push the logical tile to the result field in the tasks
       // instead of being processed here immediately)
@@ -132,10 +136,6 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
         exchg_params->num_tuples += answer_tuples.size();
       }
 
-      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-          std::chrono::steady_clock::now().time_since_epoch()).count());
-
-      exchg_params->exec_time  += (end-start)/1000;
     }
     // Set the result
     p_status.m_processed = executor_context->num_processed;
