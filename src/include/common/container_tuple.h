@@ -39,6 +39,9 @@ class ContainerTuple : public AbstractTuple {
   ContainerTuple(ContainerTuple &&) = default;
   ContainerTuple &operator=(ContainerTuple &&) = default;
 
+  // XXX Temporary constructor to make compiler happy for hashmap
+  ContainerTuple() : container_(nullptr), tuple_id_(-1) {}
+
   ContainerTuple(T *container, oid_t tuple_id)
       : container_(container), tuple_id_(tuple_id) {}
 

@@ -68,6 +68,8 @@ void ParallelHashExecutor::InitHashKeys() {
   }
 }
 
+// TODO Revisit the logic to insert values into hash table. Create a abstract
+// class for hashmaps.
 void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   PL_ASSERT(task->GetTaskType() == TASK_HASH);
   executor::HashTask *hash_task = static_cast<executor::HashTask *>(task.get());
