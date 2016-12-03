@@ -129,6 +129,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
             exchg_params->result.push_back(res);
           }
         }
+        exchg_params->num_tuples += answer_tuples.size();
       }
     }
     // Set the result

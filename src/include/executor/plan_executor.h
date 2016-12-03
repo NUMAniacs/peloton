@@ -106,6 +106,7 @@ struct ExchangeParams {
   size_t partition_id;
   int cpu_id;
   double exec_time;
+  size_t num_tuples = 0;
 
   inline ExchangeParams(concurrency::Transaction *txn,
                         const std::shared_ptr<Statement> &statement,

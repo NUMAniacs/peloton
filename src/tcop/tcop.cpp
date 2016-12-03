@@ -272,7 +272,7 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
   }
 
   std::map<int, std::pair<double, double>> access_histograms;
-  std::unordered_map<int, std::pair<double, size_t>> exec_histograms;
+  std::unordered_map<int, std::tuple<double, size_t, size_t>> exec_histograms;
 
 
   auto coalesce_start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
@@ -298,10 +298,16 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     }
 
     if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_PARALLEL_SEQSCAN) {
-      auto tg_processed = static_cast<executor::SeqScanTask *>(exchg_params_list[i]->task.get())
+      double old_exec_time;
+      size_t old_tg_count, old_answer_tuples;
+      auto new_tg_count = static_cast<executor::SeqScanTask *>(exchg_params_list[i]->task.get())
           ->tile_group_ptrs.size();
-      exec_histograms[exchg_params_list[i]->cpu_id].first += exchg_params_list[i]->exec_time;
-      exec_histograms[exchg_params_list[i]->cpu_id].second += tg_processed;
+      std::tie(old_exec_time, old_tg_count,
+               old_answer_tuples) = exec_histograms[exchg_params_list[i]->cpu_id];
+
+      exec_histograms[exchg_params_list[i]->cpu_id] = std::make_tuple(
+          old_exec_time+exchg_params_list[i]->exec_time, old_tg_count+new_tg_count,
+          old_answer_tuples+exchg_params_list[i]->num_tuples);
     }
 
     if (plan_tree->GetPlanNodeType() == PLAN_NODE_TYPE_SEQSCAN) {
@@ -342,10 +348,11 @@ bridge::peloton_status TrafficCop::ExchangeOperator(
     std::stringstream histogram;
     double highest_time = 0;
     for (auto itr=exec_histograms.begin(); itr!=exec_histograms.end(); itr++) {
-      histogram << itr->first << " " << itr->second.first << " "
-        << itr->second.second << std::endl;
-      if (itr->second.first > highest_time)
-        highest_time = itr->second.first;
+      auto exec_time = std::get<1>(itr->second);
+      histogram << itr->first << " " << std::get<0>(itr->second) << " "
+        << exec_time << " " << std::get<2>(itr->second) << std::endl;
+      if (exec_time > highest_time)
+        highest_time = exec_time;
     }
 
     LOG_ERROR("\n%sHighest time:%f\nSetup Time:%f\nSubmit Time:%f\nCoalesce Time:%f\nCommit "
