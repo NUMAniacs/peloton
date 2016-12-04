@@ -47,7 +47,9 @@ void RunBenchmark() {
   // Run the workload, 3 trials
   for (int i=0; i<3; i++) {
     LOG_INFO("Trial:%d", i+1);
+    ostream << "Single Tuple Trial " << i+1 << "\n";
     RunSingleTupleSelectivityScan(ostream);
+    ostream << "1% Selectivity Trial " << i+1 << "\n";
     Run1pcSelectivityScan(ostream);
   }
 

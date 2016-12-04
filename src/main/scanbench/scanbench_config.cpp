@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <ctime>
 
 #include "benchmark/scanbench/scanbench_config.h"
 #include "common/logger.h"
@@ -87,7 +88,7 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
 
 
 void WriteOutput(std::stringstream& ostream) {
-  std::ofstream out("outputfile.summary");
+  std::ofstream out("outputfile.summary." + std::time(nullptr));
 
   LOG_INFO("----------------------------------------------------------");
   LOG_INFO("%d %s:: %f",
