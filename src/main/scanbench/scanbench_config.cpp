@@ -1,0 +1,108 @@
+//===----------------------------------------------------------------------===//
+//
+//                         Peloton
+//
+// scanbench_config.cpp
+//
+// Identification: src/main/scanbench/scanbench_config.cpp
+//
+// Copyright (c) 2015-16, Carnegie Mellon University Database Group
+//
+//===----------------------------------------------------------------------===//
+
+
+#include <iomanip>
+#include <algorithm>
+#include <iostream>
+#include <fstream>
+
+#include "benchmark/scanbench/scanbench_config.h"
+#include "common/logger.h"
+
+namespace peloton {
+namespace benchmark {
+namespace scanbench {
+
+void Usage(FILE *out) {
+  fprintf(out,
+          "Command line options : ycsb <options> \n"
+              "   -h --help              :  print help message \n"
+              "   -s --scale_factor      :  # of M tuples (default: 1)\n"
+              "   -t --read_only         :  don't use read only transaction (default: true)\n"
+  );
+}
+
+static struct option opts[] = {
+    { "scale_factor", optional_argument, NULL, 's' },
+    { "read_only", optional_argument, NULL, 't' },
+    { "partition_left", optional_argument, NULL, 'l' },
+    { "partition_right", optional_argument, NULL, 'r' },
+    { NULL, 0, NULL, 0 }
+};
+
+void ValidateScaleFactor(const configuration &state) {
+  if (state.scale_factor <= 0) {
+    LOG_ERROR("Invalid scale_factor :: %d", state.scale_factor);
+    exit(EXIT_FAILURE);
+  }
+
+  LOG_TRACE("%s : %d", "scale_factor", state.scale_factor);
+}
+
+void ParseArguments(int argc, char *argv[], configuration &state) {
+  // Default Values
+  state.scale_factor = 1;
+  state.read_only_txn = true;
+
+
+  // Parse args
+  while (1) {
+    int idx = 0;
+    int c = getopt_long(argc, argv, "hts:", opts, &idx);
+
+    if (c == -1) break;
+
+    switch (c) {
+      case 'h':
+        Usage(stderr);
+        exit(EXIT_FAILURE);
+        break;
+      case 's':
+        state.scale_factor = atoi(optarg);
+        break;
+      case 't':
+        state.read_only_txn = false;
+        break;
+      default:
+        LOG_ERROR("Unknown option: -%c-", c);
+        Usage(stderr);
+        exit(EXIT_FAILURE);
+        break;
+    }
+  }
+
+  // Print configuration
+  ValidateScaleFactor(state);
+}
+
+
+void WriteOutput() {
+  std::ofstream out("outputfile.summary");
+
+  LOG_INFO("----------------------------------------------------------");
+  LOG_INFO("%d %s:: %f",
+           state.scale_factor,
+           state.read_only_txn ? "true" : "false",
+           state.execution_time_ms);
+
+  out << state.scale_factor << " ";
+  out << (state.read_only_txn ? "true" : "false") << " ";
+  out << state.execution_time_ms << "\n";
+
+  out.flush();
+  out.close();
+}
+
+}  // namespace scanbench
+}  // namespace benchmark
+}  // namespace peloton

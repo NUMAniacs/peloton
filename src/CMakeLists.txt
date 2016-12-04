@@ -69,6 +69,11 @@ file(GLOB_RECURSE sdbench_srcs ${PROJECT_SOURCE_DIR}/src/main/sdbench/*.cpp)
 add_executable(sdbench EXCLUDE_FROM_ALL ${sdbench_srcs})
 target_link_libraries(sdbench peloton)
 
+# --[ scanbench
+file(GLOB_RECURSE scanbench_srcs ${PROJECT_SOURCE_DIR}/src/main/scanbench/*.cpp)
+add_executable(scanbench EXCLUDE_FROM_ALL ${scanbench_srcs})
+target_link_libraries(scanbench peloton)
+
 
 # --[ logger
 file(GLOB_RECURSE logger_srcs ${PROJECT_SOURCE_DIR}/src/main/logger/*.cpp)

@@ -27,11 +27,11 @@ namespace peloton {
 
 // XXX Assume hyper-threading, num_partition = num_cores
 
-#define SIMULATE_NUMA_PARTITION 1
+#define SIMULATE_NUMA_PARTITION 0
 
 #if SIMULATE_NUMA_PARTITION
   // Get total number of partitions
-#define PL_NUM_PARTITIONS() 4
+#define PL_NUM_PARTITIONS() 1
 
 // Get the partition node id of current worker (= core id)
 #define PL_GET_PARTITION_NODE() sched_getcpu()
@@ -48,7 +48,7 @@ namespace peloton {
 
 #else
 // Get total number of partitions
-#define PL_NUM_PARTITIONS() (int)(std::thread::hardware_concurrency() / 2)
+#define PL_NUM_PARTITIONS() (int)(numa_max_node()+1)
 
 // Get the partition node id of current worker (= core id)
 #define PL_GET_PARTITION_NODE() sched_getcpu()
