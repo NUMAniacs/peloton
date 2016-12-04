@@ -45,9 +45,9 @@ class PartitionThreadPool {
 //    for (auto itr = partition_node_id_map.begin();
 //         itr != partition_node_id_map.end(); itr++) {
     thread_pool_map_[0].InitializePinned(partition_node_id_map[0]);
-//    thread_pool_map_[1].InitializePinned(partition_node_id_map[1]);
-//    thread_pool_map_[2].InitializePinned(partition_node_id_map[2]);
-//    thread_pool_map_[3].InitializePinned(partition_node_id_map[3]);
+    thread_pool_map_[1].InitializePinned(partition_node_id_map[1]);
+    thread_pool_map_[2].InitializePinned(partition_node_id_map[2]);
+    thread_pool_map_[3].InitializePinned(partition_node_id_map[3]);
 //    }
   }
 

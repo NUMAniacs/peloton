@@ -68,7 +68,6 @@ void ValidateResult(std::shared_ptr<executor::LogicalTileLists> result_tile_list
 void AbstractSelectivityScan(expression::AbstractExpression* predicate,
                              size_t expected_tuples) {
 
-  int result_tuple_count = 0;
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
   // Create the plan node
@@ -90,7 +89,7 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
       std::chrono::steady_clock::now().time_since_epoch()).count());
 
   // Create executor context with empty txn
-  auto txn = // state.read_only_txn ? txn_manager.BeginReadonlyTransaction() :
+  auto txn = state.read_only_txn ? txn_manager.BeginReadonlyTransaction() :
              txn_manager.BeginTransaction();
 
   std::shared_ptr<executor::ExecutorContext> context(
@@ -112,6 +111,8 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
   std::shared_ptr<executor::Trackable> trackable(
       new executor::Trackable(tasks.size()));
 
+  std::unordered_map<int, std::tuple<double, size_t, size_t>> exec_histograms;
+
 
   // Launch all the tasks
   for (size_t i = 0; i < tasks.size(); i++) {
@@ -125,10 +126,52 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
 
   wait.WaitForCompletion();
 
+  auto status = txn->GetResult();
+  switch (status) {
+    case Result::RESULT_SUCCESS:
+      // Commit
+      LOG_TRACE("Commit Transaction");
+      txn_manager.CommitTransaction(txn);
+      break;
+
+    case Result::RESULT_FAILURE:
+    default:
+      // Abort
+      LOG_TRACE("Abort Transaction");
+      txn_manager.AbortTransaction(txn);
+      throw Exception("Transaction should not abort");
+  }
+
   auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
       std::chrono::steady_clock::now().time_since_epoch()).count());
 
+
   ValidateResult(result_tile_lists, expected_tuples);
+
+  for (auto &task : tasks) {
+    double old_exec_time;
+    size_t old_tg_count, old_answer_tuples;
+    auto new_tg_count = static_cast<executor::SeqScanTask *>(task.get())->tile_group_ptrs.size();
+    std::tie(old_exec_time, old_tg_count,
+             old_answer_tuples) = exec_histograms[task->cpu_id];
+
+    exec_histograms[task->cpu_id] = std::make_tuple(
+        old_exec_time+task->exec_time, old_tg_count+new_tg_count,
+        old_answer_tuples+task->num_tuples);
+  }
+
+  std::stringstream histogram;
+  double highest_time = 0;
+  for (auto itr=exec_histograms.begin(); itr!=exec_histograms.end(); itr++) {
+    auto exec_time = std::get<0>(itr->second);
+    histogram << itr->first << " " << exec_time << " "
+    << std::get<1>(itr->second) << " " << std::get<2>(itr->second) << std::endl;
+    if (exec_time > highest_time)
+      highest_time = exec_time;
+  }
+
+  LOG_ERROR("\n%sHighest time:%f", histogram.str().c_str(), highest_time);
+
   state.execution_time_ms = (end-start)/1000;
   LOG_INFO("Parallel Sequential Scan took %fms", state.execution_time_ms);
 }

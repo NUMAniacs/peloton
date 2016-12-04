@@ -172,6 +172,7 @@ bool ParallelSeqScanExecutor::DExecute() {
             LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
             if (eval.IsTrue()) {
               position_list.push_back(tuple_id);
+              seq_scan_task_->num_tuples++;
               auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner);
               if (!res) {
                 transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
@@ -227,6 +228,8 @@ LogicalTile* ParallelSeqScanExecutor::GetOutput() {
 
 // TODO We should have a generic ExecuteTask static function
 void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
+  auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count());
   PL_ASSERT(task->GetTaskType() == TASK_SEQ_SCAN);
   PL_ASSERT(task->initialized);
 
@@ -247,6 +250,9 @@ void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
     PL_ASSERT(false);
   }
 
+  auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+  task->exec_time += (end-start)/1000;
   if (task->trackable->TaskComplete()) {
     LOG_INFO("All the parallel seq scan tasks have completed");
     task->dependent->DependencyComplete(task);

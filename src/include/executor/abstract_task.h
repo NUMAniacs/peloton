@@ -101,6 +101,10 @@ class AbstractTask {
   // The txn for this task
   concurrency::Transaction *txn = nullptr;
 
+  int cpu_id = 0;
+
+  size_t num_tuples = 0;
+
   double exec_time = 0;
 };
 

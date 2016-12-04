@@ -256,6 +256,7 @@ VisibilityType TimestampOrderingTransactionManager::IsVisible(
   bool own = (current_txn->GetTransactionId() == tuple_txn_id);
   // the tuple has already been committed.
   bool activated = (current_txn->GetBeginCommitId() >= tuple_begin_cid);
+  activated = true;
   // the tuple is not visible.
   bool invalidated = (current_txn->GetBeginCommitId() >= tuple_end_cid);
 

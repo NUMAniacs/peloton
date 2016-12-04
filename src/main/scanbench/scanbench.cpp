@@ -42,10 +42,12 @@ void RunBenchmark() {
   // Load the databases
   LoadScanBenchDatabase();
 
-  // Run the workload
-  RunSingleTupleSelectivityScan();
-
-  Run1pcSelectivityScan();
+  // Run the workload, 3 trials
+  for (int i=0; i<3; i++) {
+    LOG_INFO("Trial:%d", i+1);
+    RunSingleTupleSelectivityScan();
+    Run1pcSelectivityScan();
+  }
 
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();
 
