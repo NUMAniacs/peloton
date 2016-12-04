@@ -192,6 +192,10 @@ bool ParallelSeqScanExecutor::DExecute() {
       auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
           std::chrono::steady_clock::now().time_since_epoch()).count());
 
+      if ((int) seq_scan_task_->partition_id != PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE())) {
+        LOG_ERROR("Execpted Partition:%d Actual Partition:%ld",
+                  PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE()), seq_scan_task_->partition_id);
+      }
       // Construct logical tile.
       // TODO We should construct the logical tile in the current partition
       std::unique_ptr<LogicalTile> logical_tile(
