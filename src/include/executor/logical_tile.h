@@ -72,7 +72,7 @@ class LogicalTile : public Printable {
   //===--------------------------------------------------------------------===//
 
   // override new operator for NUMA-aware memory allocation
-  void *operator new(size_t size, int partition);
+  void *operator new(size_t size, int partition, bool is_normal = false);
 
   // override delete operator for NUMA-aware memory allocation
   void operator delete(void *ptr, size_t size);
@@ -301,6 +301,8 @@ class LogicalTile : public Printable {
  private:
   // Default constructor
   LogicalTile(size_t partition);
+
+  LogicalTile();
 
   //===--------------------------------------------------------------------===//
   // Materialize utilities. We can make these public if it is necessary.

@@ -49,8 +49,8 @@ std::vector<oid_t> CreateIdentityPositionList(unsigned int size) {
  *
  * @return Pointer to empty logical tile.
  */
-LogicalTile *LogicalTileFactory::GetTile(size_t partition) {
-  return new (partition) LogicalTile(partition);
+LogicalTile *LogicalTileFactory::GetTile(size_t partition, bool is_normal) {
+  return new (partition, is_normal) LogicalTile(partition);
 }
 
 /**

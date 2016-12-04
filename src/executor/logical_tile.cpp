@@ -28,6 +28,11 @@ namespace executor {
 
 #define SCHEMA_PREALLOCATION_SIZE 20
 
+LogicalTile::LogicalTile() {
+  // Preallocate schema
+  schema_.reserve(SCHEMA_PREALLOCATION_SIZE);
+}
+
 LogicalTile::LogicalTile(size_t partition) {
   // Preallocate schema
   schema_.reserve(SCHEMA_PREALLOCATION_SIZE);
@@ -36,11 +41,14 @@ LogicalTile::LogicalTile(size_t partition) {
   }
 }
 
-void *LogicalTile::operator new(size_t size, int partition) {
+void *LogicalTile::operator new(size_t size, int partition, bool is_normal) {
   // TODO numa un-aware alloc
   //  if (partition == UNDEFINED_NUMA_REGION) {
   //    return do_allocation(size, true);
   //  }
+  if (is_normal)
+    return malloc(size);
+
   if (SIMULATE_NUMA_PARTITION) {
     partition = 0;
   }
