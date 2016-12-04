@@ -197,6 +197,16 @@ void Run1pcSelectivityScan(std::stringstream& ostream) {
   AbstractSelectivityScan(predicate, (SCAN_TABLE_SIZE * state.scale_factor)/100, ostream);
 }
 
+void Run10pcSelectivityScan(std::stringstream& ostream) {
+  // WHERE <second_column> < 10
+  expression::AbstractExpression *predicate = new expression::ComparisonExpression(
+      EXPRESSION_TYPE_COMPARE_LESSTHAN,
+      new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
+      new expression::ConstantValueExpression(
+          common::ValueFactory::GetIntegerValue(100)));
+  AbstractSelectivityScan(predicate, (SCAN_TABLE_SIZE * state.scale_factor)/10, ostream);
+}
+
 
 }  // namespace scanbench
 }  // namespace benchmark

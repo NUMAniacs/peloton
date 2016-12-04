@@ -33,6 +33,8 @@ void RunSingleTupleSelectivityScan(std::stringstream& ostream);
 
 void Run1pcSelectivityScan(std::stringstream& ostream);
 
+void Run10pcSelectivityScan(std::stringstream& ostream);
+
 }  // namespace scanbench
 }  // namespace benchmark
 }  // namespace peloton

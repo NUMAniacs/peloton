@@ -199,7 +199,7 @@ void LoadScanBenchDatabase() {
   insert_tuple_bitmaps.resize(num_partition);
 
   // size to insert before firing off tasks and waiting
-  int insert_size = 10000;
+  int insert_size = 100000;
   for (int partition = 0; partition < (int) num_partition; partition++){
     insert_tuple_bitmaps[partition].clear();
     insert_tuple_bitmaps[partition].resize(insert_size, false);
