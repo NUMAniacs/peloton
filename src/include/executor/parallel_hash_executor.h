@@ -35,21 +35,19 @@ class ParallelHashExecutor : public AbstractExecutor {
   // <tile_itr, tuple_itr, task_itr>
   typedef std::tuple<size_t, oid_t, size_t> LookupValue;
 
-  /** @brief Type definitions for hash table */
-  typedef std::unordered_set<LookupValue, boost::hash<LookupValue>> HashSet;
-
+  // TODO Make LookupValue a template param
   // A wrapper over std::unordered_set with spin locks
-  struct ConcurrentSet {
+  struct ConcurrentVector {
     Spinlock lock;
-    HashSet unordered_set;
+    std::vector<LookupValue> lookup_values;
 
     void Insert(std::tuple<size_t, oid_t, size_t> element) {
       lock.Lock();
-      unordered_set.insert(element);
+      lookup_values.push_back(element);
       lock.Unlock();
     }
 
-    const HashSet &GetSet() const { return unordered_set; }
+    const std::vector<LookupValue> &GetVector() const { return lookup_values; }
   };
 
   ParallelHashExecutor(const ParallelHashExecutor &) = delete;
@@ -62,7 +60,7 @@ class ParallelHashExecutor : public AbstractExecutor {
 
   typedef cuckoohash_map<
       expression::ContainerTuple<LogicalTile>,           // Key
-      std::shared_ptr<ConcurrentSet>,                    // T
+      std::shared_ptr<ConcurrentVector>,                 // T
       expression::ContainerTupleHasher<LogicalTile>,     // Hash
       expression::ContainerTupleComparator<LogicalTile>  // Pred
       > ParallelHashMapType;

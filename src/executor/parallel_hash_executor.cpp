@@ -95,12 +95,12 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
       // Value : < child_tile offset, tuple offset >
 
       ParallelHashMapType::key_type key(tile, tuple_id, &column_ids);
-      std::shared_ptr<ConcurrentSet> value;
+      std::shared_ptr<ConcurrentVector> value;
       auto status = hash_table.find(key, value);
       // Not found
       if (status == false) {
         LOG_TRACE("key not found %d", (int)tuple_id);
-        value.reset(new ConcurrentSet());
+        value.reset(new ConcurrentVector());
         auto success = hash_table.insert(key, value);
         if (success == false) {
           success = hash_table.find(key, value);
