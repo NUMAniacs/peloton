@@ -41,8 +41,8 @@
 
 #include "parser/statement_insert.h"
 
-#define LINEITEM_TABLE_SIZE 6000000 / 10
-#define PART_TABLE_SIZE 200000 / 10
+#define LINEITEM_TABLE_SIZE 6000000
+#define PART_TABLE_SIZE 200000
 
 namespace peloton {
 namespace benchmark {
