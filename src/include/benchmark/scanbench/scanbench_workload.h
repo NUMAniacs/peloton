@@ -29,9 +29,9 @@ namespace scanbench {
 
 extern configuration state;
 
-void RunSingleTupleSelectivityScan();
+void RunSingleTupleSelectivityScan(std::stringstream& ostream);
 
-void Run1pcSelectivityScan();
+void Run1pcSelectivityScan(std::stringstream& ostream);
 
 }  // namespace scanbench
 }  // namespace benchmark

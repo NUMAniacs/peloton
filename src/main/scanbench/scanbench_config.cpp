@@ -86,7 +86,7 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
 }
 
 
-void WriteOutput() {
+void WriteOutput(std::stringstream& ostream) {
   std::ofstream out("outputfile.summary");
 
   LOG_INFO("----------------------------------------------------------");
@@ -97,8 +97,7 @@ void WriteOutput() {
 
   out << state.scale_factor << " ";
   out << (state.read_only_txn ? "true" : "false") << " ";
-  out << state.execution_time_ms << "\n";
-
+  out << ostream.str();
   out.flush();
   out.close();
 }

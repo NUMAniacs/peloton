@@ -66,7 +66,7 @@ void ValidateResult(std::shared_ptr<executor::LogicalTileLists> result_tile_list
 }
 
 void AbstractSelectivityScan(expression::AbstractExpression* predicate,
-                             size_t expected_tuples) {
+                             size_t expected_tuples, std::stringstream& ostream) {
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
@@ -174,26 +174,27 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
 
   state.execution_time_ms = (end-start)/1000;
   LOG_INFO("Parallel Sequential Scan took %fms", state.execution_time_ms);
+  ostream << "\n" <<  histogram.str() << "\n" << state.execution_time_ms;
 }
 
-void RunSingleTupleSelectivityScan() {
-  // WHERE <second_column> = 10
+void RunSingleTupleSelectivityScan(std::stringstream& ostream) {
+  // WHERE <third_column> = 10
   expression::AbstractExpression *predicate = new expression::ComparisonExpression(
           EXPRESSION_TYPE_COMPARE_EQUAL,
-          new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
+          new expression::TupleValueExpression(common::Type::INTEGER, 0, 2),
           new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(10)));
-  AbstractSelectivityScan(predicate, 1);
+  AbstractSelectivityScan(predicate, 1, ostream);
 }
 
-void Run1pcSelectivityScan() {
+void Run1pcSelectivityScan(std::stringstream& ostream) {
   // WHERE <second_column> < 10
   expression::AbstractExpression *predicate = new expression::ComparisonExpression(
       EXPRESSION_TYPE_COMPARE_LESSTHAN,
       new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
       new expression::ConstantValueExpression(
           common::ValueFactory::GetIntegerValue(10)));
-  AbstractSelectivityScan(predicate, (SCAN_TABLE_SIZE * state.scale_factor)/100);
+  AbstractSelectivityScan(predicate, (SCAN_TABLE_SIZE * state.scale_factor)/100, ostream);
 }
 
 

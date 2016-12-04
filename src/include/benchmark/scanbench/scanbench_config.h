@@ -15,6 +15,7 @@
 
 #include <string>
 #include <cstring>
+#include <sstream>
 #include <getopt.h>
 #include <vector>
 #include <sys/time.h>
@@ -26,7 +27,7 @@ namespace peloton {
 namespace benchmark {
 namespace scanbench {
 
-#define SCAN_TABLE_SIZE 1000
+#define SCAN_TABLE_SIZE 1000000
 
 static const oid_t scanbench_database_oid = 100;
 
@@ -50,7 +51,7 @@ void Usage(FILE *out);
 
 void ParseArguments(int argc, char *argv[], configuration &state);
 
-void WriteOutput();
+void WriteOutput(std::stringstream& ostream);
 
 }  // namespace scanbench
 }  // namespace benchmark

@@ -233,6 +233,8 @@ void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   PL_ASSERT(task->GetTaskType() == TASK_SEQ_SCAN);
   PL_ASSERT(task->initialized);
 
+  task->cpu_id = PL_GET_PARTITION_NODE();
+
   std::shared_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(task->txn));
   context->SetTask(task);
@@ -254,7 +256,7 @@ void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
         std::chrono::steady_clock::now().time_since_epoch()).count());
   task->exec_time += (end-start)/1000;
   if (task->trackable->TaskComplete()) {
-    LOG_INFO("All the parallel seq scan tasks have completed");
+    LOG_DEBUG("All the parallel seq scan tasks have completed");
     task->dependent->DependencyComplete(task);
   }
 }

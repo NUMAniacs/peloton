@@ -34,6 +34,8 @@ configuration state;
 // Main Entry Point
 void RunBenchmark() {
 
+  std::stringstream ostream;
+
   PelotonInit::Initialize();
 
   // Create the database
@@ -45,8 +47,8 @@ void RunBenchmark() {
   // Run the workload, 3 trials
   for (int i=0; i<3; i++) {
     LOG_INFO("Trial:%d", i+1);
-    RunSingleTupleSelectivityScan();
-    Run1pcSelectivityScan();
+    RunSingleTupleSelectivityScan(ostream);
+    Run1pcSelectivityScan(ostream);
   }
 
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();
@@ -56,7 +58,7 @@ void RunBenchmark() {
   PelotonInit::Shutdown();
 
   // Emit throughput
-  WriteOutput();
+  WriteOutput(ostream);
 }
 
 }  // namespace scanbench
