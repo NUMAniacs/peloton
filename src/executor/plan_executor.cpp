@@ -102,7 +102,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
       status = executor_tree->Execute();
 //      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
 //          std::chrono::steady_clock::now().time_since_epoch()).count());
-      exchg_params->exec_time = exchg_params->task->exec_time; // (end - start)/1000;
+      exchg_params->exec_time += exchg_params->task->exec_time; // (end - start)/1000;
 
       // FIXME We should push the logical tile to the result field in the tasks
       // instead of being processed here immediately)

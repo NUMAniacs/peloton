@@ -196,14 +196,14 @@ bool ParallelSeqScanExecutor::DExecute() {
       // TODO We should construct the logical tile in the current partition
       std::unique_ptr<LogicalTile> logical_tile(
           LogicalTileFactory::GetTile(seq_scan_task_->partition_id));
+      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count());
       logical_tile->AddColumns(tile_group, column_ids_);
       logical_tile->AddPositionList(std::move(position_list));
 
       LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
       seq_scan_task_->GetResultTileList().push_back(std::move(logical_tile));
 
-      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-          std::chrono::steady_clock::now().time_since_epoch()).count());
 
       seq_scan_task_->exec_time += (end-start)/1000;
       return true;
