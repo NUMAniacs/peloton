@@ -376,8 +376,8 @@ void* PartTableLoader(void * arg) {
 
 void LoadNUMABenchDatabase() {
 
-  int insert_size = 10000;
-  int num_threads = 20;
+  int insert_size = 100000;
+  int num_threads = 8;
   {
 
     NumabenchBlockingWait block(num_threads);
