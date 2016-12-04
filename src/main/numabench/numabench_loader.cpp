@@ -213,14 +213,16 @@ void LoadHelper(unsigned int num_partition,
 
 struct loaderargs {
   int start;
-  int count;
+  int batch_size;
+  int total_size;
   NumabenchBlockingWait* block;
 };
 
 void* LineItemTableLoader(void * arg) {
   loaderargs* args = (loaderargs *) arg;
   int start = args->start;
-  int count = args->count;
+  int batch_size = args->batch_size;
+  int total_size = args->total_size;
   NumabenchBlockingWait* block = args->block;
   delete args;
 
@@ -244,7 +246,7 @@ void* LineItemTableLoader(void * arg) {
 
   for (int partition = 0; partition < (int) num_partition; partition++) {
     insert_tuple_bitmaps[partition].clear();
-    insert_tuple_bitmaps[partition].resize(count, false);
+    insert_tuple_bitmaps[partition].resize(batch_size, false);
   }
 
   char *r_col_1 = new char[5]();
@@ -266,7 +268,7 @@ void* LineItemTableLoader(void * arg) {
   insert_stmt->insert_values = new std::vector<
       std::vector<expression::AbstractExpression *> *>;
 
-  for (int tuple_id = start; tuple_id < start + count; tuple_id++) {
+  for (int tuple_id = start; tuple_id < start + total_size; tuple_id++) {
     auto values_ptr = new std::vector<expression::AbstractExpression *>;
     insert_stmt->insert_values->push_back(values_ptr);
     int shipdate = rand() % 60;
@@ -285,10 +287,13 @@ void* LineItemTableLoader(void * arg) {
     int partition_key = state.partition_right ? partkey : tuple_id;
     int partition = common::ValueFactory::GetIntegerValue(partition_key).Hash()
         % num_partition;
-    insert_tuple_bitmaps[partition][tuple_id % count] = true;
+    insert_tuple_bitmaps[partition][tuple_id % batch_size] = true;
+    if ((tuple_id + 1) % batch_size == 0) {
+      LoadHelper(num_partition, insert_stmt.get(), batch_size, insert_tuple_bitmaps);
+      LOG_INFO("finished writing tuple in lineitem table: %d", start + (tuple_id + 1));
+    }
   }
-  LoadHelper(num_partition, insert_stmt.get(), count, insert_tuple_bitmaps);
-  LOG_INFO("finished writing tuple in lineitem table: %d", start + count);
+
 
   block->DependencyComplete();
   return nullptr;
@@ -297,7 +302,8 @@ void* LineItemTableLoader(void * arg) {
 void* PartTableLoader(void * arg) {
   loaderargs* args = (loaderargs *) arg;
   int start = args->start;
-  int count = args->count;
+  int batch_size = args->batch_size;
+  int total_size = args->total_size;
   NumabenchBlockingWait* block = args->block;
   delete args;
 
@@ -320,7 +326,7 @@ void* PartTableLoader(void * arg) {
 
   for (int partition = 0; partition < (int) num_partition; partition++) {
     insert_tuple_bitmaps[partition].clear();
-    insert_tuple_bitmaps[partition].resize(count, false);
+    insert_tuple_bitmaps[partition].resize(batch_size, false);
   }
 
   char *l_col_1 = new char[5]();
@@ -339,7 +345,7 @@ void* PartTableLoader(void * arg) {
   insert_stmt->insert_values = new std::vector<
       std::vector<expression::AbstractExpression *> *>;
 
-  for (int partkey = start; partkey < start + count; partkey++) {
+  for (int partkey = start; partkey < start + total_size; partkey++) {
     auto values_ptr = new std::vector<expression::AbstractExpression *>;
     insert_stmt->insert_values->push_back(values_ptr);
 
@@ -357,10 +363,10 @@ void* PartTableLoader(void * arg) {
     int partition =
         common::ValueFactory::GetIntegerValue(partition_key).Hash() % PL_NUM_PARTITIONS();
     ;
-    insert_tuple_bitmaps[partition][partkey % count] = true;
-    if ((partkey + 1) % count == 0) {
+    insert_tuple_bitmaps[partition][partkey % batch_size] = true;
+    if ((partkey + 1) % batch_size == 0) {
       LOG_INFO("finished writing tuple in part table: %d", partkey + 1);
-      LoadHelper(num_partition, insert_stmt.get(), count, insert_tuple_bitmaps);
+      LoadHelper(num_partition, insert_stmt.get(), batch_size, insert_tuple_bitmaps);
     }
   }
 
@@ -370,28 +376,28 @@ void* PartTableLoader(void * arg) {
 
 void LoadNUMABenchDatabase() {
 
-  int insert_size = 100000;
+  int insert_size = 10000;
+  int num_threads = 20;
   {
 
-    NumabenchBlockingWait block(
-        LINEITEM_TABLE_SIZE * state.scale_factor / insert_size);
+    NumabenchBlockingWait block(num_threads);
     for (int tuple_id = 0; tuple_id < LINEITEM_TABLE_SIZE * state.scale_factor;
-        tuple_id += insert_size) {
+        tuple_id += LINEITEM_TABLE_SIZE * state.scale_factor/ num_threads) {
       pthread_t thread;
       pthread_create(&thread, nullptr, LineItemTableLoader, new loaderargs {
-          tuple_id, insert_size, &block });
+          tuple_id, insert_size,LINEITEM_TABLE_SIZE * state.scale_factor/ num_threads, &block });
       pthread_detach(thread);
     }
     block.WaitForCompletion();
   }
   {
     NumabenchBlockingWait block(
-        PART_TABLE_SIZE * state.scale_factor / insert_size);
+        num_threads);
     for (int partkey = 0; partkey < PART_TABLE_SIZE * state.scale_factor;
-        partkey += insert_size) {
+        partkey += PART_TABLE_SIZE * state.scale_factor/ num_threads) {
       pthread_t thread;
       pthread_create(&thread, nullptr, PartTableLoader, new loaderargs {
-          partkey, insert_size, &block });
+          partkey, insert_size,PART_TABLE_SIZE * state.scale_factor/ num_threads, &block });
       pthread_detach(thread);
     }
     block.WaitForCompletion();
