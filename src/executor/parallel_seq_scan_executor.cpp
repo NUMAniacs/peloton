@@ -134,8 +134,6 @@ bool ParallelSeqScanExecutor::DExecute() {
     bool acquire_owner = GetPlanNode<planner::AbstractScan>().IsForUpdate();
     auto current_txn = executor_context_->GetTransaction();
 
-//    auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-//        std::chrono::steady_clock::now().time_since_epoch()).count());
     // Retrieve next tile group.
     while (tile_group_itr_ != tile_group_end_itr_) {
       auto tile_group = *tile_group_itr_;
@@ -191,6 +189,9 @@ bool ParallelSeqScanExecutor::DExecute() {
         continue;
       }
 
+      auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count());
+
       // Construct logical tile.
       // TODO We should construct the logical tile in the current partition
       std::unique_ptr<LogicalTile> logical_tile(
@@ -201,10 +202,10 @@ bool ParallelSeqScanExecutor::DExecute() {
       LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
       seq_scan_task_->GetResultTileList().push_back(std::move(logical_tile));
 
-//      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-//          std::chrono::steady_clock::now().time_since_epoch()).count());
-//
-//      seq_scan_task_->exec_time += (end-start)/1000;
+      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count());
+
+      seq_scan_task_->exec_time += (end-start)/1000;
       return true;
     }
   }
