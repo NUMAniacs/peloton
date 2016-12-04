@@ -31,7 +31,7 @@ extern configuration state;
 
 void RunSingleTupleSelectivityScan();
 
-void Run1pcScan();
+void Run1pcSelectivityScan();
 
 }  // namespace scanbench
 }  // namespace benchmark

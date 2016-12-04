@@ -26,6 +26,8 @@ namespace peloton {
 namespace benchmark {
 namespace scanbench {
 
+#define SCAN_TABLE_SIZE 1000
+
 static const oid_t scanbench_database_oid = 100;
 
 

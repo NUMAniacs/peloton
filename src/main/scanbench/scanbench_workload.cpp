@@ -23,21 +23,18 @@
 #include <cstddef>
 #include <limits>
 
-#include "expression/conjunction_expression.h"
+#include "expression/comparison_expression.h"
 
 #include "benchmark/scanbench/scanbench_workload.h"
 #include "benchmark/scanbench/scanbench_config.h"
 #include "benchmark/scanbench/scanbench_loader.h"
 
 #include "planner/parallel_seq_scan_plan.h"
-
 #include "executor/parallel_seq_scan_executor.h"
-
 #include "executor/plan_executor.h"
-
 #include "common/logger.h"
-
 #include "catalog/catalog.h"
+#include "common/exception.h"
 
 namespace peloton {
 namespace benchmark {
@@ -54,8 +51,22 @@ volatile bool is_running = true;
 oid_t *abort_counts;
 oid_t *commit_counts;
 
+void ValidateResult(std::shared_ptr<executor::LogicalTileLists> result_tile_lists,
+  size_t expected) {
+  size_t total_tuples = 0;
+  for (auto &partition_tiles : *result_tile_lists) {
+    for (auto &tile : partition_tiles) {
+      total_tuples += tile->GetTupleCount();
+    }
+  }
 
-void RunSingleTupleSelectivityScan() {
+  if (total_tuples != expected)
+    throw Exception("Incorrect number of tuples returned. Expected:" + std::to_string(expected)
+                    + " Received:" +  std::to_string(total_tuples));
+}
+
+void AbstractSelectivityScan(expression::AbstractExpression* predicate,
+                             size_t expected_tuples) {
 
   int result_tuple_count = 0;
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
@@ -65,13 +76,6 @@ void RunSingleTupleSelectivityScan() {
   // ================================
   //             Plans
   // ================================
-
-  // WHERE <second_column> = 10
-  auto predicate = new expression::ComparisonExpression(
-          EXPRESSION_TYPE_COMPARE_EQUAL,
-          new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
-          new expression::ConstantValueExpression(
-              common::ValueFactory::GetIntegerValue(10)));
 
   // Create parallel seq scan node on right table
   std::unique_ptr<planner::ParallelSeqScanPlan> scan_node(
@@ -86,7 +90,7 @@ void RunSingleTupleSelectivityScan() {
       std::chrono::steady_clock::now().time_since_epoch()).count());
 
   // Create executor context with empty txn
-  auto txn = state.read_only_txn ? txn_manager.BeginReadonlyTransaction() :
+  auto txn = // state.read_only_txn ? txn_manager.BeginReadonlyTransaction() :
              txn_manager.BeginTransaction();
 
   std::shared_ptr<executor::ExecutorContext> context(
@@ -124,10 +128,31 @@ void RunSingleTupleSelectivityScan() {
   auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
       std::chrono::steady_clock::now().time_since_epoch()).count());
 
+  ValidateResult(result_tile_lists, expected_tuples);
   state.execution_time_ms = (end-start)/1000;
-  LOG_INFO("Result_Tuples: %d", result_tuple_count);
-  LOG_INFO("Parallel Hash Join took %fms", state.execution_time_ms);
+  LOG_INFO("Parallel Sequential Scan took %fms", state.execution_time_ms);
 }
+
+void RunSingleTupleSelectivityScan() {
+  // WHERE <second_column> = 10
+  expression::AbstractExpression *predicate = new expression::ComparisonExpression(
+          EXPRESSION_TYPE_COMPARE_EQUAL,
+          new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
+          new expression::ConstantValueExpression(
+              common::ValueFactory::GetIntegerValue(10)));
+  AbstractSelectivityScan(predicate, 1);
+}
+
+void Run1pcSelectivityScan() {
+  // WHERE <second_column> < 10
+  expression::AbstractExpression *predicate = new expression::ComparisonExpression(
+      EXPRESSION_TYPE_COMPARE_LESSTHAN,
+      new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
+      new expression::ConstantValueExpression(
+          common::ValueFactory::GetIntegerValue(10)));
+  AbstractSelectivityScan(predicate, (SCAN_TABLE_SIZE * state.scale_factor)/100);
+}
+
 
 }  // namespace scanbench
 }  // namespace benchmark

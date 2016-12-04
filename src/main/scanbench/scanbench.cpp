@@ -21,7 +21,7 @@
 
 #include "benchmark/scanbench/scanbench_config.h"
 #include "benchmark/scanbench/scanbench_loader.h"
-//#include "benchmark/scanbench/scanbench_workload.h"
+#include "benchmark/scanbench/scanbench_workload.h"
 
 #include "gc/gc_manager_factory.h"
 
@@ -43,7 +43,9 @@ void RunBenchmark() {
   LoadScanBenchDatabase();
 
   // Run the workload
-  //  RunWorkload();
+  RunSingleTupleSelectivityScan();
+
+  Run1pcSelectivityScan();
 
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();
 

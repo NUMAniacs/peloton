@@ -41,8 +41,6 @@
 
 #include "parser/statement_insert.h"
 
-#define SCAN_TABLE_SIZE 1000
-
 namespace peloton {
 namespace benchmark {
 namespace scanbench {
@@ -93,10 +91,10 @@ void CreateScanBenchDatabase() {
   auto s_id = catalog::Column(
           common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
           id_col_name, true);
-//  s_id.AddConstraint(catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
-//                                           not_null_constraint_name));
-//  s_id.AddConstraint(catalog::Constraint(CONSTRAINT_TYPE_PRIMARY,
-//                                         pkey_constraint_name));
+  s_id.AddConstraint(catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
+                                           not_null_constraint_name));
+  s_id.AddConstraint(catalog::Constraint(CONSTRAINT_TYPE_PRIMARY,
+                                         pkey_constraint_name));
   auto s_extra_id = catalog::Column(
           common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
           extra_id_col_name, true);
@@ -216,17 +214,17 @@ void LoadScanBenchDatabase() {
 
   char *col1 = new char[id_col_name.length()+1];
   std::copy(id_col_name.begin(), id_col_name.end(), col1);
-  col1[id_col_name.size()+1] = '\0';
+  col1[id_col_name.size()] = '\0';
   insert_stmt->columns->push_back(col1);
 
   char *col2 = new char[extra_id_col_name.length()+1];
   std::copy(extra_id_col_name.begin(), extra_id_col_name.end(), col2);
-  col2[extra_id_col_name.size()+1] = '\0';
+  col2[extra_id_col_name.size()] = '\0';
   insert_stmt->columns->push_back(col2);
 
   char *col3 = new char[single_col_name.length()+1];
   std::copy(single_col_name.begin(), single_col_name.end(), col3);
-  col3[single_col_name.size()+1] = '\0';
+  col3[single_col_name.size()] = '\0';
   insert_stmt->columns->push_back(col3);
 
   insert_stmt->select = new parser::SelectStatement();
