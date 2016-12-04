@@ -115,6 +115,10 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
         answer_tuples = std::move(
             logical_tile->GetAllValuesAsStrings(exchg_params->result_format));
 
+        auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count());
+        exchg_params->exec_time += (end - start)/1000;
+
         // Construct the returned results
         for (auto &tuple : answer_tuples) {
           unsigned int col_index = 0;
@@ -133,12 +137,6 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
         }
         exchg_params->num_tuples += answer_tuples.size();
       }
-
-      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-          std::chrono::steady_clock::now().time_since_epoch()).count());
-
-      exchg_params->exec_time += (end - start)/1000;
-
     }
     // Set the result
     p_status.m_processed = executor_context->num_processed;
