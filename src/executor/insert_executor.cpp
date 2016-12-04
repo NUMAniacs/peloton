@@ -175,10 +175,6 @@ bool InsertExecutor::DExecute() {
           target_table->InsertTuple(tuple, current_txn, &index_entry_ptr);
       LOG_TRACE("Inserted into location: %u, %u", location.block,
                 location.offset);
-      if (tuple->GetColumnCount() > 2) {
-        common::Value val = (tuple->GetValue(2));
-        LOG_TRACE("value: %s", val.GetInfo().c_str());
-      }
 
       if (location.block == INVALID_OID) {
         LOG_TRACE("Failed to Insert. Set txn failure.");

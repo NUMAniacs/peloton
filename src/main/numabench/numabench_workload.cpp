@@ -120,11 +120,11 @@ void RunHashJoin() {
       EXPRESSION_TYPE_CONJUNCTION_AND,
       new expression::ComparisonExpression(
           EXPRESSION_TYPE_COMPARE_GREATERTHANOREQUALTO,
-          new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
+          new expression::TupleValueExpression(common::Type::INTEGER, 0, 2),
           new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(23))),
       new expression::ComparisonExpression(EXPRESSION_TYPE_COMPARE_LESSTHAN,
-          new expression::TupleValueExpression(common::Type::INTEGER, 0, 1),
+          new expression::TupleValueExpression(common::Type::INTEGER, 0, 2),
           new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(24))));
 

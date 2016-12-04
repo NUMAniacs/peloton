@@ -41,8 +41,8 @@
 
 #include "parser/statement_insert.h"
 
-#define LINEITEM_TABLE_SIZE 6000000
-#define PART_TABLE_SIZE 200000
+#define LINEITEM_TABLE_SIZE 6000000 / 10
+#define PART_TABLE_SIZE 200000 / 10
 
 namespace peloton {
 namespace benchmark {
@@ -77,19 +77,19 @@ void CreateNUMABenchDatabase() {
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
-  // TODO: who is the primary key?????
+
   auto l_id_col = catalog::Column(
           common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
           "l_id", true);
-  auto l_shipdate_col = catalog::Column(
-          common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
-          "l_shipdate", true);
   auto l_partkey_col = catalog::Column(
           common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
           "l_partkey", true);
+  auto l_shipdate_col = catalog::Column(
+          common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+          "l_shipdate", true);
 
   std::unique_ptr<catalog::Schema> right_table_schema(
-            new catalog::Schema({l_id_col, l_shipdate_col, l_partkey_col}));
+            new catalog::Schema({l_id_col, l_partkey_col, l_shipdate_col}));
 
   auto p_id_col = catalog::Column(
           common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
@@ -117,7 +117,7 @@ void CreateNUMABenchDatabase() {
   txn = txn_manager.BeginTransaction();
   catalog->CreateTable(NUMABENCH_DB_NAME, "RIGHT_TABLE",
                                                std::move(right_table_schema), txn,
-                                               2);
+                                               1);
   txn_manager.CommitTransaction(txn);
 
 
@@ -224,10 +224,10 @@ void LoadNUMABenchDatabase() {
 
     char *r_col_1 = new char[5]();
     strcpy(r_col_1, "l_id");
-    char *r_col_2 = new char[11]();
-    strcpy(r_col_2, "l_shipdate");
-    char *r_col_3 = new char[10]();
-    strcpy(r_col_3, "l_partkey");
+    char *r_col_2 = new char[10]();
+    strcpy(r_col_2, "l_partkey");
+    char *r_col_3 = new char[11]();
+    strcpy(r_col_3, "l_shipdate");
     // insert to left table; build an insert statement
     std::unique_ptr<parser::InsertStatement> insert_stmt(
             new parser::InsertStatement(INSERT_TYPE_VALUES));
@@ -251,9 +251,10 @@ void LoadNUMABenchDatabase() {
       values_ptr->push_back(new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(tuple_id)));
       values_ptr->push_back(new expression::ConstantValueExpression(
-              common::ValueFactory::GetIntegerValue(shipdate)));
-      values_ptr->push_back(new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(partkey)));
+      values_ptr->push_back(new expression::ConstantValueExpression(
+              common::ValueFactory::GetIntegerValue(shipdate)));
+
 
       int partition_key = state.partition_right ? partkey : tuple_id;
       int partition = common::ValueFactory::GetIntegerValue(partition_key).Hash() % num_partition;
