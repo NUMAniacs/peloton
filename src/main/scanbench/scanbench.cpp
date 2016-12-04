@@ -50,13 +50,16 @@ void RunBenchmark() {
       RunSingleTupleSelectivityScan(dummy);
       Run1pcSelectivityScan(dummy);
       Run10pcSelectivityScan(dummy);
+      Run50pcSelectivityScan(dummy);
     } else {
-      ostream << "\nSingle Tuple Trial " << i << "\n";
+      ostream << "\n\nSingle Tuple Trial " << i;
       RunSingleTupleSelectivityScan(ostream);
-      ostream << "\n1% Selectivity Trial " << i << "\n";
+      ostream << "\n\n1% Selectivity Trial " << i;
       Run1pcSelectivityScan(ostream);
-      ostream << "\n10% Selectivity Trial " << i << "\n";
+      ostream << "\n\n10% Selectivity Trial " << i;
       Run10pcSelectivityScan(ostream);
+      ostream << "\n\n50% Selectivity Trial " << i;
+      Run50pcSelectivityScan(ostream);
     }
   }
 

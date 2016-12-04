@@ -35,6 +35,8 @@ void Run1pcSelectivityScan(std::stringstream& ostream);
 
 void Run10pcSelectivityScan(std::stringstream& ostream);
 
+void Run50pcSelectivityScan(std::stringstream& ostream);
+
 }  // namespace scanbench
 }  // namespace benchmark
 }  // namespace peloton
