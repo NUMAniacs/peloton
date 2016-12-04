@@ -35,7 +35,7 @@ class LogicalTile;
 
 class LogicalTileFactory {
  public:
-  static LogicalTile *GetTile(size_t partition, bool is_normal=false);
+  static LogicalTile *GetTile(size_t partition);
 
   static LogicalTile *WrapTiles(
       const std::vector<std::shared_ptr<storage::Tile>> &base_tile_refs,

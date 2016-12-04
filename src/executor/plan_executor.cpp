@@ -48,6 +48,9 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   peloton_status p_status;
   ExchangeParams *exchg_params = *exchg_params_arg;
 
+  auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+
   if (FLAGS_stats_mode != STATS_TYPE_INVALID) {
     // XXX Should pass query parameters, too
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
@@ -86,7 +89,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
 
   exchg_params->exec_time = 0;
 
-  // Abort and cleanup
+  // Abort and cleanupl
   if (status == false) {
     exchg_params->init_failure = true;
     exchg_params->txn->SetResult(Result::RESULT_FAILURE);
@@ -96,13 +99,7 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
 
     // Execute the tree until we get result tiles from root node
     while (status == true) {
-//      auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-//          std::chrono::steady_clock::now().time_since_epoch()).count());
-      exchg_params->task->exec_time = 0;
       status = executor_tree->Execute();
-//      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-//          std::chrono::steady_clock::now().time_since_epoch()).count());
-      exchg_params->exec_time += exchg_params->task->exec_time; // (end - start)/1000;
 
       // FIXME We should push the logical tile to the result field in the tasks
       // instead of being processed here immediately)
@@ -146,6 +143,10 @@ void PlanExecutor::ExecutePlanLocal(ExchangeParams **exchg_params_arg) {
   // clean up executor tree
   CleanExecutorTree(executor_tree.get());
 
+  auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count());
+
+  exchg_params->exec_time = (end - start)/1000;
   exchg_params->cpu_id = PL_GET_PARTITION_NODE();
   exchg_params->TaskComplete(p_status);
 }

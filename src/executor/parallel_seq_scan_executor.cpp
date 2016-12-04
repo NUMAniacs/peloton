@@ -189,19 +189,19 @@ bool ParallelSeqScanExecutor::DExecute() {
         continue;
       }
 
-      auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-          std::chrono::steady_clock::now().time_since_epoch()).count());
+//      auto start = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+//          std::chrono::steady_clock::now().time_since_epoch()).count());
 
-      if ((int) seq_scan_task_->partition_id != PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE())) {
-        LOG_ERROR("Execpted Partition:%d Actual Partition:%ld",
-                  PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE()), seq_scan_task_->partition_id);
-      }
+//      if ((int) seq_scan_task_->partition_id != PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE())) {
+//        LOG_ERROR("Execpted Partition:%d Actual Partition:%ld",
+//                  PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE()), seq_scan_task_->partition_id);
+//      }
       // Construct logical tile.
       // TODO We should construct the logical tile in the current partition
       std::unique_ptr<LogicalTile> logical_tile(
-          LogicalTileFactory::GetTile(seq_scan_task_->partition_id, true));
-      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-          std::chrono::steady_clock::now().time_since_epoch()).count());
+          LogicalTileFactory::GetTile(seq_scan_task_->partition_id));
+//      auto end = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+//          std::chrono::steady_clock::now().time_since_epoch()).count());
       logical_tile->AddColumns(tile_group, column_ids_);
       logical_tile->AddPositionList(std::move(position_list));
 
@@ -209,7 +209,7 @@ bool ParallelSeqScanExecutor::DExecute() {
       seq_scan_task_->GetResultTileList().push_back(std::move(logical_tile));
 
 
-      seq_scan_task_->exec_time += (end-start)/1000;
+    //    seq_scan_task_->exec_time += (end-start)/1000;
       return true;
     }
   }
