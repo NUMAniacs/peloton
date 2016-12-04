@@ -36,9 +36,6 @@ ParallelHashExecutor::ParallelHashExecutor(const planner::AbstractPlan *node,
  */
 bool ParallelHashExecutor::DInit() {
   if (initialized_ == false) {
-    // Initialize executor state
-    result_itr = 0;
-
     // Initialize the hash keys
     InitHashKeys();
   }
@@ -49,6 +46,8 @@ bool ParallelHashExecutor::DInit() {
 void ParallelHashExecutor::InitHashKeys() {
   const planner::ParallelHashPlan &node =
       GetPlanNode<planner::ParallelHashPlan>();
+  this->use_custom_hash_table = node.use_custom;
+
   /* *
    * HashKeys is a vector of TupleValue expr
    * from which we construct a vector of column ids that represent the
@@ -68,8 +67,6 @@ void ParallelHashExecutor::InitHashKeys() {
   }
 }
 
-// TODO Revisit the logic to insert values into hash table. Create a abstract
-// class for hashmaps.
 void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   PL_ASSERT(task->GetTaskType() == TASK_HASH);
   executor::HashTask *hash_task = static_cast<executor::HashTask *>(task.get());
@@ -78,7 +75,11 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   // Construct the hash table by going over each child logical tile and hashing
   auto task_id = hash_task->task_id;
   auto child_tiles = hash_task->result_tile_lists;
-  auto &hash_table = hash_executor->GetHashTable();
+
+  bool use_custom = hash_executor->use_custom_hash_table;
+  auto &custom_ht = hash_executor->GetCustomHashTable();
+  auto &cuckoo_ht = hash_executor->GetCuckooHashTable();
+
   auto &column_ids = hash_executor->GetHashKeyIds();
   size_t num_tuples = 0;
 
@@ -94,16 +95,19 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
       // Key : container tuple with a subset of tuple attributes
       // Value : < child_tile offset, tuple offset >
 
-      ParallelHashMapType::key_type key(tile, tuple_id, &column_ids);
+      CuckooHashMapType::key_type key(tile, tuple_id, &column_ids);
       std::shared_ptr<ConcurrentVector> value;
-      auto status = hash_table.find(key, value);
+      auto status =
+          use_custom ? custom_ht.find(key, value) : cuckoo_ht.find(key, value);
       // Not found
       if (status == false) {
         LOG_TRACE("key not found %d", (int)tuple_id);
         value.reset(new ConcurrentVector());
-        auto success = hash_table.insert(key, value);
+        auto success = use_custom ? custom_ht.Put(key, value)
+                                  : cuckoo_ht.insert(key, value);
         if (success == false) {
-          success = hash_table.find(key, value);
+          success = use_custom ? custom_ht.find(key, value)
+                               : cuckoo_ht.find(key, value);
         }
         PL_ASSERT(success);
       } else {
@@ -111,7 +115,7 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
         LOG_TRACE("key found %d", (int)tuple_id);
       }
       value->Insert(std::make_tuple(tile_itr, tuple_id, task_id));
-      PL_ASSERT(hash_table.contains(key));
+      // PL_ASSERT(hash_table.contains(key));
 
       // Increment the number of tuples hashed
       num_tuples++;

@@ -51,9 +51,10 @@ void PutTest(TestHashMapType *hashmap, int num_keys,
       bool success = hashmap->Get(k, val);
       if (success == false) {
         val.reset(new executor::ParallelHashExecutor::ConcurrentVector());
-        hashmap->Put(k, val);
-        success = hashmap->Get(k, val);
-        EXPECT_TRUE(success);
+        if (hashmap->Put(k, val) == false) {
+          success = hashmap->Get(k, val);
+          EXPECT_TRUE(success);
+        }
       }
       val->Insert(std::make_tuple(1, 1, 1));
     }
@@ -78,7 +79,8 @@ TEST_F(HashmapTests, BasicTest) {
   success = hashmap.Get(key1, result);
   EXPECT_TRUE(success);
 
-  EXPECT_EQ(val1->GetVector().size(), result->GetVector().size());
+  auto result_size = val1->GetVector().size();
+  EXPECT_EQ(result_size, val1->GetVector().size());
 
   // Get non-existing key should fail
   int key2 = 2;

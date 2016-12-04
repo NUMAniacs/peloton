@@ -116,7 +116,10 @@ bool ParallelHashJoinExecutor::DExecute() {
     //===------------------------------------------------------------------===//
 
     // Get the hash table from the hash executor
-    auto &hash_table = hash_executor_->GetHashTable();
+    bool use_custom = hash_executor_->use_custom_hash_table;
+    auto &custom_ht = hash_executor_->GetCustomHashTable();
+    auto &cuckoo_ht = hash_executor_->GetCuckooHashTable();
+
     auto &hashed_col_ids = hash_executor_->GetHashKeyIds();
 
     oid_t prev_tile = INVALID_OID;
@@ -130,7 +133,8 @@ bool ParallelHashJoinExecutor::DExecute() {
 
       // Find matching tuples in the hash table built on top of the right table
       std::shared_ptr<ParallelHashExecutor::ConcurrentVector> right_tuple_set;
-      auto success = hash_table.find(left_tuple, right_tuple_set);
+      auto success = use_custom ? custom_ht.Get(left_tuple, right_tuple_set)
+                                : cuckoo_ht.find(left_tuple, right_tuple_set);
       auto &right_tuples = right_tuple_set->GetVector();
 
       if (success) {

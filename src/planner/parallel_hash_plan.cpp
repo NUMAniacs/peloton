@@ -52,8 +52,8 @@ void ParallelHashPlan::DependencyComplete(
   hash_executor->child_tiles = result_tile_lists;
 
   // Reserve space for hash table
-  hash_executor->Reserve(total_num_tuples);
   hash_executor->Init();
+  hash_executor->Reserve(total_num_tuples * 2);
 
   // Construct trackable object
   std::shared_ptr<executor::Trackable> trackable(

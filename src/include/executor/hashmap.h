@@ -36,6 +36,14 @@ class Hashmap {
     std::bitset<BUCKET_SIZE> occupied;
   };
 
+  // XXX duplication of the cuckoo hashmap interface
+ public:
+  inline void reserve(size_t size) { Reserve(size); }
+
+  inline bool insert(Key &key, Value val) { return Put(key, val); }
+
+  inline bool find(Key &key, Value &val) { return Get(key, val); }
+
  public:
   void Reserve(size_t size) {
     // TODO compute the appropriate size
@@ -45,7 +53,7 @@ class Hashmap {
   }
 
   // Returns false for duplicate keys
-  bool Put(Key &key, Value &val) {
+  bool Put(Key &key, Value val) {
     size_t hash = GetHash(key);
     while (true) {
       locks_[hash].Lock();
@@ -54,18 +62,32 @@ class Hashmap {
 
         // Found an empty slot. Success
         if (bucket.occupied[i] == false) {
-          bucket.kv_pairs[i] = KVPair(key, val);
+
+          // We don't want to construct a kv pair and use copy assign it to the
+          // array. Instead construct the kv pair using allocator in place
+          static std::allocator<std::pair<const Key, Value>> pair_alloc;
+          pair_alloc.construct(&(bucket.kv_pairs[i]), std::forward<Key>(key),
+                               std::forward<Value>(val));
+
+          // Mark occupied
           bucket.occupied[i] = true;
+
+          // Unlock before return
           locks_[hash].Unlock();
           return true;
         } else {
+
           // Duplicate keys
           if (equal_fct_(key, bucket.kv_pairs[i].first)) {
+
+            // Unlock before return
             locks_[hash].Unlock();
             return false;
           }
         }
       }
+
+      // Unlock before return
       locks_[hash].Unlock();
       hash = Probe(hash);
     }
@@ -74,10 +96,10 @@ class Hashmap {
 
   // Get the value specified by the key.
   // XXX Do we need locks for GET()?
-  bool Get(Key &key, Value &val) {
+  bool Get(const Key &key, Value &val) const {
     size_t hash = GetHash(key);
     while (true) {
-      Bucket &bucket = buckets_[hash];
+      const Bucket &bucket = buckets_[hash];
       for (size_t i = 0; i < BUCKET_SIZE; i++) {
         // An empty slot. Fail to found one
         if (bucket.occupied[i] == false) {
@@ -101,7 +123,9 @@ class Hashmap {
     return (hash + PROBE_STEP_SIZE) % num_buckets_;
   }
 
-  inline size_t GetHash(Key &key) const { return hasher_(key) % num_buckets_; }
+  inline size_t GetHash(const Key &key) const {
+    return hasher_(key) % num_buckets_;
+  }
 
   // Members
  private:

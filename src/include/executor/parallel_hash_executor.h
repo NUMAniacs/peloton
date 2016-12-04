@@ -17,6 +17,7 @@
 
 #include "common/types.h"
 #include "executor/abstract_executor.h"
+#include "executor/hashmap.h"
 #include "executor/logical_tile.h"
 #include "common/container_tuple.h"
 #include <boost/functional/hash.hpp>
@@ -36,7 +37,7 @@ class ParallelHashExecutor : public AbstractExecutor {
   typedef std::tuple<size_t, oid_t, size_t> LookupValue;
 
   // TODO Make LookupValue a template param
-  // A wrapper over std::unordered_set with spin locks
+  // A wrapper over std::vector with spin locks
   struct ConcurrentVector {
     Spinlock lock;
     std::vector<LookupValue> lookup_values;
@@ -58,14 +59,26 @@ class ParallelHashExecutor : public AbstractExecutor {
   explicit ParallelHashExecutor(const planner::AbstractPlan *node,
                                 ExecutorContext *executor_context);
 
+  // TODO Let cuckoohash_map and Hashmap implement the same interface so we dont
+  // have so many switch statement..
   typedef cuckoohash_map<
       expression::ContainerTuple<LogicalTile>,           // Key
       std::shared_ptr<ConcurrentVector>,                 // T
       expression::ContainerTupleHasher<LogicalTile>,     // Hash
       expression::ContainerTupleComparator<LogicalTile>  // Pred
-      > ParallelHashMapType;
+      > CuckooHashMapType;
 
-  inline ParallelHashMapType &GetHashTable() { return hash_table_; }
+  typedef Hashmap<expression::ContainerTuple<LogicalTile>,            // Key
+                  std::shared_ptr<ConcurrentVector>,                  // T
+                  expression::ContainerTupleHasher<LogicalTile>,      // Hash
+                  expression::ContainerTupleComparator<LogicalTile>,  // Pred
+                  4,  // Bucket size
+                  1   // Probe step size
+                  > CustomHashMapType;
+
+  inline CuckooHashMapType &GetCuckooHashTable() { return cuckoo_hash_table_; }
+
+  inline CustomHashMapType &GetCustomHashTable() { return custom_hash_table_; }
 
   inline const std::vector<oid_t> &GetHashKeyIds() const { return column_ids_; }
 
@@ -78,11 +91,19 @@ class ParallelHashExecutor : public AbstractExecutor {
     total_num_tuples_.fetch_add(num_tuples);
   }
 
-  inline void Reserve(size_t num_tuples) { hash_table_.reserve(num_tuples); }
+  inline void Reserve(size_t num_tuples) {
+    if (use_custom_hash_table) {
+      custom_hash_table_.reserve(num_tuples);
+    } else {
+      cuckoo_hash_table_.reserve(num_tuples);
+    }
+  }
 
  public:
   /** @brief Input tiles from child node */
   std::shared_ptr<LogicalTileLists> child_tiles;
+
+  bool use_custom_hash_table = false;
 
  protected:
   // Initialize the values of the hash keys from plan node
@@ -93,14 +114,13 @@ class ParallelHashExecutor : public AbstractExecutor {
   bool DExecute();
 
  private:
-  /** @brief Hash table */
-  ParallelHashMapType hash_table_;
+  /** @brief Cuckoo Hash table */
+  CuckooHashMapType cuckoo_hash_table_;
+
+  /** @brief Custom Hash table */
+  CustomHashMapType custom_hash_table_;
 
   std::vector<oid_t> column_ids_;
-
-  size_t result_itr = 0;
-
-  size_t task_itr = 0;
 
   bool initialized_ = false;
 

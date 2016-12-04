@@ -63,6 +63,9 @@ const std::vector<oid_t> column_ids({0, 1, 3});
 
 std::vector<PlanNodeType> join_algorithms = {PLAN_NODE_TYPE_PARALLEL_HASHJOIN};
 
+// Whether use custom hashmap or cuckoo hash map
+std::vector<bool> use_custom_hashmap = {true, false};
+
 std::vector<PelotonJoinType> join_types = {JOIN_TYPE_INNER
                                            //  , JOIN_TYPE_LEFT,
                                            // JOIN_TYPE_RIGHT,
@@ -70,7 +73,7 @@ std::vector<PelotonJoinType> join_types = {JOIN_TYPE_INNER
 };
 
 void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
-                     oid_t join_test_type);
+                     oid_t join_test_type, bool use_custom_hashmap);
 
 enum JOIN_TEST_TYPE {
   BASIC_TEST = 0,
@@ -81,7 +84,16 @@ TEST_F(ParallelJoinTests, BasicTest) {
   for (auto join_algorithm : join_algorithms) {
     LOG_INFO("JOIN ALGORITHM :: %s",
              PlanNodeTypeToString(join_algorithm).c_str());
-    ExecuteJoinTest(join_algorithm, JOIN_TYPE_INNER, BASIC_TEST);
+    ExecuteJoinTest(join_algorithm, JOIN_TYPE_INNER, BASIC_TEST, false);
+  }
+}
+
+TEST_F(ParallelJoinTests, CustomHashBasicTest) {
+  // Go over all join algorithms
+  for (auto join_algorithm : join_algorithms) {
+    LOG_INFO("JOIN ALGORITHM :: %s",
+             PlanNodeTypeToString(join_algorithm).c_str());
+    ExecuteJoinTest(join_algorithm, JOIN_TYPE_INNER, BASIC_TEST, true);
   }
 }
 
@@ -101,7 +113,7 @@ TEST_F(ParallelJoinTests, BasicTest) {
 //}
 
 void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
-                     oid_t join_test_type) {
+                     oid_t join_test_type, bool use_custom_hashmap) {
   // start executor pool
   ExecutorPoolHarness::GetInstance();
 
@@ -176,13 +188,6 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
       hash_keys.emplace_back(right_table_attr_1);
 
       std::vector<std::unique_ptr<const expression::AbstractExpression>>
-          left_hash_keys;
-      left_hash_keys.emplace_back(
-          std::unique_ptr<expression::AbstractExpression>{
-              new expression::TupleValueExpression(common::Type::INTEGER, 0,
-                                                   1)});
-
-      std::vector<std::unique_ptr<const expression::AbstractExpression>>
           right_hash_keys;
       right_hash_keys.emplace_back(
           std::unique_ptr<expression::AbstractExpression>{
@@ -191,7 +196,7 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
 
       // Create hash planner node
       std::unique_ptr<planner::ParallelHashPlan> hash_plan_node(
-          new planner::ParallelHashPlan(hash_keys));
+          new planner::ParallelHashPlan(hash_keys, use_custom_hashmap));
 
       // Create parallel seq scan node on left table
       std::unique_ptr<planner::ParallelSeqScanPlan> left_seq_scan_node(

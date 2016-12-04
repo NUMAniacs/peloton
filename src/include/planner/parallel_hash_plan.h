@@ -34,8 +34,9 @@ class ParallelHashPlan : public AbstractPlan, public Dependent {
   typedef const expression::AbstractExpression HashKeyType;
   typedef std::unique_ptr<HashKeyType> HashKeyPtrType;
 
-  ParallelHashPlan(std::vector<HashKeyPtrType> &hashkeys)
-      : hash_keys_(std::move(hashkeys)) {}
+  ParallelHashPlan(std::vector<HashKeyPtrType> &hashkeys,
+                   bool use_custom = false)
+      : use_custom(use_custom), hash_keys_(std::move(hashkeys)) {}
 
   inline PlanNodeType GetPlanNodeType() const {
     return PLAN_NODE_TYPE_PARALLEL_HASH;
@@ -59,6 +60,9 @@ class ParallelHashPlan : public AbstractPlan, public Dependent {
   // When a dependency completes it will call this
   void DependencyComplete(std::shared_ptr<executor::AbstractTask> task)
       override;
+
+  // Use custom hashmap
+  bool use_custom;
 
  private:
   std::vector<HashKeyPtrType> hash_keys_;
