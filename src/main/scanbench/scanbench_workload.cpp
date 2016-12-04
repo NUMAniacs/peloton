@@ -116,12 +116,19 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
 
   // Launch all the tasks
   for (size_t i = 0; i < tasks.size(); i++) {
-    auto partition_aware_task = static_cast<executor::PartitionAwareTask *>(tasks[i].get());
-    partition_aware_task->Init(trackable, &wait, tasks.size(), txn);
-    partitioned_executor_thread_pool.SubmitTask(
-        partition_aware_task->partition_id,
-        executor::ParallelSeqScanExecutor::ExecuteTask,
-        std::move(tasks[i]));
+    if (state.numa_aware == true) {
+      auto partition_aware_task = static_cast<executor::PartitionAwareTask *>(tasks[i].get());
+      partition_aware_task->Init(trackable, &wait, tasks.size(), txn);
+      partitioned_executor_thread_pool.SubmitTask(
+          partition_aware_task->partition_id,
+          executor::ParallelSeqScanExecutor::ExecuteTask,
+          std::move(tasks[i]));
+    } else {
+      tasks[i]->Init*trackable, &wait, tasks.size(), txn);
+      partitioned_executor_thread_pool.SubmitTaskRandom(
+          executor::ParallelSeqScanExecutor::ExecuteTask,
+          std::move(tasks[i]());
+    }
   }
 
   wait.WaitForCompletion();
@@ -175,7 +182,7 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
   state.execution_time_ms = (end-start)/1000;
   LOG_INFO("Parallel Sequential Scan took %fms", state.execution_time_ms);
   ostream << "\n" <<  histogram.str() << "\nHighest Time:" <<
-      highest_time << "\n" << state.execution_time_ms;
+      highest_time << state.execution_time_ms;
 }
 
 void RunSingleTupleSelectivityScan(std::stringstream& ostream) {
@@ -185,6 +192,7 @@ void RunSingleTupleSelectivityScan(std::stringstream& ostream) {
           new expression::TupleValueExpression(common::Type::INTEGER, 0, 2),
           new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(10)));
+
   AbstractSelectivityScan(predicate, 1, ostream);
 }
 
@@ -218,7 +226,6 @@ void Run50pcSelectivityScan(std::stringstream& ostream) {
   AbstractSelectivityScan(predicate, (SCAN_TABLE_SIZE * state.scale_factor)/2, ostream);
 
 }
-
 
 }  // namespace scanbench
 }  // namespace benchmark

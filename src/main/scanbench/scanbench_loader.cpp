@@ -109,10 +109,18 @@ void CreateScanBenchDatabase() {
   // create the database
   catalog->CreateDatabase(scanbench_db_name, txn);
 
+  int partition_column;
+
+  if (state.numa_aware) {
+    partition_column = 1;
+  } else {
+    partition_column = NO_PARTITION_COLUMN;
+  }
+
   // create scan table
   txn = txn_manager.BeginTransaction();
   catalog->CreateTable(scanbench_db_name, scan_table_name,
-                       std::move(scan_table_schema), txn, 0);
+                       std::move(scan_table_schema), txn, partition_column);
   txn_manager.CommitTransaction(txn);
 }
 
@@ -120,54 +128,82 @@ void ParallelLoader(unsigned int num_partition, parser::InsertStatement* insert_
                 int insert_size, std::vector<std::vector<bool>>& insert_tuple_bitmaps){
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-  concurrency::Transaction * txns[num_partition];
-  executor::ExecutorContext * contexts[num_partition];
-  boost::promise<bool> * promises[num_partition];
-  executor::AbstractExecutor * executors[num_partition];
-  planner::InsertPlan node(insert_stmt);
 
-  // start the tasks
-  for (int partition = 0; partition < (int)num_partition; partition++){
+  if (state.numa_aware == false) {
     auto txn = txn_manager.BeginTransaction();
     auto context = new executor::ExecutorContext(txn);
     auto p = new boost::promise<bool>;
 
-    auto insert_task = new executor::InsertTask(&node, insert_size, partition, partition);
-    insert_task->tuple_bitmap = insert_tuple_bitmaps[partition];
+    // populate random partition
+    size_t partition_id = rand() % num_partitions;
+    std::shared_ptr<executor::AbstractTask> insert_task(
+        new executor::InsertTask(plan_tree,
+                                 insert_plan->GetBulkInsertCount(),
+                                 INVALID_TASK_ID, partition_id));
+
     std::shared_ptr<executor::AbstractTask> task(insert_task);
-
-
     context->SetTask(task);
 
     executor::AbstractExecutor* executor = new executor::InsertExecutor(context);
 
-    txns[partition] = txn;
-    contexts[partition] = context;
-    promises[partition] = p;
-    executors[partition] = executor;
-
     partitioned_executor_thread_pool.SubmitTask(
-                  partition, ExecuteTask, std::move(executor), std::move(p));
+        partition_id, ExecuteTask, std::move(executor), std::move(p));
+
+    // wait for the tasks to finish and commit their transaction
+    p->get_future().get();
+    txn_manager.CommitTransaction(txn);
+
+  } else {
+    concurrency::Transaction * txns[num_partition];
+    executor::ExecutorContext * contexts[num_partition];
+    boost::promise<bool> * promises[num_partition];
+    executor::AbstractExecutor * executors[num_partition];
+    planner::InsertPlan node(insert_stmt);
+
+    // start the tasks
+    for (int partition = 0; partition < (int)num_partition; partition++){
+      auto txn = txn_manager.BeginTransaction();
+      auto context = new executor::ExecutorContext(txn);
+      auto p = new boost::promise<bool>;
+
+      auto insert_task = new executor::InsertTask(&node, insert_size, partition, partition);
+      insert_task->tuple_bitmap = insert_tuple_bitmaps[partition];
+      std::shared_ptr<executor::AbstractTask> task(insert_task);
+
+
+      context->SetTask(task);
+
+      executor::AbstractExecutor* executor = new executor::InsertExecutor(context);
+
+      txns[partition] = txn;
+      contexts[partition] = context;
+      promises[partition] = p;
+      executors[partition] = executor;
+
+      partitioned_executor_thread_pool.SubmitTask(
+          partition, ExecuteTask, std::move(executor), std::move(p));
+    }
+
+    // wait for the tasks to finish and commit their transactions
+    for (int partition = 0; partition < (int)num_partition; partition++){
+      promises[partition]->get_future().get();
+      txn_manager.CommitTransaction(txns[partition]);
+    }
+
+    //clean up and reset tasks
+    // wait for the tasks to finish and commit their transactions
+    for (int partition = 0; partition < (int)num_partition; partition++){
+      // txns are cleaned up on commit
+      // tasks are cleaned up using shared ptrs
+      delete promises[partition];
+      delete executors[partition];
+      delete contexts[partition];
+      insert_tuple_bitmaps[partition].clear();
+      insert_tuple_bitmaps[partition].resize(insert_size, false);
+    }
   }
 
-  // wait for the tasks to finish and commit their transactions
-  for (int partition = 0; partition < (int)num_partition; partition++){
-    promises[partition]->get_future().get();
-    txn_manager.CommitTransaction(txns[partition]);
-  }
-
-  //clean up and reset tasks
-  // wait for the tasks to finish and commit their transactions
-  for (int partition = 0; partition < (int)num_partition; partition++){
-    // txns are cleaned up on commit
-    // tasks are cleaned up using shared ptrs
-    delete promises[partition];
-    delete executors[partition];
-    delete contexts[partition];
-    insert_tuple_bitmaps[partition].clear();
-    insert_tuple_bitmaps[partition].resize(insert_size, false);
-  }
-
+  // clear out all the insert values
   for (auto val_list : *insert_stmt->insert_values){
     for (auto val : *val_list){
       delete val;
@@ -245,9 +281,12 @@ void LoadScanBenchDatabase() {
     values_ptr->push_back(new expression::ConstantValueExpression(
             common::ValueFactory::GetIntegerValue(tuple_id)));
 
-    int partition_key = tuple_id;
-    int partition = common::ValueFactory::GetIntegerValue(partition_key).Hash() % num_partition;
-    insert_tuple_bitmaps[partition][tuple_id % insert_size] = true;
+    // partition if we are numa-aware
+    if (state.numa_aware == true) {
+      int partition_key = tuple_id;
+      int partition = common::ValueFactory::GetIntegerValue(partition_key).Hash() % num_partition;
+      insert_tuple_bitmaps[partition][tuple_id % insert_size] = true;
+    }
 
     if ((tuple_id + 1) % insert_size == 0){
       ParallelLoader(num_partition, insert_stmt.get(), insert_size, insert_tuple_bitmaps);

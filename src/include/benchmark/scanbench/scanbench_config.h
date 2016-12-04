@@ -40,6 +40,8 @@ public:
   // use a read only transaction for the hash join
   bool read_only_txn;
 
+  bool numa_aware;
+
   // time of the scan in milliseconds
   double execution_time_ms = 0;
 
