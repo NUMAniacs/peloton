@@ -83,18 +83,18 @@ class Transaction : public Printable {
 
   inline void SetEpochId(const size_t eid) { epoch_id_ = eid; }
 
-  void RecordRead(const ItemPointer &, int i=0);
+  void RecordRead(const ItemPointer &);
 
-  void RecordReadOwn(const ItemPointer &, int i=0);
+  void RecordReadOwn(const ItemPointer &);
 
-  void RecordUpdate(const ItemPointer &, int i=0);
+  void RecordUpdate(const ItemPointer &);
 
-  void RecordInsert(const ItemPointer &, int i=0);
+  void RecordInsert(const ItemPointer &);
 
   // Return true if we detect INS_DEL
-  bool RecordDelete(const ItemPointer &, int i=0);
+  bool RecordDelete(const ItemPointer &);
 
-  RWType GetRWType(const ItemPointer&, int i=0);
+  RWType GetRWType(const ItemPointer&);
 
   inline const ReadWriteSet &GetReadWriteSet() {
     return rw_set_;

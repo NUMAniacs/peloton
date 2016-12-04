@@ -277,12 +277,9 @@ void ParallelSeqScanPlan::GenerateTasks(
       executor::TileGroupPtrList tile_group_ptrs;
       for (size_t k = j;
            k < j + num_tile_groups_per_task && k < num_tile_groups; k++) {
-        if (target_table->GetTileGroupFromPartition(i, k)
-                ->GetActiveTupleCount() > 0) {
-          // append the next tile group
-          tile_group_ptrs.push_back(
-              target_table->GetTileGroupFromPartition(i, k));
-        }
+        // append the next tile group
+        tile_group_ptrs.push_back(
+            target_table->GetTileGroupFromPartition(i, k));
       }
       if (tile_group_ptrs.size() > 0) {
         // create a new task only when there's tile groups to scan
