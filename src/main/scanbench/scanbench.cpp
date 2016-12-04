@@ -34,7 +34,7 @@ configuration state;
 // Main Entry Point
 void RunBenchmark() {
 
-  std::stringstream ostream;
+  std::stringstream ostream, dummy;
 
   PelotonInit::Initialize();
 
@@ -45,12 +45,16 @@ void RunBenchmark() {
   LoadScanBenchDatabase();
 
   // Run the workload, 3 trials
-  for (int i=0; i<3; i++) {
-    LOG_INFO("Trial:%d", i+1);
-    ostream << "Single Tuple Trial " << i+1 << "\n";
-    RunSingleTupleSelectivityScan(ostream);
-    ostream << "1% Selectivity Trial " << i+1 << "\n";
-    Run1pcSelectivityScan(ostream);
+  for (int i=0; i<4; i++) {
+    if (i == 0) {
+      RunSingleTupleSelectivityScan(dummy);
+      Run1pcSelectivityScan(dummy);
+    } else {
+      ostream << "\nSingle Tuple Trial " << i << "\n";
+      RunSingleTupleSelectivityScan(ostream);
+      ostream << "\n1% Selectivity Trial " << i << "\n";
+      Run1pcSelectivityScan(ostream);
+    }
   }
 
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();

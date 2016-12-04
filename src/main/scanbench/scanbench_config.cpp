@@ -88,7 +88,7 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
 
 
 void WriteOutput(std::stringstream& ostream) {
-  std::ofstream out("outputfile.summary." + std::time(nullptr));
+  std::ofstream out("outputfile.summary."+ std::to_string(std::time(nullptr)));
 
   LOG_INFO("----------------------------------------------------------");
   LOG_INFO("%d %s:: %f",
