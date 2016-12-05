@@ -182,7 +182,8 @@ void RunHashJoin() {
   std::shared_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
 
-  // Vector of seq scan tasks
+  // === Start of right seq scan tasks generation ====
+  right_seq_scan_node->RecordTaskGenStart();
   std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
@@ -207,13 +208,17 @@ void RunHashJoin() {
           std::shared_ptr<executor::AbstractTask>(seq_scan_task));
     }
   }
-  LOG_DEBUG("Number of seq scan tasks created: %d", (int )seq_scan_tasks.size());
-
   // Create trackable for seq scan
   size_t num_seq_scan_tasks = seq_scan_tasks.size();
   std::shared_ptr<executor::Trackable> trackable(
       new executor::Trackable(num_seq_scan_tasks));
 
+  LOG_DEBUG("Number of seq scan tasks created: %d", (int)seq_scan_tasks.size());
+  right_seq_scan_node->RecordTaskGenEnd();
+  // === End of right seq scan tasks generation ====
+
+  // === Begin of seq scan tasks generation ====
+  //  right_seq_scan_node->RecordTaskExecutionStart();
   // Launch all the tasks
   for (size_t i = 0; i < num_seq_scan_tasks; i++) {
     auto partition_aware_task =
@@ -250,9 +255,19 @@ void RunHashJoin() {
 
   auto end = std::chrono::high_resolution_clock::now();
 
-  state.execution_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end-begin).count();
-  LOG_INFO("Result_Tuples: %d", result_tuple_count);
-  LOG_INFO("Parallel Hash Join took %ldms", state.execution_time_ms);
+  state.execution_time_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - begin)
+          .count();
+  LOG_ERROR("Result_Tuples: %d", result_tuple_count);
+  LOG_ERROR("Parallel Hash Join took %ldms", state.execution_time_ms);
+  auto &breakdowns = state.execution_time_breakdown;
+  breakdowns.push_back(right_seq_scan_node->GetTaskGenTimeMS());
+  //  breakdowns.push_back(right_seq_scan_node->GetTaskExecutionTimeMS());
+  //  breakdowns.push_back(hash_plan_node->GetTaskGenTimeMS());
+  //  breakdowns.push_back(hash_plan_node->GetTaskExecutionTimeMS());
+  //  breakdowns.push_back(hash_join_plan_node->GetTaskGenTimeMS());
+  //  breakdowns.push_back(hash_join_plan_node->GetTaskExecutionTimeMS());
+  //  breakdowns.push_back(wait->GetTaskExecutionTimeMS());
 }
 
 }  // namespace numabench
