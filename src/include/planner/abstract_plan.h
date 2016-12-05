@@ -108,7 +108,11 @@ class AbstractPlan : public Printable {
   }
   virtual int SerializeSize() { return 0; }
 
-  // Temporary function for experiment
+ public:
+  // XXX Temporary function and variable for experiment
+  bool random_partition_execution = false;
+
+  // We should have an abstract parallel plan instead
   void RecordTaskGenStart() {
     task_gen_begin_ = std::chrono::high_resolution_clock::now();
   }

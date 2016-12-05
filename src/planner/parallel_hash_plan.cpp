@@ -90,10 +90,14 @@ void ParallelHashPlan::DependencyComplete(
   for (auto new_task : tasks) {
     executor::HashTask *hash_task =
         static_cast<executor::HashTask *>(new_task.get());
-
-    partitioned_executor_thread_pool.SubmitTask(
-        hash_task->partition_id, executor::ParallelHashExecutor::ExecuteTask,
-        std::move(new_task));
+    if (this->random_partition_execution) {
+      partitioned_executor_thread_pool.SubmitTaskRandom(
+          executor::ParallelHashExecutor::ExecuteTask, std::move(new_task));
+    } else {
+      partitioned_executor_thread_pool.SubmitTask(
+          hash_task->partition_id, executor::ParallelHashExecutor::ExecuteTask,
+          std::move(new_task));
+    }
   }
   LOG_DEBUG("%d hash tasks submitted", (int)num_tasks);
 }

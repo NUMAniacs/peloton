@@ -99,12 +99,18 @@ void ParallelHashJoinPlan::DependencyComplete(
                          task->txn);
     seq_scan_task->Init(nullptr, nullptr, num_tasks, task->txn);
 
-    // Passing the hash task for hash join executor so that we have a
-    // reference to the hash table
-    partitioned_executor_thread_pool.SubmitTask(
-        seq_scan_task->partition_id,
-        executor::ParallelHashJoinExecutor::ExecuteTask, std::move(new_task),
-        std::move(hash_join_task));
+    if (this->random_partition_execution) {
+      partitioned_executor_thread_pool.SubmitTaskRandom(
+          executor::ParallelHashJoinExecutor::ExecuteTask, std::move(new_task),
+          std::move(hash_join_task));
+    } else {
+      // Passing the hash task for hash join executor so that we have a
+      // reference to the hash table
+      partitioned_executor_thread_pool.SubmitTask(
+          seq_scan_task->partition_id,
+          executor::ParallelHashJoinExecutor::ExecuteTask, std::move(new_task),
+          std::move(hash_join_task));
+    }
   }
   LOG_DEBUG("%d hash join tasks submitted", (int)num_tasks);
 }

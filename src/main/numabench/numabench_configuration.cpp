@@ -66,11 +66,12 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   state.min_thread_num = 2;
   state.max_thread_num = 24;
   state.custom_hashtable = false;
+  state.random_partition_execution = false;
 
   // Parse args
   while (1) {
     int idx = 0;
-    int c = getopt_long(argc, argv, "htlrcs:p:q:", opts, &idx);
+    int c = getopt_long(argc, argv, "htlrcds:p:q:", opts, &idx);
 
     if (c == -1) break;
 
@@ -97,6 +98,9 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
         break;
       case 'r':
         state.partition_right = true;
+        break;
+      case 'd':
+        state.random_partition_execution = true;
         break;
       default:
         LOG_ERROR("Unknown option: -%c-", c);

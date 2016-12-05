@@ -138,6 +138,8 @@ void RunHashJoin() {
   std::unique_ptr<planner::ParallelSeqScanPlan> right_seq_scan_node(
       new planner::ParallelSeqScanPlan(right_table, right_predicate,
                                        std::vector<oid_t>({0, 1, 2})));
+  right_seq_scan_node->random_partition_execution =
+      state.random_partition_execution;
 
   // Create hash plan node expressions
   expression::AbstractExpression *right_table_attr_1 =
@@ -149,6 +151,7 @@ void RunHashJoin() {
   // Create hash planner node
   std::unique_ptr<planner::ParallelHashPlan> hash_plan_node(
       new planner::ParallelHashPlan(hash_keys, state.custom_hashtable));
+  hash_plan_node->random_partition_execution = state.random_partition_execution;
 
   // Create parallel seq scan node on left table
   std::unique_ptr<planner::ParallelSeqScanPlan> left_seq_scan_node(
@@ -160,6 +163,8 @@ void RunHashJoin() {
       new planner::ParallelHashJoinPlan(JOIN_TYPE_INNER, std::move(predicate),
                                         std::move(projection), schema));
   hash_join_plan_node->AddChild(std::move(left_seq_scan_node));
+  hash_join_plan_node->random_partition_execution =
+      state.random_partition_execution;
 
   // Create a blocking wait at the top of hash executor because the hash
   // join executor is not ready yet..
@@ -226,10 +231,17 @@ void RunHashJoin() {
             seq_scan_tasks[i]);
     partition_aware_task->Init(trackable, hash_plan_node.get(),
                                num_seq_scan_tasks, txn);
-    partitioned_executor_thread_pool.SubmitTask(
-        partition_aware_task->partition_id,
-        executor::ParallelSeqScanExecutor::ExecuteTask,
-        std::move(seq_scan_tasks[i]));
+
+    if (state.random_partition_execution) {
+      partitioned_executor_thread_pool.SubmitTaskRandom(
+          executor::ParallelSeqScanExecutor::ExecuteTask,
+          std::move(seq_scan_tasks[i]));
+    } else {
+      partitioned_executor_thread_pool.SubmitTask(
+          partition_aware_task->partition_id,
+          executor::ParallelSeqScanExecutor::ExecuteTask,
+          std::move(seq_scan_tasks[i]));
+    }
   }
   wait->WaitForCompletion();
   executor::HashJoinTask *hash_join_task =

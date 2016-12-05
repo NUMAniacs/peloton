@@ -63,6 +63,9 @@ class configuration {
 
   // The breakdown of execution time
   std::vector<double> execution_time_breakdown;
+
+  // Whether tasks are submitted to random threads
+  bool random_partition_execution;
 };
 
 extern configuration state;
