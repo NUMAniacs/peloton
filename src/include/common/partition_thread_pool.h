@@ -74,6 +74,7 @@ class PartitionThreadPool {
          itr++) {
       itr->second.Shutdown();
     }
+    thread_pool_map_.clear();
   }
 };
 }

@@ -30,6 +30,23 @@ namespace benchmark {
 namespace numabench {
 
 configuration state;
+
+void RunHelper() {
+  int thread_num = state.min_thread_num;
+
+  while (thread_num <= state.max_thread_num) {
+    partitioned_executor_thread_pool.Shutdown();
+    partitioned_executor_thread_pool.Initialize(thread_num);
+
+    // Run the workload
+    RunWorkload();
+
+    // Emit throughput
+    WriteOutput(thread_num);
+    thread_num += 2;
+  }
+}
+
 // Main Entry Point
 void RunBenchmark() {
 
@@ -44,15 +61,14 @@ void RunBenchmark() {
   // Load the databases
   LoadNUMABenchDatabase();
 
-  // Run the workload
-  RunWorkload();
-  
+  state.custom_hashtable = false;
+  RunHelper();
+  state.custom_hashtable = true;
+  RunHelper();
+
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();
 
   gc::GCManagerFactory::GetInstance().StopGC();
-
-  // Emit throughput
-  WriteOutput();
 }
 
 }  // namespace numabench

@@ -2,9 +2,9 @@
 //
 //                         Peloton
 //
-// ycsb_loader.cpp
+// numabench_loader.cpp
 //
-// Identification: src/main/ycsb/ycsb_loader.cpp
+// Identification: src/main/ycsb/numabench_loader.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -56,7 +56,7 @@ storage::DataTable *left_table = nullptr;
 storage::DataTable *right_table = nullptr;
 
 void ExecuteTask(executor::AbstractExecutor *executor,
-    boost::promise<bool> *p) {
+                 boost::promise<bool> *p) {
   auto status = executor->Execute();
   p->set_value(status);
 }
@@ -80,22 +80,27 @@ void CreateNUMABenchDatabase() {
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
 
-  auto l_id_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "l_id", true);
-  auto l_partkey_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "l_partkey", true);
-  auto l_shipdate_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "l_shipdate", true);
+  auto l_id_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "l_id", true);
+  auto l_partkey_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "l_partkey", true);
+  auto l_shipdate_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "l_shipdate", true);
 
-  std::unique_ptr<catalog::Schema> right_table_schema(new catalog::Schema( {
-      l_id_col, l_partkey_col, l_shipdate_col }));
+  std::unique_ptr<catalog::Schema> right_table_schema(
+      new catalog::Schema({l_id_col, l_partkey_col, l_shipdate_col}));
 
-  auto p_id_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "p_id", true);
-  auto p_partkey_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "p_partkey", true);
-  std::unique_ptr<catalog::Schema> left_table_schema(new catalog::Schema( {
-      p_id_col, p_partkey_col }));
+  auto p_id_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "p_id", true);
+  auto p_partkey_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "p_partkey", true);
+  std::unique_ptr<catalog::Schema> left_table_schema(
+      new catalog::Schema({p_id_col, p_partkey_col}));
 
   catalog->CreateDatabase(NUMABENCH_DB_NAME, txn);
   txn_manager.CommitTransaction(txn);
@@ -104,30 +109,28 @@ void CreateNUMABenchDatabase() {
   txn = txn_manager.BeginTransaction();
   // TODO: can I use std move here? I use it to create two tables.
   catalog->CreateTable(NUMABENCH_DB_NAME, "LEFT_TABLE",
-      std::move(left_table_schema), txn, 1);
+                       std::move(left_table_schema), txn, 1);
   txn_manager.CommitTransaction(txn);
   // create right table
   txn = txn_manager.BeginTransaction();
   catalog->CreateTable(NUMABENCH_DB_NAME, "RIGHT_TABLE",
-      std::move(right_table_schema), txn, 1);
+                       std::move(right_table_schema), txn, 1);
   txn_manager.CommitTransaction(txn);
-
 }
 
 /*
  * This class can be notified when a task completes
  */
 class NumabenchBlockingWait {
-public:
-  NumabenchBlockingWait(int tasks) :
-      all_done(false) {
+ public:
+  NumabenchBlockingWait(int tasks) : all_done(false) {
     tasks_left.store(tasks);
   }
 
   // when a task completes it will call this
   void DependencyComplete() {
     if (tasks_left.fetch_sub(1) == 1) {
-      std::unique_lock < std::mutex > lk(done_lock);
+      std::unique_lock<std::mutex> lk(done_lock);
       all_done = true;
       cv.notify_all();
     }
@@ -135,12 +138,11 @@ public:
 
   // wait for all tasks to be complete
   void WaitForCompletion() {
-    std::unique_lock < std::mutex > lk(done_lock);
-    while (!all_done)
-      cv.wait(lk);
+    std::unique_lock<std::mutex> lk(done_lock);
+    while (!all_done) cv.wait(lk);
   }
 
-private:
+ private:
   std::atomic<int> tasks_left;
   bool all_done;
 
@@ -150,50 +152,50 @@ private:
 };
 
 void LoadHelper(unsigned int num_partition,
-    parser::InsertStatement* insert_stmt, int insert_size,
-    std::vector<std::vector<bool>>& insert_tuple_bitmaps) {
+                parser::InsertStatement *insert_stmt, int insert_size,
+                std::vector<std::vector<bool>> &insert_tuple_bitmaps) {
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-  concurrency::Transaction * txns[num_partition];
-  executor::ExecutorContext * contexts[num_partition];
-  boost::promise<bool> * promises[num_partition];
-  executor::AbstractExecutor * executors[num_partition];
+  concurrency::Transaction *txns[num_partition];
+  executor::ExecutorContext *contexts[num_partition];
+  boost::promise<bool> *promises[num_partition];
+  executor::AbstractExecutor *executors[num_partition];
   planner::InsertPlan node(insert_stmt);
 
   // start the tasks
-  for (int partition = 0; partition < (int) num_partition; partition++) {
+  for (int partition = 0; partition < (int)num_partition; partition++) {
     auto txn = txn_manager.BeginTransaction();
     auto context = new executor::ExecutorContext(txn);
     auto p = new boost::promise<bool>;
 
-    auto insert_task = new executor::InsertTask(&node, insert_size, partition,
-        partition);
+    auto insert_task =
+        new executor::InsertTask(&node, insert_size, partition, partition);
     insert_task->tuple_bitmap = insert_tuple_bitmaps[partition];
     std::shared_ptr<executor::AbstractTask> task(insert_task);
 
     context->SetTask(task);
 
-    executor::AbstractExecutor* executor = new executor::InsertExecutor(
-        context);
+    executor::AbstractExecutor *executor =
+        new executor::InsertExecutor(context);
 
     txns[partition] = txn;
     contexts[partition] = context;
     promises[partition] = p;
     executors[partition] = executor;
 
-    partitioned_executor_thread_pool.SubmitTask(partition, ExecuteTask,
-        std::move(executor), std::move(p));
+    partitioned_executor_thread_pool.SubmitTask(
+        partition, ExecuteTask, std::move(executor), std::move(p));
   }
 
   // wait for the tasks to finish and commit their transactions
-  for (int partition = 0; partition < (int) num_partition; partition++) {
+  for (int partition = 0; partition < (int)num_partition; partition++) {
     promises[partition]->get_future().get();
     txn_manager.CommitTransaction(txns[partition]);
   }
 
-  //clean up and reset tasks
+  // clean up and reset tasks
   // wait for the tasks to finish and commit their transactions
-  for (int partition = 0; partition < (int) num_partition; partition++) {
+  for (int partition = 0; partition < (int)num_partition; partition++) {
     // txns are cleaned up on commit
     // tasks are cleaned up using shared ptrs
     delete promises[partition];
@@ -215,19 +217,19 @@ struct loaderargs {
   int start;
   int batch_size;
   int total_size;
-  NumabenchBlockingWait* block;
+  NumabenchBlockingWait *block;
 };
 
-void* LineItemTableLoader(void * arg) {
-  loaderargs* args = (loaderargs *) arg;
+void *LineItemTableLoader(void *arg) {
+  loaderargs *args = (loaderargs *)arg;
   int start = args->start;
   int batch_size = args->batch_size;
   int total_size = args->total_size;
-  NumabenchBlockingWait* block = args->block;
+  NumabenchBlockingWait *block = args->block;
   delete args;
 
   right_table = catalog::Catalog::GetInstance()->GetTableWithName(
-  NUMABENCH_DB_NAME, "RIGHT_TABLE");
+      NUMABENCH_DB_NAME, "RIGHT_TABLE");
 
   size_t num_partition = PL_NUM_PARTITIONS();
 
@@ -244,7 +246,7 @@ void* LineItemTableLoader(void * arg) {
   insert_tuple_bitmaps.resize(num_partition);
   // size to insert before firing off tasks and waiting
 
-  for (int partition = 0; partition < (int) num_partition; partition++) {
+  for (int partition = 0; partition < (int)num_partition; partition++) {
     insert_tuple_bitmaps[partition].clear();
     insert_tuple_bitmaps[partition].resize(batch_size, false);
   }
@@ -258,15 +260,15 @@ void* LineItemTableLoader(void * arg) {
   // insert to left table; build an insert statement
   std::unique_ptr<parser::InsertStatement> insert_stmt(
       new parser::InsertStatement(INSERT_TYPE_VALUES));
-//  std::unique_ptr<parser::InsertStatement> insert_stmt;
+  //  std::unique_ptr<parser::InsertStatement> insert_stmt;
   insert_stmt->table_info_ = right_table_name;
   insert_stmt->columns = new std::vector<char *>;
   insert_stmt->columns->push_back(const_cast<char *>(r_col_1));
   insert_stmt->columns->push_back(const_cast<char *>(r_col_2));
   insert_stmt->columns->push_back(const_cast<char *>(r_col_3));
   insert_stmt->select = new parser::SelectStatement();
-  insert_stmt->insert_values = new std::vector<
-      std::vector<expression::AbstractExpression *> *>;
+  insert_stmt->insert_values =
+      new std::vector<std::vector<expression::AbstractExpression *> *>;
 
   for (int tuple_id = start; tuple_id < start + total_size; tuple_id++) {
     auto values_ptr = new std::vector<expression::AbstractExpression *>;
@@ -274,41 +276,40 @@ void* LineItemTableLoader(void * arg) {
     int shipdate = rand() % 60;
     int partkey = rand() % (PART_TABLE_SIZE * state.scale_factor);
 
-    values_ptr->push_back(
-        new expression::ConstantValueExpression(
-            common::ValueFactory::GetIntegerValue(tuple_id)));
-    values_ptr->push_back(
-        new expression::ConstantValueExpression(
-            common::ValueFactory::GetIntegerValue(partkey)));
-    values_ptr->push_back(
-        new expression::ConstantValueExpression(
-            common::ValueFactory::GetIntegerValue(shipdate)));
+    values_ptr->push_back(new expression::ConstantValueExpression(
+        common::ValueFactory::GetIntegerValue(tuple_id)));
+    values_ptr->push_back(new expression::ConstantValueExpression(
+        common::ValueFactory::GetIntegerValue(partkey)));
+    values_ptr->push_back(new expression::ConstantValueExpression(
+        common::ValueFactory::GetIntegerValue(shipdate)));
 
     int partition_key = state.partition_right ? partkey : tuple_id;
-    int partition = common::ValueFactory::GetIntegerValue(partition_key).Hash()
-        % num_partition;
+    int partition =
+        common::ValueFactory::GetIntegerValue(partition_key).Hash() %
+        num_partition;
     insert_tuple_bitmaps[partition][tuple_id % batch_size] = true;
     if ((tuple_id + 1) % batch_size == 0) {
-      LoadHelper(num_partition, insert_stmt.get(), batch_size, insert_tuple_bitmaps);
-      LOG_INFO("finished writing tuple in lineitem table: %d", start + (tuple_id + 1));
+      LoadHelper(num_partition, insert_stmt.get(), batch_size,
+                 insert_tuple_bitmaps);
+      LOG_INFO("finished writing tuple in lineitem table: %d",
+               start + (tuple_id + 1));
     }
   }
-
 
   block->DependencyComplete();
   return nullptr;
 }
 
-void* PartTableLoader(void * arg) {
-  loaderargs* args = (loaderargs *) arg;
+void *PartTableLoader(void *arg) {
+  loaderargs *args = (loaderargs *)arg;
   int start = args->start;
   int batch_size = args->batch_size;
   int total_size = args->total_size;
-  NumabenchBlockingWait* block = args->block;
+  NumabenchBlockingWait *block = args->block;
   delete args;
 
   left_table = catalog::Catalog::GetInstance()->GetTableWithName(
-  NUMABENCH_DB_NAME, "LEFT_TABLE");
+      NUMABENCH_DB_NAME, "LEFT_TABLE");
 
   char *left_table_name_str = new char[11]();
   strcpy(left_table_name_str, "LEFT_TABLE");
@@ -324,7 +325,7 @@ void* PartTableLoader(void * arg) {
   insert_tuple_bitmaps.resize(num_partition);
   // size to insert before firing off tasks and waiting
 
-  for (int partition = 0; partition < (int) num_partition; partition++) {
+  for (int partition = 0; partition < (int)num_partition; partition++) {
     insert_tuple_bitmaps[partition].clear();
     insert_tuple_bitmaps[partition].resize(batch_size, false);
   }
@@ -342,8 +343,8 @@ void* PartTableLoader(void * arg) {
   insert_stmt->columns->push_back(const_cast<char *>(l_col_1));
   insert_stmt->columns->push_back(const_cast<char *>(l_col_2));
   insert_stmt->select = new parser::SelectStatement();
-  insert_stmt->insert_values = new std::vector<
-      std::vector<expression::AbstractExpression *> *>;
+  insert_stmt->insert_values =
+      new std::vector<std::vector<expression::AbstractExpression *> *>;
 
   for (int partkey = start; partkey < start + total_size; partkey++) {
     auto values_ptr = new std::vector<expression::AbstractExpression *>;
@@ -352,21 +353,21 @@ void* PartTableLoader(void * arg) {
     int tuple_id = partkey + PART_TABLE_SIZE * state.scale_factor;
     // this is so when we partition, we do not put in the same place as if
     // we partition on part_Key
-    values_ptr->push_back(
-        new expression::ConstantValueExpression(
-            common::ValueFactory::GetIntegerValue(tuple_id)));
-    values_ptr->push_back(
-        new expression::ConstantValueExpression(
-            common::ValueFactory::GetIntegerValue(partkey)));
-    //TODO if not partitioning send to random partition
+    values_ptr->push_back(new expression::ConstantValueExpression(
+        common::ValueFactory::GetIntegerValue(tuple_id)));
+    values_ptr->push_back(new expression::ConstantValueExpression(
+        common::ValueFactory::GetIntegerValue(partkey)));
+    // TODO if not partitioning send to random partition
     int partition_key = state.partition_left ? partkey : tuple_id;
     int partition =
-        common::ValueFactory::GetIntegerValue(partition_key).Hash() % PL_NUM_PARTITIONS();
+        common::ValueFactory::GetIntegerValue(partition_key).Hash() %
+        PL_NUM_PARTITIONS();
     ;
     insert_tuple_bitmaps[partition][partkey % batch_size] = true;
     if ((partkey + 1) % batch_size == 0) {
       LOG_INFO("finished writing tuple in part table: %d", partkey + 1);
-      LoadHelper(num_partition, insert_stmt.get(), batch_size, insert_tuple_bitmaps);
+      LoadHelper(num_partition, insert_stmt.get(), batch_size,
+                 insert_tuple_bitmaps);
     }
   }
 
@@ -382,26 +383,30 @@ void LoadNUMABenchDatabase() {
 
     NumabenchBlockingWait block(num_threads);
     for (int tuple_id = 0; tuple_id < LINEITEM_TABLE_SIZE * state.scale_factor;
-        tuple_id += LINEITEM_TABLE_SIZE * state.scale_factor/ num_threads) {
+         tuple_id += LINEITEM_TABLE_SIZE * state.scale_factor / num_threads) {
       pthread_t thread;
-      pthread_create(&thread, nullptr, LineItemTableLoader, new loaderargs {
-          tuple_id, insert_size,LINEITEM_TABLE_SIZE * state.scale_factor/ num_threads, &block });
+      pthread_create(&thread, nullptr, LineItemTableLoader,
+                     new loaderargs{tuple_id, insert_size,
+                                    LINEITEM_TABLE_SIZE * state.scale_factor /
+                                        num_threads,
+                                    &block});
       pthread_detach(thread);
     }
     block.WaitForCompletion();
   }
   {
-    NumabenchBlockingWait block(
-        num_threads);
+    NumabenchBlockingWait block(num_threads);
     for (int partkey = 0; partkey < PART_TABLE_SIZE * state.scale_factor;
-        partkey += PART_TABLE_SIZE * state.scale_factor/ num_threads) {
+         partkey += PART_TABLE_SIZE * state.scale_factor / num_threads) {
       pthread_t thread;
-      pthread_create(&thread, nullptr, PartTableLoader, new loaderargs {
-          partkey, insert_size,PART_TABLE_SIZE * state.scale_factor/ num_threads, &block });
+      pthread_create(
+          &thread, nullptr, PartTableLoader,
+          new loaderargs{
+              partkey,                                            insert_size,
+              PART_TABLE_SIZE * state.scale_factor / num_threads, &block});
       pthread_detach(thread);
     }
     block.WaitForCompletion();
-
   }
 }
 

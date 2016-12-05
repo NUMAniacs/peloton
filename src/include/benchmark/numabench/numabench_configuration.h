@@ -40,6 +40,12 @@ class configuration {
  public:
   // size of the table
   int scale_factor;
+  
+  // Min number of threads in thread pool 
+  int min_thread_num;
+
+  // Max number of threads
+  int max_thread_num;
 
   // use a read only transaction for the hash join
   bool read_only_txn;
@@ -53,6 +59,8 @@ class configuration {
   // time of the hash join in milliseconds
   long execution_time_ms = 0;
 
+  // Whether to use custom hash table  
+  bool custom_hashtable;
 };
 
 extern configuration state;
@@ -63,7 +71,7 @@ void ParseArguments(int argc, char *argv[], configuration &state);
 
 void ValidateScaleFactor(const configuration &state);
 
-void WriteOutput();
+void WriteOutput(int thread_num);
 
 }  // namespace numabench
 }  // namespace benchmark
