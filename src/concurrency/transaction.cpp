@@ -16,7 +16,6 @@
 #include "common/logger.h"
 #include "common/platform.h"
 #include "common/macros.h"
-#include "common/partition_macros.h"
 
 #include <chrono>
 #include <thread>
@@ -47,8 +46,7 @@ namespace concurrency {
  *    i: insert
  */
 
-RWType Transaction::GetRWType(const ItemPointer &location) {
-  int i = PL_GET_PARTITION_NODE();
+RWType Transaction::GetRWType(const ItemPointer &location, int i) {
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
   auto itr = rw_set_.find(tile_group_id, i);
@@ -64,8 +62,7 @@ RWType Transaction::GetRWType(const ItemPointer &location) {
   return inner_itr->second;
 }
 
-void Transaction::RecordRead(const ItemPointer &location) {
-  int i = PL_GET_PARTITION_NODE();
+void Transaction::RecordRead(const ItemPointer &location, int i) {
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
 
@@ -80,8 +77,7 @@ void Transaction::RecordRead(const ItemPointer &location) {
   }
 }
 
-void Transaction::RecordReadOwn(const ItemPointer &location) {
-  int i = PL_GET_PARTITION_NODE();
+void Transaction::RecordReadOwn(const ItemPointer &location, int i) {
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
 
@@ -100,8 +96,7 @@ void Transaction::RecordReadOwn(const ItemPointer &location) {
   }
 }
 
-void Transaction::RecordUpdate(const ItemPointer &location) {
-  int i = PL_GET_PARTITION_NODE();
+void Transaction::RecordUpdate(const ItemPointer &location, int i) {
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
 
@@ -130,8 +125,7 @@ void Transaction::RecordUpdate(const ItemPointer &location) {
   }
 }
 
-void Transaction::RecordInsert(const ItemPointer &location) {
-  int i = PL_GET_PARTITION_NODE();
+void Transaction::RecordInsert(const ItemPointer &location, int i) {
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
 
@@ -145,8 +139,7 @@ void Transaction::RecordInsert(const ItemPointer &location) {
   }
 }
 
-bool Transaction::RecordDelete(const ItemPointer &location) {
-  int i = PL_GET_PARTITION_NODE();
+bool Transaction::RecordDelete(const ItemPointer &location, int i) {
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
 

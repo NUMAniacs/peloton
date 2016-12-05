@@ -49,10 +49,10 @@ void *LogicalTile::operator new(size_t size, int partition) {
   if (partition == LOCAL_NUMA_REGION || UNDEFINED_NUMA_REGION) {
     partition = PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE());
   }
-  return malloc(size);
+  return PL_PARTITION_ALLOC(size, partition);
 }
 
-void LogicalTile::operator delete(void *ptr, size_t ) {
+void LogicalTile::operator delete(void *ptr, size_t size) {
   //  LogicalTile *tile = (LogicalTile *)ptr;
   // TODO numa-unaware delete
   // if (tile->GetPartition() == UNDEFINED_NUMA_REGION) {
@@ -61,7 +61,7 @@ void LogicalTile::operator delete(void *ptr, size_t ) {
   //  }
 
   // For numa-aware delete
-  free(ptr);
+  PL_PARTITION_FREE(ptr, size);
 }
 
 /**

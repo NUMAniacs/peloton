@@ -157,7 +157,8 @@ bool ParallelSeqScanExecutor::DExecute() {
           // if the tuple is visible, then perform predicate evaluation.
           if (predicate_ == nullptr) {
             position_list.push_back(tuple_id);
-            auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner);
+            auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
+                                                       txn_partition_id_);
             if (!res) {
               transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
               return res;
@@ -170,7 +171,8 @@ bool ParallelSeqScanExecutor::DExecute() {
             LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
             if (eval.IsTrue()) {
               position_list.push_back(tuple_id);
-              auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner);
+              auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
+                                                         txn_partition_id_);
               if (!res) {
                 transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
                 return res;

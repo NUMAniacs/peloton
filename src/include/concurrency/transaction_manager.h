@@ -111,7 +111,8 @@ class TransactionManager {
 
   virtual bool PerformRead(Transaction *const current_txn, 
                            const ItemPointer &location,
-                           bool acquire_ownership = false) = 0;
+                           bool acquire_ownership = false,
+                           const int partition_id = 0) = 0;
 
   virtual void PerformUpdate(Transaction *const current_txn, 
                              const ItemPointer &old_location,

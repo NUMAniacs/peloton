@@ -398,7 +398,7 @@ void TimestampOrderingTransactionManager::YieldOwnership(
 
 bool TimestampOrderingTransactionManager::PerformRead(
     Transaction *const current_txn, const ItemPointer &location,
-    bool acquire_ownership) {
+    bool acquire_ownership, const int partition_id) {
 
   if (current_txn->IsDeclaredReadOnly() == true) {
     // Ignore read validation for all readonly transactions
@@ -427,7 +427,7 @@ bool TimestampOrderingTransactionManager::PerformRead(
       return false;
     }
     // Promote to RW_TYPE_READ_OWN
-    current_txn->RecordReadOwn(location);
+    current_txn->RecordReadOwn(location, partition_id);
   }
 
   // if the current transaction has already owned this tuple, then perform read
@@ -446,7 +446,7 @@ bool TimestampOrderingTransactionManager::PerformRead(
   // reader cid.
   if (SetLastReaderCommitId(tile_group_header, tuple_id,
                             current_txn->GetBeginCommitId()) == true) {
-    current_txn->RecordRead(location);
+    current_txn->RecordRead(location, partition_id);
     // Increment table read op stats
     if (FLAGS_stats_mode != STATS_TYPE_INVALID) {
       stats::BackendStatsContext::GetInstance()->IncrementTableReads(

@@ -821,7 +821,7 @@ std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupFromPartition(
   PL_ASSERT(tile_group_offset < GetPartitionTileGroupCount(partition));
 
   auto tile_group_id = tile_groups_.at(partition)
-                           .Find(tile_group_offset);
+                           .FindValid(tile_group_offset, invalid_tile_group_id);
 
   return GetTileGroupById(tile_group_id);
 }
