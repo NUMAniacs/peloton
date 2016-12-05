@@ -82,34 +82,39 @@ void RunHashJoin() {
   direct_map_list.push_back(std::make_pair(3, std::make_pair(1, 1)));
   direct_map_list.push_back(std::make_pair(3, std::make_pair(1, 2)));
 
-  auto projection = std::unique_ptr<const planner::ProjectInfo>(
-      new planner::ProjectInfo(std::move(target_list),
-          std::move(direct_map_list)));
+  auto projection =
+      std::unique_ptr<const planner::ProjectInfo>(new planner::ProjectInfo(
+          std::move(target_list), std::move(direct_map_list)));
 
   expression::TupleValueExpression *left_table_expr =
       new expression::TupleValueExpression(common::Type::INTEGER, 0, 1);
   expression::TupleValueExpression *right_table_expr =
       new expression::TupleValueExpression(common::Type::INTEGER, 1, 2);
 
-  auto predicate = std::unique_ptr < expression::AbstractExpression
-      > (new expression::ComparisonExpression(EXPRESSION_TYPE_COMPARE_EQUAL,
-          left_table_expr, right_table_expr));
+  auto predicate = std::unique_ptr<expression::AbstractExpression>(
+      new expression::ComparisonExpression(EXPRESSION_TYPE_COMPARE_EQUAL,
+                                           left_table_expr, right_table_expr));
 
-  //schema
+  // schema
   // TODO: who is the primary key?????
-  auto p_id_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "p_id", true);
-  auto p_partkey_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "p_partkey", true);
-  auto l_id_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "l_id", true);
-  auto l_shipdate_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "l_shipdate", true);
-  auto l_partkey_col = catalog::Column(common::Type::INTEGER,
-      common::Type::GetTypeSize(common::Type::INTEGER), "l_partkey", true);
+  auto p_id_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "p_id", true);
+  auto p_partkey_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "p_partkey", true);
+  auto l_id_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "l_id", true);
+  auto l_shipdate_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "l_shipdate", true);
+  auto l_partkey_col = catalog::Column(
+      common::Type::INTEGER, common::Type::GetTypeSize(common::Type::INTEGER),
+      "l_partkey", true);
 
-  auto schema = std::shared_ptr < catalog::Schema > (new catalog::Schema( {
-      p_id_col, p_partkey_col, l_id_col, l_shipdate_col, l_partkey_col }));
+  auto schema = std::shared_ptr<catalog::Schema>(new catalog::Schema(
+      {p_id_col, p_partkey_col, l_id_col, l_shipdate_col, l_partkey_col}));
 
   // ================================
   //             Plans
@@ -123,7 +128,8 @@ void RunHashJoin() {
           new expression::TupleValueExpression(common::Type::INTEGER, 0, 2),
           new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(23))),
-      new expression::ComparisonExpression(EXPRESSION_TYPE_COMPARE_LESSTHAN,
+      new expression::ComparisonExpression(
+          EXPRESSION_TYPE_COMPARE_LESSTHAN,
           new expression::TupleValueExpression(common::Type::INTEGER, 0, 2),
           new expression::ConstantValueExpression(
               common::ValueFactory::GetIntegerValue(24))));
@@ -131,7 +137,7 @@ void RunHashJoin() {
   // Create parallel seq scan node on right table
   std::unique_ptr<planner::ParallelSeqScanPlan> right_seq_scan_node(
       new planner::ParallelSeqScanPlan(right_table, right_predicate,
-          std::vector<oid_t>( { 0, 1, 2 })));
+                                       std::vector<oid_t>({0, 1, 2})));
 
   // Create hash plan node expressions
   expression::AbstractExpression *right_table_attr_1 =
@@ -147,12 +153,12 @@ void RunHashJoin() {
   // Create parallel seq scan node on left table
   std::unique_ptr<planner::ParallelSeqScanPlan> left_seq_scan_node(
       new planner::ParallelSeqScanPlan(left_table, nullptr,
-          std::vector<oid_t>( { 0, 1 })));
+                                       std::vector<oid_t>({0, 1})));
 
   // Create hash join plan node.
   std::unique_ptr<planner::ParallelHashJoinPlan> hash_join_plan_node(
       new planner::ParallelHashJoinPlan(JOIN_TYPE_INNER, std::move(predicate),
-          std::move(projection), schema));
+                                        std::move(projection), schema));
   hash_join_plan_node->AddChild(std::move(left_seq_scan_node));
 
   // Create a blocking wait at the top of hash executor because the hash
@@ -170,7 +176,8 @@ void RunHashJoin() {
 
   auto begin = std::chrono::high_resolution_clock::now();
   // Create executor context with empty txn
-  auto txn = state.read_only_txn ? txn_manager.BeginReadonlyTransaction() : txn_manager.BeginTransaction();
+  auto txn = state.read_only_txn ? txn_manager.BeginReadonlyTransaction()
+                                 : txn_manager.BeginTransaction();
 
   std::shared_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
@@ -181,23 +188,23 @@ void RunHashJoin() {
       new executor::LogicalTileLists());
   for (size_t p = 0; p < right_table->GetPartitionCount(); p++) {
     auto partition_tilegroup_count = right_table->GetPartitionTileGroupCount(p);
-    size_t task_tilegroup_count = (partition_tilegroup_count
-        + PL_GET_PARTITION_SIZE() - 1) /
-    PL_GET_PARTITION_SIZE();
-    for (size_t i = 0; i < partition_tilegroup_count; i +=
-        task_tilegroup_count) {
+    size_t task_tilegroup_count =
+        (partition_tilegroup_count + PL_GET_PARTITION_SIZE() - 1) /
+        PL_GET_PARTITION_SIZE();
+    for (size_t i = 0; i < partition_tilegroup_count;
+         i += task_tilegroup_count) {
       executor::SeqScanTask *seq_scan_task = new executor::SeqScanTask(
           right_seq_scan_node.get(), seq_scan_tasks.size(), p,
           result_tile_lists);
       for (size_t tile_group_offset_ = i;
-          tile_group_offset_ < i + task_tilegroup_count
-              && tile_group_offset_ < partition_tilegroup_count;
-          tile_group_offset_++) {
+           tile_group_offset_ < i + task_tilegroup_count &&
+               tile_group_offset_ < partition_tilegroup_count;
+           tile_group_offset_++) {
         seq_scan_task->tile_group_ptrs.push_back(
             right_table->GetTileGroupFromPartition(p, tile_group_offset_));
       }
       seq_scan_tasks.push_back(
-          std::shared_ptr < executor::AbstractTask > (seq_scan_task));
+          std::shared_ptr<executor::AbstractTask>(seq_scan_task));
     }
   }
   LOG_DEBUG("Number of seq scan tasks created: %d", (int )seq_scan_tasks.size());
@@ -209,18 +216,17 @@ void RunHashJoin() {
 
   // Launch all the tasks
   for (size_t i = 0; i < num_seq_scan_tasks; i++) {
-    auto partition_aware_task = std::dynamic_pointer_cast
-        < executor::PartitionAwareTask > (seq_scan_tasks[i]);
+    auto partition_aware_task =
+        std::dynamic_pointer_cast<executor::PartitionAwareTask>(
+            seq_scan_tasks[i]);
     partition_aware_task->Init(trackable, hash_plan_node.get(),
-        num_seq_scan_tasks, txn);
+                               num_seq_scan_tasks, txn);
     partitioned_executor_thread_pool.SubmitTask(
         partition_aware_task->partition_id,
         executor::ParallelSeqScanExecutor::ExecuteTask,
         std::move(seq_scan_tasks[i]));
   }
-
   wait->WaitForCompletion();
-
   executor::HashJoinTask *hash_join_task =
       static_cast<executor::HashJoinTask *>(wait->last_task.get());
   // Validate hash join result tiles
@@ -232,7 +238,7 @@ void RunHashJoin() {
       auto &target_tile_list = (*child_tiles)[task_itr];
       // For all tiles of this task
       for (size_t tile_itr = 0; tile_itr < target_tile_list.size();
-          tile_itr++) {
+           tile_itr++) {
         if (target_tile_list[tile_itr]->GetTupleCount() > 0) {
           auto result_tile = target_tile_list[tile_itr].get();
           result_tuple_count += result_tile->GetTupleCount();

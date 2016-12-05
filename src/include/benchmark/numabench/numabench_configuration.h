@@ -26,22 +26,22 @@ namespace peloton {
 namespace benchmark {
 namespace numabench {
 
-//static const oid_t ycsb_database_oid = 100;
+// static const oid_t ycsb_database_oid = 100;
 static const oid_t numabench_database_oid = 100;
 
 static const oid_t user_table_oid = 1001;
 
 static const oid_t user_table_pkey_index_oid = 2001;
 
-//static const oid_t ycsb_field_length = 100;
+// static const oid_t ycsb_field_length = 100;
 static const oid_t numabench_field_length = 100;
 
 class configuration {
  public:
   // size of the table
   int scale_factor;
-  
-  // Min number of threads in thread pool 
+
+  // Min number of threads in thread pool
   int min_thread_num;
 
   // Max number of threads
@@ -59,8 +59,11 @@ class configuration {
   // time of the hash join in milliseconds
   long execution_time_ms = 0;
 
-  // Whether to use custom hash table  
+  // Whether to use custom hash table
   bool custom_hashtable;
+
+  // The breakdown of execution time
+  std::vector<double> execution_time_breakdown;
 };
 
 extern configuration state;

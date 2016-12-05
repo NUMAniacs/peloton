@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <iomanip>
 #include <algorithm>
 #include <iostream>
@@ -28,23 +27,26 @@ void Usage(FILE *out) {
           "Command line options : ycsb <options> \n"
           "   -h --help              :  print help message \n"
           "   -s --scale_factor      :  # of K tuples (default: 1)\n"
-          "   -t --read_only         :  use read only transaction (default: false)\n"
-          "   -l --partition_left    :  partition left table on join key (default: false)\n"
-          "   -r --partition_right   :  partition right table on join key (default: false)\n"
-          "   -p --min_thread_num    :  minimum number of threads in thread pool (default: 4)\n"
-          "   -q --max_thread_num    :  maxmum number of threads in thread pool (default: 24)\n"
-  );
+          "   -t --read_only         :  use read only transaction (default: "
+          "false)\n"
+          "   -l --partition_left    :  partition left table on join key "
+          "(default: false)\n"
+          "   -r --partition_right   :  partition right table on join key "
+          "(default: false)\n"
+          "   -p --min_thread_num    :  minimum number of threads in thread "
+          "pool (default: 4)\n"
+          "   -q --max_thread_num    :  maxmum number of threads in thread "
+          "pool (default: 24)\n");
 }
 
 static struct option opts[] = {
-    { "scale_factor", optional_argument, NULL, 's' },
-    { "read_only", optional_argument, NULL, 't' },
-    { "partition_left", optional_argument, NULL, 'l' },
-    { "partition_right", optional_argument, NULL, 'r' },
-    { "min_thread_num", optional_argument, NULL, 'p' },
-    { "max_thread_num", optional_argument, NULL, 'q' },
-    { NULL, 0, NULL, 0 }
-};
+    {"scale_factor", optional_argument, NULL, 's'},
+    {"read_only", optional_argument, NULL, 't'},
+    {"partition_left", optional_argument, NULL, 'l'},
+    {"partition_right", optional_argument, NULL, 'r'},
+    {"min_thread_num", optional_argument, NULL, 'p'},
+    {"max_thread_num", optional_argument, NULL, 'q'},
+    {NULL, 0, NULL, 0}};
 
 void ValidateScaleFactor(const configuration &state) {
   if (state.scale_factor <= 0) {
@@ -64,7 +66,6 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   state.min_thread_num = 4;
   state.max_thread_num = 24;
   state.custom_hashtable = false;
-
 
   // Parse args
   while (1) {
@@ -107,20 +108,17 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
 
   // Print configuration
   ValidateScaleFactor(state);
-
-  
 }
 void WriteOutput(int thread_num) {
-  std::ofstream out("outputfile.summary", std::ios_base::app | std::ios_base::out);
+  std::ofstream out("outputfile.summary",
+                    std::ios_base::app | std::ios_base::out);
 
   LOG_INFO("----------------------------------------------------------");
-  LOG_INFO("%d %s %s %s %s %d :: %ld",
-           state.scale_factor,
+  LOG_INFO("%d %s %s %s %s %d :: %ld", state.scale_factor,
            state.read_only_txn ? "true" : "false",
            state.partition_left ? "true" : "false",
            state.partition_right ? "true" : "false",
-           state.custom_hashtable ? "true" : "false",
-           thread_num,
+           state.custom_hashtable ? "true" : "false", thread_num,
            state.execution_time_ms);
 
   out << state.scale_factor << " ";
@@ -131,10 +129,15 @@ void WriteOutput(int thread_num) {
   out << thread_num << " ";
   out << state.execution_time_ms << "\n";
 
+  for (auto t : state.execution_time_breakdown) {
+    out << t << " ";
+  }
+  out << "\n";
+  state.execution_time_breakdown.clear();
+
   out.flush();
   out.close();
 }
-
 
 }  // namespace numabench
 }  // namespace benchmark
