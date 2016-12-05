@@ -66,9 +66,9 @@ class PartitionThreadPool {
   template <typename FunctionType, typename... ParamTypes>
   void SubmitTaskRandom(FunctionType &&func, const ParamTypes &&... params) {
     int rand_index = rand() % thread_pool_map_.size();
-    auto random_it = std::next(std::begin(thread_pool_map_), rand_index);
+    //    auto random_it = std::next(std::begin(thread_pool_map_), rand_index);
     // submit task to a random numa socket
-    auto &io_service = random_it->second.GetIOService();
+    auto &io_service = thread_pool_map_[rand_index].GetIOService();
     io_service.post(std::bind(func, params...));
   };
 

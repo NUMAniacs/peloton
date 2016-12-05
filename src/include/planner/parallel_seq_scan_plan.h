@@ -83,6 +83,10 @@ class ParallelSeqScanPlan : public AbstractScan, public Dependent {
   void GenerateTasks(
       std::vector<std::shared_ptr<executor::AbstractTask>> &tasks,
       std::shared_ptr<executor::LogicalTileLists> result_tile_lists);
+
+  void GenerateRandomTasks(
+      std::vector<std::shared_ptr<executor::AbstractTask>> &tasks,
+      std::shared_ptr<executor::LogicalTileLists> result_tile_lists);
 };
 
 }  // namespace planner

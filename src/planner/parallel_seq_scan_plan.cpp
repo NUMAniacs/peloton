@@ -23,6 +23,8 @@
 
 #include "parser/statement_select.h"
 
+#define NUM_TASKS 8
+
 namespace peloton {
 namespace planner {
 
@@ -292,6 +294,34 @@ void ParallelSeqScanPlan::GenerateTasks(
         seq_scan_task->tile_group_ptrs = tile_group_ptrs;
         tasks.push_back(std::shared_ptr<executor::AbstractTask>(seq_scan_task));
       }
+    }
+  }
+}
+
+void ParallelSeqScanPlan::GenerateRandomTasks(
+    std::vector<std::shared_ptr<executor::AbstractTask>> &tasks,
+    std::shared_ptr<executor::LogicalTileLists> result_tile_lists) {
+  // initialize the task pointers
+  for (size_t i=0; i<NUM_TASKS; i++) {
+    tasks.push_back(std::shared_ptr<executor::AbstractTask>(
+        new executor::SeqScanTask(this, tasks.size(), INVALID_PARTITION_ID,
+                                  result_tile_lists)));
+  }
+
+  auto target_table = GetTable();
+  auto partition_count = target_table->GetPartitionCount();
+
+  // Assign a tile group to a random task
+  for (size_t i = 0; i < partition_count; i++) {
+    auto num_tile_groups = target_table->GetPartitionTileGroupCount(i);
+    LOG_ERROR("Partition ID:%ld NumTasks:%ld", i, num_tile_groups);
+    for (size_t j = 0; j < num_tile_groups; j++) {
+      auto rand_task_index = rand() % NUM_TASKS;
+      executor::SeqScanTask *seq_scan_task =
+          static_cast<executor::SeqScanTask*>(tasks[rand_task_index].get());
+      seq_scan_task->tile_group_ptrs.push_back(
+              target_table->GetTileGroupFromPartition(i, j));
+      seq_scan_task->tile_group_partitions.push_back(i);
     }
   }
 }

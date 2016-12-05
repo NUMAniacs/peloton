@@ -100,7 +100,10 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
 
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
-  scan_node->GenerateTasks(tasks, result_tile_lists);
+  if (state.numa_aware == true)
+    scan_node->GenerateTasks(tasks, result_tile_lists);
+  else
+    scan_node->GenerateRandomTasks(tasks, result_tile_lists);
 
   LOG_DEBUG("Number of seq scan tasks created: %ld", tasks.size());
 
@@ -200,7 +203,7 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
   state.execution_time_ms = (end-start)/1000;
   LOG_INFO("Parallel Sequential Scan took %fms", state.execution_time_ms);
   ostream << "\n" <<  access_histogram.str() << histogram.str() << "\nHighest Time:" <<
-      highest_time << state.execution_time_ms;
+      highest_time << "\n" << state.execution_time_ms;
 }
 
 void RunSingleTupleSelectivityScan(std::stringstream& ostream) {

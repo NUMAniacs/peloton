@@ -55,6 +55,8 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor {
 
   size_t curr_result_idx = 0;
 
+  size_t curr_tg_idx_ = 0;
+
   //===--------------------------------------------------------------------===//
   // Plan Info
   //===--------------------------------------------------------------------===//

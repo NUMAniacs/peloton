@@ -224,6 +224,8 @@ class SeqScanTask : public PartitionAwareTask {
   // The list of pointers to the tile groups managed by this task
   TileGroupPtrList tile_group_ptrs;
 
+  std::vector<size_t> tile_group_partitions;
+
  public:
   ~SeqScanTask() {}
 
