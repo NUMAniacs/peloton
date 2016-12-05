@@ -66,9 +66,7 @@ bool ParallelSeqScanExecutor::DInit() {
   tile_group_itr_ = seq_scan_task_->tile_group_ptrs.begin();
   tile_group_end_itr_ = seq_scan_task_->tile_group_ptrs.end();
 
-  curr_tg_idx_ = 0;
-
-  curr_result_idx = 0;
+//  curr_tg_idx_ = 0;
 
   txn_partition_id_ = PL_GET_PARTITION_NODE();
 
@@ -139,12 +137,12 @@ bool ParallelSeqScanExecutor::DExecute() {
     // Retrieve next tile group.
     while (tile_group_itr_ != tile_group_end_itr_) {
       auto tile_group = *tile_group_itr_;
-      auto partition_id = seq_scan_task_->tile_group_partitions[curr_tg_idx_++];
-      seq_scan_task_->total_access_count++;
-      // non-local tile group access?
-      if (partition_id != (size_t)PL_GET_PARTITION_ID(txn_partition_id_)) {
-        seq_scan_task_->non_local_access_count++;
-      }
+      //      auto partition_id = seq_scan_task_->tile_group_partitions[curr_tg_idx_++];
+      //      seq_scan_task_->total_access_count++;
+      //      // non-local tile group access?
+      //      if (partition_id != (size_t)PL_GET_PARTITION_ID(txn_partition_id_)) {
+      //        seq_scan_task_->non_local_access_count++;
+      //      }
 
       // move to next tile group
       tile_group_itr_++;

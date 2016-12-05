@@ -186,23 +186,23 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
       highest_time = exec_time;
   }
 
-  std::stringstream access_histogram;
-  if (state.numa_aware == false) {
-    for (auto itr=access_histograms.begin(); itr!=access_histograms.end(); itr++) {
-      double frac = 0;
-      if (itr->second.second != 0) {
-        frac = itr->second.first/itr->second.second;
-      }
-      access_histogram << itr->first << " " << frac << std::endl;
-    }
-    LOG_INFO("Access Histogram:\n%s", access_histogram.str().c_str());
-  }
+//  std::stringstream access_histogram;
+//  if (state.numa_aware == false) {
+//    for (auto itr=access_histograms.begin(); itr!=access_histograms.end(); itr++) {
+//      double frac = 0;
+//      if (itr->second.second != 0) {
+//        frac = itr->second.first/itr->second.second;
+//      }
+//      access_histogram << itr->first << " " << frac << std::endl;
+//    }
+//    LOG_INFO("Access Histogram:\n%s", access_histogram.str().c_str());
+//  }
 
   LOG_ERROR("\n%sHighest time:%f", histogram.str().c_str(), highest_time);
 
   state.execution_time_ms = (end-start)/1000;
   LOG_INFO("Parallel Sequential Scan took %fms", state.execution_time_ms);
-  ostream << "\n" <<  access_histogram.str() << histogram.str() << "\nHighest Time:" <<
+  ostream << "\n" << histogram.str() << "\nHighest Time:" <<
       highest_time << "\n" << state.execution_time_ms;
 }
 
