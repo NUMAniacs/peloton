@@ -34,7 +34,7 @@ void Usage(FILE *out) {
           "   -r --partition_right   :  partition right table on join key "
           "(default: false)\n"
           "   -p --min_thread_num    :  minimum number of threads in thread "
-          "pool (default: 4)\n"
+          "pool (default: 2)\n"
           "   -q --max_thread_num    :  maxmum number of threads in thread "
           "pool (default: 24)\n");
 }
@@ -63,7 +63,7 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   state.read_only_txn = false;
   state.partition_left = false;
   state.partition_right = false;
-  state.min_thread_num = 4;
+  state.min_thread_num = 2;
   state.max_thread_num = 24;
   state.custom_hashtable = false;
 
