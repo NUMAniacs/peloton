@@ -240,7 +240,12 @@ void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   }
 
   if (task->trackable->TaskComplete()) {
+    // Record the time spent on seq scan
+    (const_cast<planner::Dependent *>(
+         reinterpret_cast<const planner::Dependent *>(task->node)))
+        ->RecordTaskExecutionEnd();
     LOG_INFO("All the parallel seq scan tasks have completed");
+    task->dependent->RecordTaskGenStart();
     task->dependent->DependencyComplete(task);
   }
 }

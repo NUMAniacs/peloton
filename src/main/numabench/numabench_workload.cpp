@@ -218,7 +218,7 @@ void RunHashJoin() {
   // === End of right seq scan tasks generation ====
 
   // === Begin of seq scan tasks generation ====
-  //  right_seq_scan_node->RecordTaskExecutionStart();
+  right_seq_scan_node->RecordTaskExecutionStart();
   // Launch all the tasks
   for (size_t i = 0; i < num_seq_scan_tasks; i++) {
     auto partition_aware_task =
@@ -252,6 +252,8 @@ void RunHashJoin() {
       }
     }
   }
+  wait->RecordTaskExecutionEnd();
+  // ==== End of result collecting ===
 
   auto end = std::chrono::high_resolution_clock::now();
 
@@ -262,12 +264,12 @@ void RunHashJoin() {
   LOG_ERROR("Parallel Hash Join took %ldms", state.execution_time_ms);
   auto &breakdowns = state.execution_time_breakdown;
   breakdowns.push_back(right_seq_scan_node->GetTaskGenTimeMS());
-  //  breakdowns.push_back(right_seq_scan_node->GetTaskExecutionTimeMS());
-  //  breakdowns.push_back(hash_plan_node->GetTaskGenTimeMS());
-  //  breakdowns.push_back(hash_plan_node->GetTaskExecutionTimeMS());
-  //  breakdowns.push_back(hash_join_plan_node->GetTaskGenTimeMS());
-  //  breakdowns.push_back(hash_join_plan_node->GetTaskExecutionTimeMS());
-  //  breakdowns.push_back(wait->GetTaskExecutionTimeMS());
+  breakdowns.push_back(right_seq_scan_node->GetTaskExecutionTimeMS());
+  breakdowns.push_back(hash_plan_node->GetTaskGenTimeMS());
+  breakdowns.push_back(hash_plan_node->GetTaskExecutionTimeMS());
+  breakdowns.push_back(hash_join_plan_node->GetTaskGenTimeMS());
+  breakdowns.push_back(hash_join_plan_node->GetTaskExecutionTimeMS());
+  breakdowns.push_back(wait->GetTaskExecutionTimeMS());
 }
 
 }  // namespace numabench

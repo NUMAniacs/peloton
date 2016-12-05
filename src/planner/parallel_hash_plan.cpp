@@ -76,6 +76,10 @@ void ParallelHashPlan::DependencyComplete(
     tasks.push_back(next_task);
   }
 
+  // === End of task generation ====-
+  this->RecordTaskGenEnd();
+  this->RecordTaskExecutionStart();
+
   if (num_tasks == 0) {
     // No task to do. Immediately notify dependent
     task->dependent->parent_dependent->DependencyComplete(task);

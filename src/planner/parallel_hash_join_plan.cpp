@@ -81,6 +81,10 @@ void ParallelHashJoinPlan::DependencyComplete(
     return;
   }
 
+  // === End of task generation ===
+  this->RecordTaskGenEnd();
+  this->RecordTaskExecutionStart();
+
   for (auto new_task : tasks) {
     executor::SeqScanTask *seq_scan_task =
         static_cast<executor::SeqScanTask *>(new_task.get());

@@ -125,7 +125,11 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   hash_executor->IncrementNumTuple(num_tuples);
 
   if (task->trackable->TaskComplete()) {
+    (const_cast<planner::Dependent *>(
+         reinterpret_cast<const planner::Dependent *>(task->node)))
+        ->RecordTaskExecutionEnd();
     LOG_INFO("All the hash tasks have completed");
+    task->dependent->RecordTaskGenStart();
     task->dependent->DependencyComplete(task);
   }
 }
