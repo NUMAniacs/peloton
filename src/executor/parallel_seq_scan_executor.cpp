@@ -138,6 +138,12 @@ bool ParallelSeqScanExecutor::DExecute() {
     while (tile_group_itr_ != tile_group_end_itr_) {
       auto tile_group = *tile_group_itr_;
 
+      seq_scan_task_->total_access_count++;
+      // non-local tile group access?
+      if (seq_scan_task_->partition_id !=
+          (size_t)PL_GET_PARTITION_ID(txn_partition_id_)) {
+        seq_scan_task_->non_local_access_count++;
+      }
 
       // move to next tile group
       tile_group_itr_++;

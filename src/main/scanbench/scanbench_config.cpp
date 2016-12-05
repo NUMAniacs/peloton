@@ -26,7 +26,7 @@ namespace scanbench {
 
 void Usage(FILE *out) {
   fprintf(out,
-          "Command line options : ycsb <options> \n"
+          "Command line options : scanbench <options> \n"
               "   -h --help              :  print help message \n"
               "   -s --scale_factor      :  # of M tuples (default: 1)\n"
               "   -t --read_only         :  don't use read only transaction (default: true)\n"
@@ -59,7 +59,7 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   // Parse args
   while (1) {
     int idx = 0;
-    int c = getopt_long(argc, argv, "hts:", opts, &idx);
+    int c = getopt_long(argc, argv, "htus:", opts, &idx);
 
     if (c == -1) break;
 
@@ -75,7 +75,7 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
         state.read_only_txn = false;
         break;
       case 'u':
-        state.numa_unaware = true;
+        state.numa_aware = false;
         break;
       default:
         LOG_ERROR("Unknown option: -%c-", c);

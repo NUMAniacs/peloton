@@ -106,6 +106,10 @@ class AbstractTask {
   size_t num_tuples = 0;
 
   double exec_time = 0;
+
+  size_t non_local_access_count = 0;
+  size_t total_access_count = 0;
+
 };
 
 // The *abstract* task class for partition-aware / parallel tasks
@@ -138,8 +142,6 @@ class PartitionAwareTask : public AbstractTask {
 // The default task class for queries which don't need parallelism
 class PartitionUnawareTask : public AbstractTask {
  public:
-  size_t non_local_access_count = 0;
-  size_t total_access_count = 0;
   int cpu_id;
   ~PartitionUnawareTask() {}
 

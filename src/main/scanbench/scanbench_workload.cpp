@@ -112,7 +112,7 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
       new executor::Trackable(tasks.size()));
 
   std::unordered_map<int, std::tuple<double, size_t, size_t>> exec_histograms;
-
+  std::map<int, std::pair<double, double>> access_histograms;
 
   // Launch all the tasks
   for (size_t i = 0; i < tasks.size(); i++) {
@@ -124,10 +124,10 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
           executor::ParallelSeqScanExecutor::ExecuteTask,
           std::move(tasks[i]));
     } else {
-      tasks[i]->Init*trackable, &wait, tasks.size(), txn);
+      tasks[i]->Init(trackable, &wait, tasks.size(), txn);
       partitioned_executor_thread_pool.SubmitTaskRandom(
           executor::ParallelSeqScanExecutor::ExecuteTask,
-          std::move(tasks[i]());
+          std::move(tasks[i]));
     }
   }
 
@@ -165,6 +165,12 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
     exec_histograms[task->cpu_id] = std::make_tuple(
         old_exec_time+task->exec_time, old_tg_count+new_tg_count,
         old_answer_tuples+task->num_tuples);
+
+    if (state.numa_aware == false) {
+      auto current = access_histograms[task->cpu_id];
+      access_histograms[task->cpu_id].first = current.first + task->non_local_access_count;
+      access_histograms[task->cpu_id].second = current.second + task->total_access_count;
+    }
   }
 
   std::stringstream histogram;
@@ -177,11 +183,23 @@ void AbstractSelectivityScan(expression::AbstractExpression* predicate,
       highest_time = exec_time;
   }
 
+  std::stringstream access_histogram;
+  if (state.numa_aware == false) {
+    for (auto itr=access_histograms.begin(); itr!=access_histograms.end(); itr++) {
+      double frac = 0;
+      if (itr->second.second != 0) {
+        frac = itr->second.first/itr->second.second;
+      }
+      access_histogram << itr->first << " " << frac << std::endl;
+    }
+    LOG_INFO("Access Histogram:\n%s", access_histogram.str().c_str());
+  }
+
   LOG_ERROR("\n%sHighest time:%f", histogram.str().c_str(), highest_time);
 
   state.execution_time_ms = (end-start)/1000;
   LOG_INFO("Parallel Sequential Scan took %fms", state.execution_time_ms);
-  ostream << "\n" <<  histogram.str() << "\nHighest Time:" <<
+  ostream << "\n" <<  access_histogram.str() << histogram.str() << "\nHighest Time:" <<
       highest_time << state.execution_time_ms;
 }
 

@@ -128,17 +128,17 @@ void ParallelLoader(unsigned int num_partition, parser::InsertStatement* insert_
                 int insert_size, std::vector<std::vector<bool>>& insert_tuple_bitmaps){
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-
   if (state.numa_aware == false) {
     auto txn = txn_manager.BeginTransaction();
     auto context = new executor::ExecutorContext(txn);
     auto p = new boost::promise<bool>;
+    planner::InsertPlan node(insert_stmt);
 
     // populate random partition
-    size_t partition_id = rand() % num_partitions;
+    size_t partition_id = rand() % num_partition;
     std::shared_ptr<executor::AbstractTask> insert_task(
-        new executor::InsertTask(plan_tree,
-                                 insert_plan->GetBulkInsertCount(),
+        new executor::InsertTask(&node,
+                                 node.GetBulkInsertCount(),
                                  INVALID_TASK_ID, partition_id));
 
     std::shared_ptr<executor::AbstractTask> task(insert_task);
