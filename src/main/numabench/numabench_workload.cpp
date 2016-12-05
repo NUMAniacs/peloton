@@ -252,7 +252,6 @@ void RunHashJoin() {
       }
     }
   }
-  wait->RecordTaskExecutionEnd();
   // ==== End of result collecting ===
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -269,7 +268,6 @@ void RunHashJoin() {
   breakdowns.push_back(hash_plan_node->GetTaskExecutionTimeMS());
   breakdowns.push_back(hash_join_plan_node->GetTaskGenTimeMS());
   breakdowns.push_back(hash_join_plan_node->GetTaskExecutionTimeMS());
-  breakdowns.push_back(wait->GetTaskExecutionTimeMS());
 }
 
 }  // namespace numabench

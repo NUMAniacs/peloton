@@ -34,6 +34,7 @@ void ParallelHashPlan::DependencyComplete(
   // Populate tasks for each partition and re-chunk the tiles
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
+  this->RecordTaskGenStart();
 
   // Rechunk the tasks
   size_t total_num_tuples = executor::PartitionAwareTask::ReChunkResultTiles(

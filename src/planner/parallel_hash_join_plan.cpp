@@ -55,6 +55,7 @@ void ParallelHashJoinPlan::DependencyComplete(
     std::shared_ptr<executor::AbstractTask> task) {
 
   executor::HashTask *hash_task = static_cast<executor::HashTask *>(task.get());
+  this->RecordTaskGenStart();
 
   std::shared_ptr<executor::LogicalTileLists> seq_scan_result_tile_lists(
       new executor::LogicalTileLists());

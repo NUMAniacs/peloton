@@ -248,11 +248,9 @@ void ParallelHashJoinExecutor::ExecuteTask(
   }
 
   if (task_top->trackable->TaskComplete()) {
-    (const_cast<planner::Dependent *>(
-         reinterpret_cast<const planner::Dependent *>(task_top->node)))
+    (const_cast<planner::AbstractPlan *>(task_top->node))
         ->RecordTaskExecutionEnd();
     // XXX The start of result aggregation
-    task_top->dependent->RecordTaskExecutionStart();
     LOG_INFO("All the parallel hash join tasks have completed");
     task_top->dependent->DependencyComplete(task_top);
   }
