@@ -36,7 +36,9 @@ void Usage(FILE *out) {
           "   -p --min_thread_num    :  minimum number of threads in thread "
           "pool (default: 2)\n"
           "   -q --max_thread_num    :  maxmum number of threads in thread "
-          "pool (default: 24)\n");
+          "pool (default: 24)\n"
+          "   -o --one_partition    :  maxmum number of threads in thread "
+                    "pool (default: 24)\n");
 }
 
 static struct option opts[] = {
@@ -46,6 +48,7 @@ static struct option opts[] = {
     {"partition_right", optional_argument, NULL, 'r'},
     {"min_thread_num", optional_argument, NULL, 'p'},
     {"max_thread_num", optional_argument, NULL, 'q'},
+    {"one_partition", optional_argument, NULL, 'o'},
     {NULL, 0, NULL, 0}};
 
 void ValidateScaleFactor(const configuration &state) {
@@ -67,11 +70,12 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   state.max_thread_num = 24;
   state.custom_hashtable = false;
   state.random_partition_execution = false;
+  state.one_partition = false;
 
   // Parse args
   while (1) {
     int idx = 0;
-    int c = getopt_long(argc, argv, "htlrcds:p:q:", opts, &idx);
+    int c = getopt_long(argc, argv, "htlrcods:p:q:", opts, &idx);
 
     if (c == -1) break;
 
@@ -102,6 +106,9 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
       case 'd':
         state.random_partition_execution = true;
         break;
+      case 'o':
+        state.one_partition = true;
+        break;
       default:
         LOG_ERROR("Unknown option: -%c-", c);
         Usage(stderr);
@@ -118,11 +125,12 @@ void WriteOutput(int thread_num) {
                     std::ios_base::app | std::ios_base::out);
 
   LOG_INFO("----------------------------------------------------------");
-  LOG_INFO("%d %s %s %s %s %d :: %ld", state.scale_factor,
+  LOG_INFO("%d %s %s %s %s %s %d :: %ld", state.scale_factor,
            state.read_only_txn ? "true" : "false",
            state.partition_left ? "true" : "false",
            state.partition_right ? "true" : "false",
-           state.custom_hashtable ? "true" : "false", thread_num,
+           state.custom_hashtable ? "true" : "false",
+           state.one_partition ? "true" : "false", thread_num,
            state.execution_time_ms);
 
   out << state.scale_factor << " ";
@@ -130,6 +138,7 @@ void WriteOutput(int thread_num) {
   out << (state.partition_left ? "true" : "false") << " ";
   out << (state.partition_right ? "true" : "false") << " ";
   out << (state.custom_hashtable ? "true" : "false") << " ";
+  out << (state.one_partition ? "true" : "false") << " ";
   out << thread_num << " ";
   out << state.execution_time_ms << "\n";
 

@@ -66,6 +66,9 @@ class configuration {
 
   // Whether tasks are submitted to random threads
   bool random_partition_execution;
+
+  // Restrict data to a single partition
+  bool one_partition;
 };
 
 extern configuration state;

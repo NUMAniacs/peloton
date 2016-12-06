@@ -313,6 +313,9 @@ void *LineItemTableLoader(void *arg) {
     int partition =
         common::ValueFactory::GetIntegerValue(partition_key).Hash() %
         num_partition;
+    if (state.one_partition){
+      partition = 0;
+    }
     insert_tuple_bitmaps[partition][tuple_id % batch_size] = true;
     if ((tuple_id + 1) % batch_size == 0) {
       LoadHelper(num_partition, insert_stmt.get(), batch_size,
@@ -384,11 +387,14 @@ void *PartTableLoader(void *arg) {
         common::ValueFactory::GetIntegerValue(tuple_id)));
     values_ptr->push_back(new expression::ConstantValueExpression(
         common::ValueFactory::GetIntegerValue(partkey)));
-    // TODO if not partitioning send to random partition
+
     int partition_key = state.partition_left ? partkey : tuple_id;
     int partition =
         common::ValueFactory::GetIntegerValue(partition_key).Hash() %
         PL_NUM_PARTITIONS();
+    if (state.one_partition){
+      partition = 0;
+    }
     ;
     insert_tuple_bitmaps[partition][partkey % batch_size] = true;
     if ((partkey + 1) % batch_size == 0) {
