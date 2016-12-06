@@ -133,13 +133,13 @@ void WriteOutput(int thread_num) {
            state.one_partition ? "true" : "false", thread_num,
            state.execution_time_ms);
 
+  out << thread_num << " ";
   out << state.scale_factor << " ";
   out << (state.read_only_txn ? "true" : "false") << " ";
   out << (state.partition_left ? "true" : "false") << " ";
   out << (state.partition_right ? "true" : "false") << " ";
   out << (state.custom_hashtable ? "true" : "false") << " ";
   out << (state.one_partition ? "true" : "false") << " ";
-  out << thread_num << " ";
   out << state.execution_time_ms << "\n";
 
   for (auto t : state.execution_time_breakdown) {

@@ -277,12 +277,8 @@ void ParallelSeqScanPlan::GenerateTasks(
       auto max_tg = std::min(first_tg + num_tile_groups_per_task, num_tile_groups);
 
       for (size_t tg = first_tg;tg < max_tg; tg++) {
-        if (target_table->GetTileGroupFromPartition(partition, tg)
-                ->GetActiveTupleCount() > 0) {
-          // append the next tile group
-          tile_group_ptrs.push_back(
-              target_table->GetTileGroupFromPartition(partition, tg));
-        }
+        tile_group_ptrs.push_back(
+            target_table->GetTileGroupFromPartition(partition, tg));
       }
 
       if (tile_group_ptrs.size() > 0) {
