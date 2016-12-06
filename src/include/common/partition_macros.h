@@ -45,7 +45,7 @@ namespace peloton {
 
 // Get the number of parallel units in each partition
 // (Assume homogeneous architecture)
-#define PL_GET_PARTITION_SIZE() 2
+#define PL_GET_PARTITION_SIZE() (int)(std::thread::hardware_concurrency() / PL_NUM_PARTITIONS())
 
 #else
 // Get total number of partitions

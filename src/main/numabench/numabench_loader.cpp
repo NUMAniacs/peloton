@@ -321,7 +321,7 @@ void *LineItemTableLoader(void *arg) {
       LoadHelper(num_partition, insert_stmt.get(), batch_size,
                  insert_tuple_bitmaps);
       LOG_INFO("finished writing tuple in lineitem table: %d",
-               start + (tuple_id + 1));
+               (tuple_id + 1));
     }
   }
 

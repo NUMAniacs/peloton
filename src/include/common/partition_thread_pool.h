@@ -37,13 +37,27 @@ class PartitionThreadPool {
     // partition id -> partition node ids
     std::unordered_map<int, std::vector<int>> partition_node_id_map;
     int partition_id;
-    for (int i = 0; i < pool_size_; i++) {
+    for (int i = 0; i < (int)std::thread::hardware_concurrency(); i++) {
       partition_id = PL_GET_PARTITION_ID(i);
       partition_node_id_map[partition_id].push_back(i);
+    }
+    std::unordered_map<int, std::vector<int>> initialize_map;
+    int inserted_count = 0;
+    // assume each node is symmetic (has the same number of threads)
+    int partition_size = PL_GET_PARTITION_SIZE();
+    for (int thread_in_partition = 0; thread_in_partition < partition_size; thread_in_partition++){
+      for (int partition = 0; partition < PL_NUM_PARTITIONS() && inserted_count < pool_size_; partition++){
+        inserted_count++;
+        initialize_map[partition].push_back(partition_node_id_map[partition][thread_in_partition]);
+      }
+      if (inserted_count >= pool_size_){
+        break;
+      }
     }
 
     for (auto itr = partition_node_id_map.begin();
          itr != partition_node_id_map.end(); itr++) {
+      if (itr->second.size() == 0) continue;
       thread_pool_map_[itr->first].InitializePinned(itr->second);
     }
   }

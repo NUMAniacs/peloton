@@ -282,7 +282,6 @@ void ParallelSeqScanPlan::GenerateTasks(
       }
 
       if (tile_group_ptrs.size() > 0) {
-        printf("generated tg size %lu\n", tile_group_ptrs.size());
         // create a new task only when there's tile groups to scan
         executor::SeqScanTask *seq_scan_task =
             new executor::SeqScanTask(this, tasks.size(), partition, result_tile_lists);
