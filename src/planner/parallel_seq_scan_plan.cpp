@@ -269,25 +269,27 @@ void ParallelSeqScanPlan::GenerateTasks(
 
   // Assuming that we always have at least one partition,
   // deploy partitioned seq scan
-  for (size_t i = 0; i < partition_count; i++) {
-    auto num_tile_groups = target_table->GetPartitionTileGroupCount(i);
-    size_t num_tile_groups_per_task =
-        (num_tile_groups + TASK_TILEGROUP_COUNT - 1) / TASK_TILEGROUP_COUNT;
-    for (size_t j = 0; j < num_tile_groups; j += num_tile_groups_per_task) {
+  for (size_t partition = 0; partition < partition_count; partition++) {
+    auto num_tile_groups = target_table->GetPartitionTileGroupCount(partition);
+    size_t num_tile_groups_per_task = TASK_TILEGROUP_COUNT;
+    for (size_t first_tg = 0; first_tg < num_tile_groups; first_tg += num_tile_groups_per_task) {
       executor::TileGroupPtrList tile_group_ptrs;
-      for (size_t k = j;
-           k < j + num_tile_groups_per_task && k < num_tile_groups; k++) {
-        if (target_table->GetTileGroupFromPartition(i, k)
+      auto max_tg = std::min(first_tg + num_tile_groups_per_task, num_tile_groups);
+
+      for (size_t tg = first_tg;tg < max_tg; tg++) {
+        if (target_table->GetTileGroupFromPartition(partition, tg)
                 ->GetActiveTupleCount() > 0) {
           // append the next tile group
           tile_group_ptrs.push_back(
-              target_table->GetTileGroupFromPartition(i, k));
+              target_table->GetTileGroupFromPartition(partition, tg));
         }
       }
+
       if (tile_group_ptrs.size() > 0) {
+        printf("generated tg size %lu\n", tile_group_ptrs.size());
         // create a new task only when there's tile groups to scan
         executor::SeqScanTask *seq_scan_task =
-            new executor::SeqScanTask(this, tasks.size(), i, result_tile_lists);
+            new executor::SeqScanTask(this, tasks.size(), partition, result_tile_lists);
         seq_scan_task->tile_group_ptrs = tile_group_ptrs;
         tasks.push_back(std::shared_ptr<executor::AbstractTask>(seq_scan_task));
       }

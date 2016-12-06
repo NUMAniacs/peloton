@@ -412,8 +412,14 @@ void LoadNUMABenchDatabase() {
 
   int insert_size = 100000;
   int num_threads = 8;
-  {
 
+
+  {
+    // decrease the number of threads until we divide evenly.
+    // A bit ugly, but this ensures we insert correctly
+    while((LINEITEM_TABLE_SIZE * state.scale_factor / num_threads)%insert_size != 0){
+      num_threads >>=1;
+    }
     NumabenchBlockingWait block(num_threads);
     for (int tuple_id = 0; tuple_id < LINEITEM_TABLE_SIZE * state.scale_factor;
          tuple_id += LINEITEM_TABLE_SIZE * state.scale_factor / num_threads) {
@@ -428,6 +434,11 @@ void LoadNUMABenchDatabase() {
     block.WaitForCompletion();
   }
   {
+    // decrease the number of threads until we divide evenly.
+    // A bit ugly, but this ensures correctness
+    while((PART_TABLE_SIZE * state.scale_factor / num_threads)%insert_size != 0){
+      num_threads >>=1;
+    }
     NumabenchBlockingWait block(num_threads);
     for (int partkey = 0; partkey < PART_TABLE_SIZE * state.scale_factor;
          partkey += PART_TABLE_SIZE * state.scale_factor / num_threads) {

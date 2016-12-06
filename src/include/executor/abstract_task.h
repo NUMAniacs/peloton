@@ -22,8 +22,7 @@
 #define INVALID_NUM_TASK -1
 
 // Should we set the granularity by number of tile groups or number of tuples??
-#define TASK_TILEGROUP_COUNT 100
-#define TASK_TUPLE_COUNT TASK_TILEGROUP_COUNT *DEFAULT_TUPLES_PER_TILEGROUP
+#define TASK_TILEGROUP_COUNT (unsigned int)100000/DEFAULT_TUPLES_PER_TILEGROUP
 
 namespace peloton {
 

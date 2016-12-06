@@ -192,33 +192,15 @@ void RunHashJoin() {
   std::vector<std::shared_ptr<executor::AbstractTask>> seq_scan_tasks;
   std::shared_ptr<executor::LogicalTileLists> result_tile_lists(
       new executor::LogicalTileLists());
-  for (size_t p = 0; p < right_table->GetPartitionCount(); p++) {
-    auto partition_tilegroup_count = right_table->GetPartitionTileGroupCount(p);
-    size_t task_tilegroup_count =
-        (partition_tilegroup_count + PL_GET_PARTITION_SIZE() - 1) /
-        PL_GET_PARTITION_SIZE();
-    for (size_t i = 0; i < partition_tilegroup_count;
-         i += task_tilegroup_count) {
-      executor::SeqScanTask *seq_scan_task = new executor::SeqScanTask(
-          right_seq_scan_node.get(), seq_scan_tasks.size(), p,
-          result_tile_lists);
-      for (size_t tile_group_offset_ = i;
-           tile_group_offset_ < i + task_tilegroup_count &&
-               tile_group_offset_ < partition_tilegroup_count;
-           tile_group_offset_++) {
-        seq_scan_task->tile_group_ptrs.push_back(
-            right_table->GetTileGroupFromPartition(p, tile_group_offset_));
-      }
-      seq_scan_tasks.push_back(
-          std::shared_ptr<executor::AbstractTask>(seq_scan_task));
-    }
-  }
+
+  right_seq_scan_node->GenerateTasks(seq_scan_tasks,result_tile_lists);
+  LOG_ERROR("INITIAL TASKS GENERATED");
   // Create trackable for seq scan
   size_t num_seq_scan_tasks = seq_scan_tasks.size();
   std::shared_ptr<executor::Trackable> trackable(
       new executor::Trackable(num_seq_scan_tasks));
 
-  LOG_DEBUG("Number of seq scan tasks created: %d", (int)seq_scan_tasks.size());
+  LOG_DEBUG("Number of seq scan tasks created: %lu", seq_scan_tasks.size());
   right_seq_scan_node->RecordTaskGenEnd();
   // === End of right seq scan tasks generation ====
 
