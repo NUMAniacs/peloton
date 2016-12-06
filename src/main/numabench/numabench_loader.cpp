@@ -55,6 +55,30 @@ storage::Database *numabench_database = nullptr;
 storage::DataTable *left_table = nullptr;
 storage::DataTable *right_table = nullptr;
 
+// source:https://en.wikipedia.org/wiki/Xorshift
+class PseudoRand {
+public:
+  PseudoRand() :
+      x(rand()), y(rand()), z(rand()), w(rand()) {
+  }
+
+  uint32_t GetRand(void) {
+    uint32_t t = x;
+    t ^= t << 11;
+    t ^= t >> 8;
+    x = y;
+    y = z;
+    z = w;
+    w ^= w >> 19;
+    w ^= t;
+    return w;
+  }
+private:
+  /* These state variables must be initialized so that they are not all zero. */
+  uint32_t x, y, z, w;
+};
+
+
 void ExecuteTask(executor::AbstractExecutor *executor,
                  boost::promise<bool> *p) {
   auto status = executor->Execute();
@@ -221,6 +245,8 @@ struct loaderargs {
 };
 
 void *LineItemTableLoader(void *arg) {
+
+  PseudoRand random;
   loaderargs *args = (loaderargs *)arg;
   int start = args->start;
   int batch_size = args->batch_size;
@@ -273,8 +299,8 @@ void *LineItemTableLoader(void *arg) {
   for (int tuple_id = start; tuple_id < start + total_size; tuple_id++) {
     auto values_ptr = new std::vector<expression::AbstractExpression *>;
     insert_stmt->insert_values->push_back(values_ptr);
-    int shipdate = rand() % 60;
-    int partkey = rand() % (PART_TABLE_SIZE * state.scale_factor);
+    int shipdate = random.GetRand() % 60;
+    int partkey = random.GetRand() % (PART_TABLE_SIZE * state.scale_factor);
 
     values_ptr->push_back(new expression::ConstantValueExpression(
         common::ValueFactory::GetIntegerValue(tuple_id)));
@@ -301,6 +327,7 @@ void *LineItemTableLoader(void *arg) {
 }
 
 void *PartTableLoader(void *arg) {
+  PseudoRand random;
   loaderargs *args = (loaderargs *)arg;
   int start = args->start;
   int batch_size = args->batch_size;
