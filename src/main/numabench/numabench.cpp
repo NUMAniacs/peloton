@@ -43,7 +43,7 @@ void RunHelper() {
 
     // Emit throughput
     WriteOutput(thread_num);
-    thread_num += 2;
+    thread_num += state.thread_step;
   }
 }
 

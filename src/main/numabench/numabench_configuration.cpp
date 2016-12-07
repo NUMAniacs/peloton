@@ -37,7 +37,9 @@ void Usage(FILE *out) {
           "pool (default: 2)\n"
           "   -q --max_thread_num    :  maxmum number of threads in thread "
           "pool (default: 24)\n"
-          "   -o --one_partition    :  load only one partition\n");
+          "   -o --one_partition     :  load only one partition\n"
+          "   -u --thread_step       :  number of threads to add each round (default: 2)\n");
+
 }
 
 static struct option opts[] = {
@@ -48,6 +50,7 @@ static struct option opts[] = {
     {"min_thread_num", optional_argument, NULL, 'p'},
     {"max_thread_num", optional_argument, NULL, 'q'},
     {"one_partition", optional_argument, NULL, 'o'},
+    {"thread_step", optional_argument, NULL, 'u'},
     {NULL, 0, NULL, 0}};
 
 void ValidateScaleFactor(const configuration &state) {
@@ -67,6 +70,7 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   state.partition_right = false;
   state.min_thread_num = 2;
   state.max_thread_num = 24;
+  state.thread_step = 2;
   state.custom_hashtable = false;
   state.random_partition_execution = false;
   state.one_partition = false;
@@ -74,7 +78,7 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   // Parse args
   while (1) {
     int idx = 0;
-    int c = getopt_long(argc, argv, "htlrcods:p:q:", opts, &idx);
+    int c = getopt_long(argc, argv, "htlrcods:p:q:u:", opts, &idx);
 
     if (c == -1) break;
 
@@ -92,6 +96,9 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
         break;
       case 'q':
         state.max_thread_num = atoi(optarg);
+        break;
+      case 'u':
+        state.thread_step = atoi(optarg);
         break;
       case 't':
         state.read_only_txn = true;
