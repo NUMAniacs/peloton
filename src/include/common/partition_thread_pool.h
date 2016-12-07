@@ -55,8 +55,8 @@ class PartitionThreadPool {
       }
     }
 
-    for (auto itr = partition_node_id_map.begin();
-         itr != partition_node_id_map.end(); itr++) {
+    for (auto itr = initialize_map.begin();
+         itr != initialize_map.end(); itr++) {
       if (itr->second.size() == 0) continue;
       thread_pool_map_[itr->first].InitializePinned(itr->second);
     }
