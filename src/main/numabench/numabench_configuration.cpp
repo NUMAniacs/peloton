@@ -28,7 +28,7 @@ void Usage(FILE *out) {
           "   -h --help              :  print help message \n"
           "   -s --scale_factor      :  # of K tuples (default: 1)\n"
           "   -t --read_only         :  use read only transaction (default: "
-          "false)\n"
+          "true)\n"
           "   -l --partition_left    :  partition left table on join key "
           "(default: false)\n"
           "   -r --partition_right   :  partition right table on join key "
@@ -37,8 +37,7 @@ void Usage(FILE *out) {
           "pool (default: 2)\n"
           "   -q --max_thread_num    :  maxmum number of threads in thread "
           "pool (default: 24)\n"
-          "   -o --one_partition    :  maxmum number of threads in thread "
-                    "pool (default: 24)\n");
+          "   -o --one_partition    :  load only one partition\n");
 }
 
 static struct option opts[] = {
@@ -63,7 +62,7 @@ void ValidateScaleFactor(const configuration &state) {
 void ParseArguments(int argc, char *argv[], configuration &state) {
   // Default Values
   state.scale_factor = 1;
-  state.read_only_txn = false;
+  state.read_only_txn = true;
   state.partition_left = false;
   state.partition_right = false;
   state.min_thread_num = 2;
@@ -140,7 +139,7 @@ void WriteOutput(int thread_num) {
   out << (state.partition_right ? "true" : "false") << " ";
   out << (state.custom_hashtable ? "true" : "false") << " ";
   out << (state.one_partition ? "true" : "false") << " ";
-  out << state.execution_time_ms << "\n";
+  out << state.execution_time_ms << " ";
 
   for (auto t : state.execution_time_breakdown) {
     out << t << " ";
