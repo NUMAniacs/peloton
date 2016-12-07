@@ -46,6 +46,9 @@ class configuration {
   // Max number of threads
   int max_thread_num;
 
+  // thread step
+  int thread_step;
+
   // use a read only transaction for the hash join
   bool read_only_txn;
 
