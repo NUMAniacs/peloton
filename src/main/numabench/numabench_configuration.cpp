@@ -77,11 +77,14 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   state.random_partition_execution = false;
   state.one_partition = false;
   state.selectivity = 1;
+  state.partition_by_join_key = false;
 
   // Parse args
   while (1) {
     int idx = 0;
-    int c = getopt_long(argc, argv, "htlrcods:p:q:u:y:", opts, &idx);
+
+    int c = getopt_long(argc, argv, "jhtlrcods:p:q:u:y:", opts, &idx);
+
 
     if (c == -1) break;
 
@@ -121,6 +124,10 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
       case 'o':
         state.one_partition = true;
         break;
+      case 'j':
+        state.partition_by_join_key = true;
+        break;
+
       default:
         LOG_ERROR("Unknown option: -%c-", c);
         Usage(stderr);

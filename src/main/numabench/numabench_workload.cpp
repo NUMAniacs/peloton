@@ -150,7 +150,7 @@ void RunHashJoin() {
 
   // Create hash planner node
   std::unique_ptr<planner::ParallelHashPlan> hash_plan_node(
-      new planner::ParallelHashPlan(hash_keys, state.custom_hashtable));
+      new planner::ParallelHashPlan(hash_keys, state.custom_hashtable, state.partition_by_join_key));
   hash_plan_node->random_partition_execution = state.random_partition_execution;
 
   // Create parallel seq scan node on left table
