@@ -61,9 +61,12 @@ void RunBenchmark() {
   // Load the databases
   LoadNUMABenchDatabase();
 
-  state.custom_hashtable = false;
-  RunHelper();
+//  state.custom_hashtable = false;
+//  RunHelper();
+  state.partition_by_join_key = false;
   state.custom_hashtable = true;
+  RunHelper();
+  state.partition_by_join_key = true;
   RunHelper();
 
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();
