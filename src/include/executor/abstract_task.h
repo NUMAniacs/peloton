@@ -112,7 +112,7 @@ class PartitionAwareTask : public AbstractTask {
     return (*result_tile_lists)[task_id];
   }
 
-  static size_t ReChunkResultTiles(
+  static std::vector<size_t> ReChunkResultTiles(
       AbstractTask *task,
       std::shared_ptr<executor::LogicalTileLists> &result_tile_lists);
 

@@ -32,7 +32,7 @@ void AbstractTask::Init(std::shared_ptr<Trackable> trackable,
   initialized = true;
 }
 
-size_t PartitionAwareTask::ReChunkResultTiles(
+std::vector<size_t> PartitionAwareTask::ReChunkResultTiles(
     AbstractTask *task,
     std::shared_ptr<executor::LogicalTileLists> &result_tile_lists) {
 
@@ -42,6 +42,9 @@ size_t PartitionAwareTask::ReChunkResultTiles(
   // Count variables for sanity check
   size_t total_num_tuples_from_child = 0;
   size_t total_num_tuples_after_rechunk = 0;
+
+  std::vector<size_t> rechunk_tuples_per_partition;
+  rechunk_tuples_per_partition.resize(num_partitions);
 
   // Group the results based on partitions
   LOG_DEBUG("Re-group results into %d partitions", (int)num_partitions);
@@ -62,7 +65,9 @@ size_t PartitionAwareTask::ReChunkResultTiles(
 
     for (auto &result_tile : partitioned_result_tile_lists[partition]) {
       // TODO we should re-chunk based on TASK_TUPLE_COUNT
-      total_num_tuples_after_rechunk += result_tile->GetTupleCount();
+      size_t tuple_count = result_tile->GetTupleCount();
+      total_num_tuples_after_rechunk += tuple_count;
+      rechunk_tuples_per_partition[partition] += tuple_count;
       next_result_tile_list.push_back(std::move(result_tile));
       // Reached the limit of each chunk
       if (next_result_tile_list.size() >= TASK_TILEGROUP_COUNT) {
@@ -81,7 +86,8 @@ size_t PartitionAwareTask::ReChunkResultTiles(
   LOG_DEBUG("Number of tuples from child: %d",
             (int)total_num_tuples_from_child);
   PL_ASSERT(total_num_tuples_after_rechunk == total_num_tuples_from_child);
-  return total_num_tuples_after_rechunk;
+//  return total_num_tuples_after_rechunk;
+  return rechunk_tuples_per_partition;
 }
 
 }  // namespace executor

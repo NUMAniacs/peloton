@@ -35,8 +35,8 @@ class ParallelHashPlan : public AbstractPlan, public Dependent {
   typedef std::unique_ptr<HashKeyType> HashKeyPtrType;
 
   ParallelHashPlan(std::vector<HashKeyPtrType> &hashkeys,
-                   bool use_custom = false)
-      : use_custom(use_custom), hash_keys_(std::move(hashkeys)) {}
+                   bool use_custom = false, bool partition_by_same_key = false)
+      : use_custom(use_custom), partition_by_same_key(partition_by_same_key), hash_keys_(std::move(hashkeys)) {}
 
   inline PlanNodeType GetPlanNodeType() const {
     return PLAN_NODE_TYPE_PARALLEL_HASH;
@@ -63,6 +63,7 @@ class ParallelHashPlan : public AbstractPlan, public Dependent {
 
   // Use custom hashmap
   bool use_custom;
+  bool partition_by_same_key;
 
  private:
   std::vector<HashKeyPtrType> hash_keys_;

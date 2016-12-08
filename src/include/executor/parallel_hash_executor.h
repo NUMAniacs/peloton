@@ -76,9 +76,9 @@ class ParallelHashExecutor : public AbstractExecutor {
                   1   // Probe step size
                   > CustomHashMapType;
 
-  inline CuckooHashMapType &GetCuckooHashTable() { return cuckoo_hash_table_; }
+  inline std::vector<CuckooHashMapType> &GetCuckooHashTable() { return cuckoo_hash_table_; }
 
-  inline CustomHashMapType &GetCustomHashTable() { return custom_hash_table_; }
+  inline std::vector<CustomHashMapType> &GetCustomHashTable() { return custom_hash_table_; }
 
   inline const std::vector<oid_t> &GetHashKeyIds() const { return column_ids_; }
 
@@ -91,19 +91,44 @@ class ParallelHashExecutor : public AbstractExecutor {
     total_num_tuples_.fetch_add(num_tuples);
   }
 
-  inline void Reserve(size_t num_tuples) {
+  inline void Reserve(const std::vector<size_t> &num_tuples) {
+    int partition_num = num_tuples.size();
     if (use_custom_hash_table) {
-      custom_hash_table_.reserve(num_tuples);
+//      custom_hash_table_.resize(partition_num);
+      for (int i = 0; i < partition_num; ++i) {
+        custom_hash_table_.emplace_back();
+        custom_hash_table_[i].reserve(num_tuples[i]);
+      }
     } else {
-      cuckoo_hash_table_.reserve(num_tuples);
+//      cuckoo_hash_table_.resize(partition_num);
+
+        // TODO: emplace or reserve do not work
+//      for (int i = 0; i < partition_num; ++i) {
+//        cuckoo_hash_table_.emplace_back();
+//        cuckoo_hash_table_[i].reserve(num_tuples[i]);
+//      }
     }
   }
+
+//  inline void InitializeTableVector() {
+//    size_t table_vec_size = 1;
+//    if (partition_by_same_key) {
+//      table_vec_size = PL_NUM_PARTITIONS();
+//    }
+//    if (use_custom_hash_table) {
+//      custom_hash_table_.resize(table_vec_size);
+//    } else {
+//      cuckoo_hash_table_.resize(table_vec_size);
+//    }
+//
+//  }
 
  public:
   /** @brief Input tiles from child node */
   std::shared_ptr<LogicalTileLists> child_tiles;
 
   bool use_custom_hash_table = false;
+  bool partition_by_same_key = false;
 
  protected:
   // Initialize the values of the hash keys from plan node
@@ -115,10 +140,10 @@ class ParallelHashExecutor : public AbstractExecutor {
 
  private:
   /** @brief Cuckoo Hash table */
-  CuckooHashMapType cuckoo_hash_table_;
+  std::vector<CuckooHashMapType> cuckoo_hash_table_;
 
   /** @brief Custom Hash table */
-  CustomHashMapType custom_hash_table_;
+  std::vector<CustomHashMapType> custom_hash_table_;
 
   std::vector<oid_t> column_ids_;
 

@@ -47,6 +47,7 @@ void ParallelHashExecutor::InitHashKeys() {
   const planner::ParallelHashPlan &node =
       GetPlanNode<planner::ParallelHashPlan>();
   this->use_custom_hash_table = node.use_custom;
+  this->partition_by_same_key = node.partition_by_same_key;
 
   /* *
    * HashKeys is a vector of TupleValue expr
@@ -77,8 +78,18 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   auto child_tiles = hash_task->result_tile_lists;
 
   bool use_custom = hash_executor->use_custom_hash_table;
-  auto &custom_ht = hash_executor->GetCustomHashTable();
-  auto &cuckoo_ht = hash_executor->GetCuckooHashTable();
+  auto partition_id = hash_task->partition_id;
+  if (!hash_task->hash_executor->partition_by_same_key) {
+    partition_id = 0;
+  }
+  auto &custom_ht_vec = hash_executor->GetCustomHashTable();
+  auto &cuckoo_ht_vec = hash_executor->GetCuckooHashTable();
+
+  // TODO: there is a BUG
+  // only one vec will be initialized
+//  probably need to specify type
+//  auto &custom_ht = custom_ht_vec[partition_id];
+//  auto &cuckoo_ht = cuckoo_ht_vec[partition_id];
 
   auto &column_ids = hash_executor->GetHashKeyIds();
   size_t num_tuples = 0;
@@ -97,22 +108,57 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
 
       CuckooHashMapType::key_type key(tile, tuple_id, &column_ids);
       std::shared_ptr<ConcurrentVector> value;
-      auto status =
-          use_custom ? custom_ht.find(key, value) : cuckoo_ht.find(key, value);
-      // Not found
-      if (status == false) {
-        LOG_TRACE("key not found %d", (int)tuple_id);
-        value.reset(new ConcurrentVector());
-        auto success = use_custom ? custom_ht.Put(key, value)
-                                  : cuckoo_ht.insert(key, value);
-        if (success == false) {
-          success = use_custom ? custom_ht.find(key, value)
-                               : cuckoo_ht.find(key, value);
+
+//      auto status =
+//          use_custom ? custom_ht.find(key, value) : cuckoo_ht.find(key, value);
+//      // Not found
+//      if (status == false) {
+//        LOG_TRACE("key not found %d", (int)tuple_id);
+//        value.reset(new ConcurrentVector());
+//        auto success = use_custom ? custom_ht.Put(key, value)
+//                                  : cuckoo_ht.insert(key, value);
+//        if (success == false) {
+//          success = use_custom ? custom_ht.find(key, value)
+//                               : cuckoo_ht.find(key, value);
+//        }
+//        PL_ASSERT(success);
+//      } else {
+//        // Found key
+//        LOG_TRACE("key found %d", (int)tuple_id);
+//      }
+
+      if (use_custom) {
+        auto &custom_ht = custom_ht_vec[partition_id];
+        auto status = custom_ht.find(key, value);
+        // Not found
+        if (status == false) {
+          LOG_TRACE("key not found %d", (int)tuple_id);
+          value.reset(new ConcurrentVector());
+          auto success = custom_ht.Put(key, value);
+          if (success == false) {
+            success = custom_ht.find(key, value);
+          }
+          PL_ASSERT(success);
+        } else {
+          // Found key
+          LOG_TRACE("key found %d", (int)tuple_id);
         }
-        PL_ASSERT(success);
       } else {
-        // Found key
-        LOG_TRACE("key found %d", (int)tuple_id);
+        auto &cuckoo_ht = cuckoo_ht_vec[partition_id];
+        auto status = cuckoo_ht.find(key, value);
+        // Not found
+        if (status == false) {
+          LOG_TRACE("key not found %d", (int)tuple_id);
+          value.reset(new ConcurrentVector());
+          auto success = cuckoo_ht.insert(key, value);
+          if (success == false) {
+            success = cuckoo_ht.find(key, value);
+          }
+          PL_ASSERT(success);
+        } else {
+          // Found key
+          LOG_TRACE("key found %d", (int)tuple_id);
+        }
       }
       value->Insert(std::make_tuple(tile_itr, tuple_id, task_id));
       // PL_ASSERT(hash_table.contains(key));

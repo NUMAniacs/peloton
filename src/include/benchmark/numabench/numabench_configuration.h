@@ -74,6 +74,9 @@ class configuration {
   bool one_partition;
   
   int selectivity;
+
+  // Whether left table and right table are partitioned on the join key
+  bool partition_by_join_key;
 };
 
 extern configuration state;

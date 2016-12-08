@@ -37,8 +37,21 @@ void ParallelHashPlan::DependencyComplete(
   this->RecordTaskGenStart();
 
   // Rechunk the tasks
-  size_t total_num_tuples = executor::PartitionAwareTask::ReChunkResultTiles(
+  std::vector<size_t> rechunk_tuples_per_partition = executor::PartitionAwareTask::ReChunkResultTiles(
       task.get(), result_tile_lists);
+  std::vector<size_t> tuples_reservation_per_partition;
+  if (partition_by_same_key) {
+    tuples_reservation_per_partition.resize(rechunk_tuples_per_partition.size());
+    for (size_t i = 0; i < rechunk_tuples_per_partition.size(); ++i) {
+      tuples_reservation_per_partition[i] = 2 * rechunk_tuples_per_partition[i];
+    }
+  } else {
+    tuples_reservation_per_partition.resize(1);
+    for (size_t i = 0; i < rechunk_tuples_per_partition.size(); ++i) {
+      tuples_reservation_per_partition[0] += rechunk_tuples_per_partition[i];
+    }
+    tuples_reservation_per_partition[0] = 2 * tuples_reservation_per_partition[0];
+  }
   size_t num_tasks = result_tile_lists->size();
 
   // A list of all tasks to execute
@@ -54,7 +67,7 @@ void ParallelHashPlan::DependencyComplete(
 
   // Reserve space for hash table
   hash_executor->Init();
-  hash_executor->Reserve(total_num_tuples * 2);
+  hash_executor->Reserve(tuples_reservation_per_partition);
 
   // Construct trackable object
   std::shared_ptr<executor::Trackable> trackable(

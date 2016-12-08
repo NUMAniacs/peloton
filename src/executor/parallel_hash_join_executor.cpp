@@ -117,8 +117,23 @@ bool ParallelHashJoinExecutor::DExecute() {
 
     // Get the hash table from the hash executor
     bool use_custom = hash_executor_->use_custom_hash_table;
-    auto &custom_ht = hash_executor_->GetCustomHashTable();
-    auto &cuckoo_ht = hash_executor_->GetCuckooHashTable();
+
+    auto &custom_ht_vec = hash_executor_->GetCustomHashTable();
+    auto &cuckoo_ht_vec = hash_executor_->GetCuckooHashTable();
+    bool partition_by_same_key;
+    if (use_custom) {
+      partition_by_same_key = (custom_ht_vec.size() != 1);
+    } else {
+      partition_by_same_key = (cuckoo_ht_vec.size() != 1);
+    }
+//    auto partition_id = hash_task->partition_id;
+//    if (!hash_task->hash_executor->partition_by_same_key) {
+//      partition_id = 0;
+//    }
+//    auto &custom_ht_vec = hash_executor->GetCustomHashTable();
+//    auto &cuckoo_ht_vec = hash_executor->GetCuckooHashTable();
+//    auto &custom_ht;
+//    auto &cuckoo_ht;
 
     auto &hashed_col_ids = hash_executor_->GetHashKeyIds();
 
@@ -133,8 +148,17 @@ bool ParallelHashJoinExecutor::DExecute() {
 
       // Find matching tuples in the hash table built on top of the right table
       std::shared_ptr<ParallelHashExecutor::ConcurrentVector> right_tuple_set;
-      auto success = use_custom ? custom_ht.Get(left_tuple, right_tuple_set)
-                                : cuckoo_ht.find(left_tuple, right_tuple_set);
+      bool success;
+      int partition_id = (partition_by_same_key) ? left_tile->GetPartition() : 0;
+      if (use_custom) {
+        auto &custom_ht = custom_ht_vec[partition_id];
+        success = custom_ht.Get(left_tuple, right_tuple_set);
+      } else {
+        auto &cuckoo_ht = cuckoo_ht_vec[partition_id];
+        success = cuckoo_ht.find(left_tuple, right_tuple_set);
+      }
+//      auto success = use_custom ? custom_ht.Get(left_tuple, right_tuple_set)
+//                                : cuckoo_ht.find(left_tuple, right_tuple_set);
       auto &right_tuples = right_tuple_set->GetVector();
 
       if (success) {
