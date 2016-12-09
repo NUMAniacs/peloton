@@ -13,19 +13,24 @@
 #pragma once
 #include "common/platform.h"
 #include "common/macros.h"
+#include "common/logger.h"
+#include <bitset>
+#include <numa.h>
 
 namespace peloton {
 
 namespace executor {
 
-template <
-    class Key,                    // The key
-    class Value,                  // The value
-    class Hash,                   // The hash function
-    class Pred,                   // The comparator
-    const size_t BUCKET_SIZE,     // The bucket size for lock striping
-    const size_t PROBE_STEP_SIZE  // The number of buckets per step for probe
-    >
+#define PAGE_SIZE 4096
+
+#define HASHMAP_TEMPLATE_ARGUMENTS                          \
+  template <class Key, class Value, class Hash, class Pred, \
+            const size_t BUCKET_SIZE, const size_t PROBE_STEP_SIZE>
+
+#define HASHMAP_TYPE \
+  Hashmap<Key, Value, Hash, Pred, BUCKET_SIZE, PROBE_STEP_SIZE>
+
+HASHMAP_TEMPLATE_ARGUMENTS
 class Hashmap {
 
   // Classes and types
@@ -45,98 +50,46 @@ class Hashmap {
   inline bool find(Key &key, Value &val) { return Get(key, val); }
 
  public:
-  void Reserve(size_t size) {
-    // TODO compute the appropriate size
-    num_buckets_ = (size + BUCKET_SIZE - 1) / BUCKET_SIZE;
-    buckets_.resize(num_buckets_);
-    locks_.resize(num_buckets_);
-  }
+  Hashmap(bool interleave_memory = true)
+      : interleave_memory_(interleave_memory) {}
+
+  void Reserve(size_t size);
 
   // Returns false for duplicate keys
-  bool Put(Key &key, Value val) {
-    size_t hash = GetHash(key);
-    while (true) {
-      locks_[hash].Lock();
-      Bucket &bucket = buckets_[hash];
-      for (size_t i = 0; i < BUCKET_SIZE; i++) {
+  bool Put(Key &key, Value val);
 
-        // Found an empty slot. Success
-        if (bucket.occupied[i] == false) {
-
-          // We don't want to construct a kv pair and use copy assign it to the
-          // array. Instead construct the kv pair using allocator in place
-          static std::allocator<std::pair<const Key, Value>> pair_alloc;
-          pair_alloc.construct(&(bucket.kv_pairs[i]), std::forward<Key>(key),
-                               std::forward<Value>(val));
-
-          // Mark occupied
-          bucket.occupied[i] = true;
-
-          // Unlock before return
-          locks_[hash].Unlock();
-          return true;
-        } else {
-
-          // Duplicate keys
-          if (equal_fct_(key, bucket.kv_pairs[i].first)) {
-
-            // Unlock before return
-            locks_[hash].Unlock();
-            return false;
-          }
-        }
-      }
-
-      // Unlock before return
-      locks_[hash].Unlock();
-      hash = Probe(hash);
-    }
-    return false;
-  }
-
-  // Get the value specified by the key.
-  // XXX Do we need locks for GET()?
-  bool Get(const Key &key, Value &val) const {
-    size_t hash = GetHash(key);
-    while (true) {
-      const Bucket &bucket = buckets_[hash];
-      for (size_t i = 0; i < BUCKET_SIZE; i++) {
-        // An empty slot. Fail to found one
-        if (bucket.occupied[i] == false) {
-          return false;
-        } else {
-          // Matched key
-          if (equal_fct_(key, bucket.kv_pairs[i].first)) {
-            val = bucket.kv_pairs[i].second;
-            return true;
-          }
-        }
-      }
-      hash = Probe(hash);
-    }
-    return false;
-  }
+  // Get the value specified by the key. We don't need to lock anything
+  bool Get(const Key &key, Value &val) const;
 
   // Functions
  private:
-  inline size_t Probe(size_t hash) const {
-    return (hash + PROBE_STEP_SIZE) % num_buckets_;
+  inline size_t Probe(size_t bucket_itr) const {
+    return bucket_itr + PROBE_STEP_SIZE;
   }
 
   inline size_t GetHash(const Key &key) const {
-    return hasher_(key) % num_buckets_;
+    return hasher_(key) % num_slots_;
+  }
+
+  inline size_t RoundUp(size_t n) const {
+    size_t num_pages = (n * sizeof(Bucket) + PAGE_SIZE - 1) / PAGE_SIZE;
+    return num_pages * PAGE_SIZE / sizeof(Bucket);
   }
 
   // Members
  private:
-  std::vector<Bucket> buckets_;
-  std::vector<Spinlock> locks_;
+  bool interleave_memory_;
+
+  Bucket *buckets_ = nullptr;
+  Spinlock *locks_ = nullptr;
 
   Hash hasher_;
   Pred equal_fct_;
 
+  size_t num_slots_ = 0;
   size_t num_buckets_ = 0;
 };
 
 }  // namespace executor
 }  // namespace peloton
+
