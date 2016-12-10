@@ -120,12 +120,8 @@ bool ParallelHashJoinExecutor::DExecute() {
 
     auto &custom_ht_vec = hash_executor_->GetCustomHashTable();
     auto &cuckoo_ht_vec = hash_executor_->GetCuckooHashTable();
-    bool partition_by_same_key;
-    if (use_custom) {
-      partition_by_same_key = (custom_ht_vec.size() != 1);
-    } else {
-      partition_by_same_key = (cuckoo_ht_vec.size() != 1);
-    }
+    bool partition_by_same_key = hash_executor_->partition_by_same_key;
+    
 //    auto partition_id = hash_task->partition_id;
 //    if (!hash_task->hash_executor->partition_by_same_key) {
 //      partition_id = 0;
