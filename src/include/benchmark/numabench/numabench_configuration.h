@@ -72,6 +72,8 @@ class configuration {
 
   // Restrict data to a single partition
   bool one_partition;
+  
+  int selectivity;
 };
 
 extern configuration state;

@@ -17,6 +17,7 @@
 
 #include "benchmark/numabench/numabench_configuration.h"
 #include "common/logger.h"
+#include "executor/abstract_task.h"
 
 namespace peloton {
 namespace benchmark {
@@ -38,6 +39,7 @@ void Usage(FILE *out) {
           "   -q --max_thread_num    :  maxmum number of threads in thread "
           "pool (default: 24)\n"
           "   -o --one_partition     :  load only one partition\n"
+          "   -y --selectivity     :  selectivity of the right table (0 - 60 out of 60). Default 1 \n"
           "   -u --thread_step       :  number of threads to add each round (default: 2)\n");
 
 }
@@ -74,11 +76,12 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
   state.custom_hashtable = false;
   state.random_partition_execution = false;
   state.one_partition = false;
+  state.selectivity = 1;
 
   // Parse args
   while (1) {
     int idx = 0;
-    int c = getopt_long(argc, argv, "htlrcods:p:q:u:", opts, &idx);
+    int c = getopt_long(argc, argv, "htlrcods:p:q:u:y:", opts, &idx);
 
     if (c == -1) break;
 
@@ -99,6 +102,9 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
         break;
       case 'u':
         state.thread_step = atoi(optarg);
+        break;
+      case 'y':
+        state.selectivity = atoi(optarg);
         break;
       case 't':
         state.read_only_txn = true;
@@ -141,6 +147,8 @@ void WriteOutput(int thread_num) {
 
   out << thread_num << " ";
   out << state.scale_factor << " ";
+  out << TASK_TILEGROUP_COUNT << " " << DEFAULT_TUPLES_PER_TILEGROUP << " ";
+  out << state.selectivity << " ";
   out << (state.read_only_txn ? "true" : "false") << " ";
   out << (state.partition_left ? "true" : "false") << " ";
   out << (state.partition_right ? "true" : "false") << " ";

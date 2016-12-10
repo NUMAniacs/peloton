@@ -127,12 +127,12 @@ void RunHashJoin() {
           EXPRESSION_TYPE_COMPARE_GREATERTHANOREQUALTO,
           new expression::TupleValueExpression(common::Type::INTEGER, 0, 2),
           new expression::ConstantValueExpression(
-              common::ValueFactory::GetIntegerValue(23))),
+              common::ValueFactory::GetIntegerValue(0))),
       new expression::ComparisonExpression(
           EXPRESSION_TYPE_COMPARE_LESSTHAN,
           new expression::TupleValueExpression(common::Type::INTEGER, 0, 2),
           new expression::ConstantValueExpression(
-              common::ValueFactory::GetIntegerValue(24))));
+              common::ValueFactory::GetIntegerValue(state.selectivity))));
 
   // Create parallel seq scan node on right table
   std::unique_ptr<planner::ParallelSeqScanPlan> right_seq_scan_node(
@@ -211,7 +211,7 @@ void RunHashJoin() {
     auto partition_aware_task =
         std::dynamic_pointer_cast<executor::PartitionAwareTask>(
             seq_scan_tasks[i]);
-    partition_aware_task->Init(trackable, hash_plan_node.get(),
+    partition_aware_task->Init(trackable, right_seq_scan_node->parent_dependent,
                                num_seq_scan_tasks, txn);
 
     if (state.random_partition_execution) {
@@ -226,11 +226,9 @@ void RunHashJoin() {
     }
   }
   wait->WaitForCompletion();
-  executor::HashJoinTask *hash_join_task =
-      static_cast<executor::HashJoinTask *>(wait->last_task.get());
   // Validate hash join result tiles
   {
-    auto child_tiles = hash_join_task->result_tile_lists;
+    auto child_tiles = wait->last_task->result_tile_lists;
     auto num_tasks = child_tiles->size();
     // For all tasks
     for (size_t task_itr = 0; task_itr < num_tasks; task_itr++) {
