@@ -31,7 +31,7 @@ namespace peloton {
 namespace executor {
 
 HASHMAP_TEMPLATE_ARGUMENTS
-void HASHMAP_TYPE::Reserve(size_t size, size_t partition) {
+void HASHMAP_TYPE::Reserve(size_t size, bool interleave, size_t partition) {
   // Compute the appropriate size so that we allocate pages
   num_buckets_ = (size + BUCKET_SIZE - 1) / BUCKET_SIZE;
   num_buckets_ = RoundUp(num_buckets_);
@@ -41,7 +41,7 @@ void HASHMAP_TYPE::Reserve(size_t size, size_t partition) {
   size_t bucket_malloc_size = sizeof(Bucket) * num_buckets_;
 
   LOG_TRACE("size of bucket %d", (int)sizeof(Bucket));
-  if (interleave_memory_) {
+  if (interleave) {
     // Interleave the memory so that they don't end up in just one region
     // TODO Move numa_alloc_interleaved to macros
     buckets_ = (Bucket *)numa_alloc_interleaved(bucket_malloc_size);

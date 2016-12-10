@@ -51,19 +51,14 @@ class Hashmap {
 
   // XXX duplication of the cuckoo hashmap interface
  public:
-  inline void reserve(size_t size, size_t partition = LOCAL_NUMA_REGION) {
-    Reserve(size, partition);
-  }
 
   inline bool insert(Key &key, Value val) { return Put(key, val); }
 
   inline bool find(Key &key, Value &val) { return Get(key, val); }
 
  public:
-  Hashmap(bool interleave_memory = true)
-      : interleave_memory_(interleave_memory) {}
 
-  void Reserve(size_t size, size_t partition = LOCAL_NUMA_REGION);
+  void Reserve(size_t size, bool interleave, size_t partition = LOCAL_NUMA_REGION);
 
   // Returns false for duplicate keys
   bool Put(Key &key, Value val);
@@ -88,7 +83,6 @@ class Hashmap {
 
   // Members
  private:
-  bool interleave_memory_;
 
   Bucket *buckets_ = nullptr;
 

@@ -76,9 +76,9 @@ class ParallelHashExecutor : public AbstractExecutor {
                   1   // Probe step size
                   > CustomHashMapType;
 
-  inline std::vector<CuckooHashMapType> &GetCuckooHashTable() { return cuckoo_hash_table_; }
+  inline std::array<CuckooHashMapType, 8> &GetCuckooHashTable() { return cuckoo_hash_table_; }
 
-  inline std::vector<CustomHashMapType> &GetCustomHashTable() { return custom_hash_table_; }
+  inline std::array<CustomHashMapType, 8> &GetCustomHashTable() { return custom_hash_table_; }
 
   inline const std::vector<oid_t> &GetHashKeyIds() const { return column_ids_; }
 
@@ -92,21 +92,16 @@ class ParallelHashExecutor : public AbstractExecutor {
   }
 
   inline void Reserve(const std::vector<size_t> &num_tuples) {
+    bool interleave = !partition_by_same_key;
     int partition_num = num_tuples.size();
     if (use_custom_hash_table) {
-//      custom_hash_table_.resize(partition_num);
       for (int i = 0; i < partition_num; ++i) {
-        custom_hash_table_.emplace_back();
-        custom_hash_table_[i].reserve(num_tuples[i]);
+        custom_hash_table_[i].Reserve(num_tuples[i], interleave, i);
       }
     } else {
-//      cuckoo_hash_table_.resize(partition_num);
-
-        // TODO: emplace or reserve do not work
-//      for (int i = 0; i < partition_num; ++i) {
-//        cuckoo_hash_table_.emplace_back();
-//        cuckoo_hash_table_[i].reserve(num_tuples[i]);
-//      }
+      for (int i = 0; i < partition_num; ++i) {
+        cuckoo_hash_table_[i].reserve(num_tuples[i]);
+      }
     }
   }
 
@@ -140,10 +135,10 @@ class ParallelHashExecutor : public AbstractExecutor {
 
  private:
   /** @brief Cuckoo Hash table */
-  std::vector<CuckooHashMapType> cuckoo_hash_table_;
+  std::array<CuckooHashMapType, 8> cuckoo_hash_table_;
 
   /** @brief Custom Hash table */
-  std::vector<CustomHashMapType> custom_hash_table_;
+  std::array<CustomHashMapType, 8> custom_hash_table_;
 
   std::vector<oid_t> column_ids_;
 
