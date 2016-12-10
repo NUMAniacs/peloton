@@ -13,6 +13,10 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <atomic>
+#include <thread>
+#include <vector>
+#include <assert.h>
+#include <map>
 
 // const int ITERATION = 1; // iteration times
 const int N = 1024 * 1024 * 128; // 512 MB
@@ -24,14 +28,11 @@ const int MAX_THREADS = 40;
 
 static unsigned int random_seeds[MAX_THREADS];
 
-int *array[2]; // array[0] is on node0, array[1] is on node1
+int **array; // array[0] is on node0, array[1] is on node1
+int num_regions;
 
 volatile bool start_count = false;
 volatile bool terminated = false;
-
-int THREADS_ID[] = {0, 10, 1, 11, 2, 12, 3, 13, 4, 14, 5, 15, 6, 16, 7, 17, 8, 18, 9, 19, 80, 90, 81, 91, 82, 92, 83, 93, 84, 94, 85, 95, 86, 96, 87, 97, 88, 98, 89, 99};
-
-
 
 std::atomic<int> global_count(0);
 
@@ -51,179 +52,172 @@ std::atomic<int> global_count(0);
 //   return z;
 // }
 
-unsigned long xorshf96(unsigned long &x, unsigned long &y, unsigned long &z) {          //period 2^96-1
-unsigned long t;
-    x ^= x << 16;
-    x ^= x >> 5;
-    x ^= x << 1;
+unsigned long xorshf96(unsigned long &x, unsigned long &y, unsigned long &z) { //period 2^96-1
+  unsigned long t;
+  x ^= x << 16;
+  x ^= x >> 5;
+  x ^= x << 1;
 
-   t = x;
-   x = y;
-   y = z;
-   z = t ^ x ^ y;
+  t = x;
+  x = y;
+  y = z;
+  z = t ^ x ^ y;
 
   return z;
 }
 
 // threads read from local node
 void *local_work(void *parm) {
-    pthread_t thread;
-    thread = pthread_self();
+  int index = (long)parm;
+  unsigned long x = rand_r(&random_seeds[index]);
+  unsigned long y = rand_r(&random_seeds[index]);
+  unsigned long z = rand_r(&random_seeds[index]);
 
-    long index = (long)parm;
-    long cpuID = THREADS_ID[index];
-    unsigned long x = rand_r(&random_seeds[index]);
-    unsigned long y = rand_r(&random_seeds[index]);
-    unsigned long z = rand_r(&random_seeds[index]);
+  // status = sched_setaffinity(0, sizeof(mask), &mask); // also works
+  int array_index = numa_node_of_cpu(sched_getcpu()); // thread reads from local node
 
-    // set thread affinity
-    cpu_set_t mask;
-    int status;
-    CPU_ZERO(&mask);
-    CPU_SET(cpuID, &mask);
-    status = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &mask);
-    // status = sched_setaffinity(0, sizeof(mask), &mask); // also works
+  register int tmp = 0;
+  long long local_count = 0;
 
-    int array_index = (cpuID / 10) % 8; // thread reads from local node
+  int k = 0;
 
-    int tmp = 0;
-    long long local_count = 0;
-
-    int k = 0;
-
-    while(!terminated) {
-        for (int i = 0; i < N; ++i) {
-            if (terminated) {
-                break;
-            }
-            // tmp += array[array_index][i];
-            // tmp += array[array_index][rand() % N];
-            tmp += array[array_index][xorshf96(x, y, z) & rand_mask];
-            // tmp += array[array_index][rand_r(&random_seeds[c_ID]) & rand_mask];
-            if (start_count) {
-                ++k;
-                if (k == COUNT_THRESHOLD) {
-                    ++local_count;
-                    k = 0;
-                }
-            }
-        }
+  while (!terminated) {
+    // simulate the extra math here;
+    tmp += xorshf96(x, y, z);
+    tmp += array[array_index][xorshf96(x, y, z) & rand_mask];
+    // tmp += array[array_index][rand_r(&random_seeds[c_ID]) & rand_mask];
+    if (start_count) {
+      ++k;
+      if (k == COUNT_THRESHOLD) {
+        ++local_count;
+        k = 0;
+      }
     }
-    printf("CPU ID: %d, local_count: %d, tmp: %d\n", cpuID, local_count, tmp);
-    global_count += local_count;
+  }
+  printf("CPU ID: %d, local_count: %d, tmp: %d\n", index, local_count, tmp);
+  global_count += local_count;
 }
 
 // threads read from remote node
 void *remote_work(void *parm) {
-    pthread_t thread;
-    thread = pthread_self();
+  int index = (long)parm;
 
-    long index = (long)parm;
-    long cpuID = THREADS_ID[index];
-    unsigned long x = rand_r(&random_seeds[index]);
-    unsigned long y = rand_r(&random_seeds[index]);
-    unsigned long z = rand_r(&random_seeds[index]);
+  unsigned long x = rand_r(&random_seeds[index]);
+  unsigned long y = rand_r(&random_seeds[index]);
+  unsigned long z = rand_r(&random_seeds[index]);
 
-    // set thread affinity
-    cpu_set_t mask;
-    int status;
-    CPU_ZERO(&mask);
-    CPU_SET(cpuID, &mask);
-    status = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &mask);
+  register int tmp = 0;
+  long long local_count = 0;
 
-    int array_index = 1 - ((cpuID / 10) % 8); // thread reads from remote node
+  int k = 0;
 
-    int tmp = 0;
-    long long local_count = 0;
-
-    int k = 0;
-
-    while(!terminated) {
-        for (int i = 0; i < N; ++i) {
-            if (terminated) {
-                break;
-            }
-            // tmp += array[array_index][i];
-            // tmp += array[array_index][rand() % N];
-            tmp += array[array_index][xorshf96(x, y, z) % N];
-            // tmp += array[array_index][rand_r(&random_seeds[c_ID]) & rand_mask];
-            if (start_count) {
-                ++k;
-                if (k == COUNT_THRESHOLD) {
-                    ++local_count;
-                    k = 0;
-                }
-            }
-        }
+  while (!terminated) {
+    tmp += array[xorshf96(x, y, z) % num_regions][xorshf96(x, y, z) % N];
+    // tmp += array[array_index][rand_r(&random_seeds[c_ID]) & rand_mask];
+    if (start_count) {
+      ++k;
+      if (k == COUNT_THRESHOLD) {
+        ++local_count;
+        k = 0;
+      }
     }
-    printf("CPU ID: %d, local_count: %d, tmp: %d\n", cpuID, local_count, tmp);
-    global_count += local_count;
+
+  }
+  printf("CPU ID: %d, local_count: %d, tmp: %d\n", index, local_count, tmp);
+  global_count += local_count;
 }
 
-void initialize() {
-    array[0] = (int*) numa_alloc_onnode(sizeof(int) * N, 0);
-    array[1] = (int*) numa_alloc_onnode(sizeof(int) * N, 1);
+void initialize(int num_regions) {
+  array = new int*[num_regions];
+  for (int i = 0; i < num_regions; i++){
+    array[i] = (int*) numa_alloc_onnode(sizeof(int) * N, i);
+  }
 }
 
 void clean_up() {
-    numa_free(array[0], sizeof(int) * N);
-    numa_free(array[1], sizeof(int) * N);
+  for (int i = 0; i < num_regions; i++){
+  numa_free(array[i], sizeof(int) * N);
+  }
+  delete[] array;
 }
 
-int main()
-{
-    initialize();
-    srand(time(NULL));
-    for (int i = 0; i < N; ++i) {
-        array[0][i] = i;
-        array[1][i] = i;
-        // array[0][i] = rand();
-        // array[0][i] = rand();
+int main() {
+  if (numa_available() < 0) {
+    printf("numa unavailable\n");
+    exit(1);
+  }
+  num_regions = numa_num_configured_nodes();
+  int max_threads = std::thread::hardware_concurrency();
+
+  initialize(num_regions);
+  srand(time(NULL));
+  for (int i = 0; i < N; ++i) {
+   for(int region = 0; region < num_regions; region++){
+     array[region][i] = rand();
+   }
+  }
+
+  // build mapping of threads to regions
+  std::map<int, std::vector<int>> region_mapping;
+  for (int core_id = 0; core_id < max_threads; core_id++) {
+    region_mapping[numa_node_of_cpu(core_id)].push_back(core_id);
+  }
+  // assign different random seeds for threads used in rand_r() function
+  for (int i = 0; i < max_threads; ++i) {
+    random_seeds[i] = rand();
+  }
+
+  for (int num_threads = num_regions; num_threads <= max_threads; num_threads +=
+      num_regions) {
+    assert(num_threads%num_regions == 0);
+    global_count = 0;
+    terminated = false;
+    start_count = false;
+    printf("Start with number of threads: %d\n", num_threads);
+    // const int NUM_THREADS = 24;
+    pthread_t threads[num_threads];
+
+    int thread_count = 0;
+
+    pthread_attr_t attr;
+    cpu_set_t cpus;
+    pthread_attr_init(&attr);
+
+    for (int i = 0; i < num_threads/num_regions; i++){
+      for(int region; region < num_regions; region++){
+        int thread_id = region_mapping[region][i];
+        CPU_ZERO(&cpus);
+        CPU_SET(thread_id, &cpus);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+        pthread_create(&threads[thread_count++], &attr, remote_work, (void *) (long)thread_id);
+      }
     }
 
-    for (int NUM_THREADS = 1; NUM_THREADS <= MAX_THREADS; NUM_THREADS++) {
-        global_count = 0;
-        terminated = false;
-        start_count = false;
-        printf("Start with number of threads: %d\n", NUM_THREADS);
-        // const int NUM_THREADS = 24;
-        pthread_t threads[NUM_THREADS];
+    // warm up
+    sleep(1);
 
-        // assign different random seeds for threads used in rand_r() function
-        for (int i = 0; i < NUM_THREADS; ++i) {
-            random_seeds[i] = rand();
-        }
+    // start counting
+    time_t start = time(0);
+    start_count = true;
+    sleep(10);
+    start_count = false;
+    time_t end = time(0);
+    double time = difftime(end, start) * 1000.0;
 
-        for (int i = 0; i < NUM_THREADS; ++i) {
-            pthread_create(&threads[i], NULL, remote_work, (void *)i);
-        }
+    terminated = true;
 
-        // warm up
-        sleep(1);
-
-        // start counting
-        time_t start = time(0);
-        start_count = true;
-        sleep(10);
-        start_count = false;
-        time_t end = time(0);
-        double time = difftime(end, start) * 1000.0;
-
-        terminated = true;
-
-        for (int i = 0; i < NUM_THREADS; ++i) {
-            // wait for undetached threads
-            pthread_join(threads[i], NULL);
-        }
-
-        printf("time: %lf, total count: %d, ratio: %lf\n", time, (int)global_count, 1.0 * global_count / time);
+    for (int i = 0; i < num_threads; ++i) {
+      // wait for undetached threads
+      pthread_join(threads[i], NULL);
     }
-
     
+    printf("time: %lf, total count: %d, ratio: %lf\n", time, (int) global_count,
+        1.0 * global_count / time);
+  }
 
-    clean_up();
+  clean_up();
 
-    return 0;
+  return 0;
 }
 
 // // using xorshf96()
