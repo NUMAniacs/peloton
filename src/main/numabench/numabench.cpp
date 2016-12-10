@@ -61,11 +61,11 @@ void RunBenchmark() {
   // Load the databases
   LoadNUMABenchDatabase();
 
-  state.custom_hashtable = false;
-  state.partition_by_join_key = false;
-  RunHelper();
-  state.partition_by_join_key = true;
-  RunHelper();
+//  state.custom_hashtable = false;
+//  state.partition_by_join_key = false;
+//  RunHelper();
+//  state.partition_by_join_key = true;
+//  RunHelper();
 
   state.custom_hashtable = true;
   state.partition_by_join_key = false;
