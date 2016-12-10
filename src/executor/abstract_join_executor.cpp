@@ -95,7 +95,7 @@ AbstractJoinExecutor::BuildSchemaFromLeftTile(
   // dummy physical tile for the empty child
   std::shared_ptr<storage::Tile> ptile(storage::TileFactory::GetTile(
       BACKEND_TYPE_MM, INVALID_OID, INVALID_OID, INVALID_OID, INVALID_OID,
-      nullptr, *output_schema, nullptr, 1));
+      nullptr, *output_schema, nullptr, 1, LOCAL_NUMA_REGION));
 
   std::vector<LogicalTile::ColumnInfo> schema;
   auto total_size = output_schema->GetColumnCount();
@@ -145,7 +145,7 @@ AbstractJoinExecutor::BuildSchemaFromRightTile(
   // dummy physical tile for the empty child tile
   std::shared_ptr<storage::Tile> ptile(storage::TileFactory::GetTile(
       BACKEND_TYPE_MM, INVALID_OID, INVALID_OID, INVALID_OID, INVALID_OID,
-      nullptr, *output_schema, nullptr, 1));
+      nullptr, *output_schema, nullptr, 1, LOCAL_NUMA_REGION));
 
   std::vector<LogicalTile::ColumnInfo> schema;
   auto total_size = output_schema->GetColumnCount();

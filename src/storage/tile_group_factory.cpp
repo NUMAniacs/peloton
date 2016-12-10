@@ -36,7 +36,7 @@ TileGroup *TileGroupFactory::GetTileGroup(
   TileGroupHeader *tile_header =
       new (numa_region) TileGroupHeader(backend_type, tuple_count);
   TileGroup *tile_group = new (numa_region) TileGroup(
-      backend_type, tile_header, table, schemas, column_map, tuple_count);
+      backend_type, tile_header, table, schemas, column_map, tuple_count, numa_region);
 
   tile_header->SetTileGroup(tile_group);
 

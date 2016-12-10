@@ -19,6 +19,7 @@
 #include "common/serializeio.h"
 #include "common/varlen_pool.h"
 #include "common/printable.h"
+#include "common/partition_macros.h"
 
 #include <mutex>
 
@@ -56,6 +57,16 @@ class Tile : public Printable {
        int tuple_count);
 
   virtual ~Tile();
+
+  //===--------------------------------------------------------------------===//
+  // Partitions
+  //===--------------------------------------------------------------------===//
+
+  // override new operator for NUMA-aware memory allocation
+  void *operator new(size_t size, int numa_region);
+
+  // override delete operator for NUMA-aware memory allocation
+  void operator delete(void *ptr, size_t size);
 
   //===--------------------------------------------------------------------===//
   // Operations
@@ -267,7 +278,7 @@ class TileFactory {
     TileGroup *tile_group = nullptr;
 
     Tile *tile = GetTile(BACKEND_TYPE_MM, INVALID_OID, INVALID_OID, INVALID_OID,
-                         INVALID_OID, header, schema, tile_group, tuple_count);
+                         INVALID_OID, header, schema, tile_group, tuple_count, LOCAL_NUMA_REGION);
 
     return tile;
   }
@@ -276,9 +287,9 @@ class TileFactory {
                        oid_t table_id, oid_t tile_group_id, oid_t tile_id,
                        TileGroupHeader *tile_header,
                        const catalog::Schema &schema, TileGroup *tile_group,
-                       int tuple_count) {
+                       int tuple_count, int partition) {
     Tile *tile =
-        new Tile(backend_type, tile_header, schema, tile_group, tuple_count);
+        new(partition) Tile(backend_type, tile_header, schema, tile_group, tuple_count);
 
     TileFactory::InitCommon(tile, database_id, table_id, tile_group_id, tile_id,
                             schema);

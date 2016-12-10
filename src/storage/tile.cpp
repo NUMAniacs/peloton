@@ -85,6 +85,21 @@ Tile::~Tile() {
   column_header = NULL;
 }
 
+void *Tile::operator new(size_t size, int numa_region) {
+  if (SIMULATE_NUMA_PARTITION) {
+    numa_region = 0;
+  }
+
+  if (numa_region == LOCAL_NUMA_REGION) {
+    numa_region = PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE());
+  }
+  return PL_PARTITION_ALLOC(size, numa_region);
+}
+
+void Tile::operator delete(void *ptr, size_t size) {
+  PL_PARTITION_FREE(ptr, size);
+}
+
 //===--------------------------------------------------------------------===//
 // Tuples
 //===--------------------------------------------------------------------===//
@@ -183,7 +198,7 @@ Tile *Tile::CopyTile(BackendType backend_type) {
   TileGroupHeader *new_header = GetHeader();
   Tile *new_tile = TileFactory::GetTile(
       backend_type, INVALID_OID, INVALID_OID, INVALID_OID, INVALID_OID,
-      new_header, *schema, tile_group, allocated_tuple_count);
+      new_header, *schema, tile_group, allocated_tuple_count, LOCAL_NUMA_REGION);
 
   PL_MEMCPY(static_cast<void *>(new_tile->data), static_cast<void *>(data),
             tile_size);

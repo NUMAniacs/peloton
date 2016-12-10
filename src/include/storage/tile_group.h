@@ -70,7 +70,7 @@ class TileGroup : public Printable {
   // Tile group constructor
   TileGroup(BackendType backend_type, TileGroupHeader *tile_group_header,
             AbstractTable *table, const std::vector<catalog::Schema> &schemas,
-            const column_map_type &column_map, int tuple_count);
+            const column_map_type &column_map, int tuple_count, int partition = 0);
 
   ~TileGroup();
 

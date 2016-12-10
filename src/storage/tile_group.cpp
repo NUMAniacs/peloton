@@ -32,7 +32,7 @@ namespace storage {
 TileGroup::TileGroup(BackendType backend_type,
                      TileGroupHeader *tile_group_header, AbstractTable *table,
                      const std::vector<catalog::Schema> &schemas,
-                     const column_map_type &column_map, int tuple_count)
+                     const column_map_type &column_map, int tuple_count, int partition)
     : database_id(INVALID_OID),
       table_id(INVALID_OID),
       tile_group_id(INVALID_OID),
@@ -50,7 +50,7 @@ TileGroup::TileGroup(BackendType backend_type,
 
     std::shared_ptr<Tile> tile(storage::TileFactory::GetTile(
         backend_type, database_id, table_id, tile_group_id, tile_id,
-        tile_group_header, tile_schemas[tile_itr], this, tuple_count));
+        tile_group_header, tile_schemas[tile_itr], this, tuple_count, partition));
 
     // Add a reference to the tile in the tile group
     tiles.push_back(tile);

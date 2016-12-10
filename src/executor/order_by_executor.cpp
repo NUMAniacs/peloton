@@ -64,7 +64,7 @@ bool OrderByExecutor::DExecute() {
 
   std::shared_ptr<storage::Tile> ptile(storage::TileFactory::GetTile(
       BACKEND_TYPE_MM, INVALID_OID, INVALID_OID, INVALID_OID, INVALID_OID,
-      nullptr, *input_schema_, nullptr, tile_size));
+      nullptr, *input_schema_, nullptr, tile_size, LOCAL_NUMA_REGION));
 
   for (size_t id = 0; id < tile_size; id++) {
     oid_t source_tile_id =
