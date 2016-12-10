@@ -20,12 +20,18 @@ const int rand_mask = N - 1;
 // const int N = 100000000;
 const int COUNT_THRESHOLD = 1000; // 1 in global_count stands for COUNT_THRESHOLD number of counts
 
-static unsigned int random_seeds[24];
+const int MAX_THREADS = 40;
+
+static unsigned int random_seeds[MAX_THREADS];
 
 int *array[2]; // array[0] is on node0, array[1] is on node1
 
 volatile bool start_count = false;
 volatile bool terminated = false;
+
+int THREADS_ID[] = {0, 10, 1, 11, 2, 12, 3, 13, 4, 14, 5, 15, 6, 16, 7, 17, 8, 18, 9, 19, 80, 90, 81, 91, 82, 92, 83, 93, 84, 94, 85, 95, 86, 96, 87, 97, 88, 98, 89, 99};
+
+
 
 std::atomic<int> global_count(0);
 
@@ -60,24 +66,25 @@ unsigned long t;
 }
 
 // threads read from local node
-void *local_work(void *cpuID) {
+void *local_work(void *parm) {
     pthread_t thread;
     thread = pthread_self();
 
-    long c_ID = (long)cpuID;
-    unsigned long x = rand_r(&random_seeds[c_ID]);
-    unsigned long y = rand_r(&random_seeds[c_ID]);
-    unsigned long z = rand_r(&random_seeds[c_ID]);
+    long index = (long)parm;
+    long cpuID = THREADS_ID[index];
+    unsigned long x = rand_r(&random_seeds[index]);
+    unsigned long y = rand_r(&random_seeds[index]);
+    unsigned long z = rand_r(&random_seeds[index]);
 
     // set thread affinity
     cpu_set_t mask;
     int status;
     CPU_ZERO(&mask);
-    CPU_SET(c_ID, &mask);
+    CPU_SET(cpuID, &mask);
     status = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &mask);
     // status = sched_setaffinity(0, sizeof(mask), &mask); // also works
 
-    int array_index = c_ID % 2; // thread reads from local node
+    int array_index = (cpuID / 10) % 8; // thread reads from local node
 
     int tmp = 0;
     long long local_count = 0;
@@ -102,28 +109,29 @@ void *local_work(void *cpuID) {
             }
         }
     }
-    printf("CPU ID: %d, local_count: %d, tmp: %d\n", c_ID, local_count, tmp);
+    printf("CPU ID: %d, local_count: %d, tmp: %d\n", cpuID, local_count, tmp);
     global_count += local_count;
 }
 
 // threads read from remote node
-void *remote_work(void *cpuID) {
+void *remote_work(void *parm) {
     pthread_t thread;
     thread = pthread_self();
 
-    long c_ID = (long)cpuID;
-    unsigned long x = rand_r(&random_seeds[c_ID]);
-    unsigned long y = rand_r(&random_seeds[c_ID]);
-    unsigned long z = rand_r(&random_seeds[c_ID]);
+    long index = (long)parm;
+    long cpuID = THREADS_ID[index];
+    unsigned long x = rand_r(&random_seeds[index]);
+    unsigned long y = rand_r(&random_seeds[index]);
+    unsigned long z = rand_r(&random_seeds[index]);
 
     // set thread affinity
     cpu_set_t mask;
     int status;
     CPU_ZERO(&mask);
-    CPU_SET(c_ID, &mask);
+    CPU_SET(cpuID, &mask);
     status = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &mask);
 
-    int array_index = 1 - (c_ID % 2); // thread reads from remote node
+    int array_index = 1 - ((cpuID / 10) % 8); // thread reads from remote node
 
     int tmp = 0;
     long long local_count = 0;
@@ -148,7 +156,7 @@ void *remote_work(void *cpuID) {
             }
         }
     }
-    printf("CPU ID: %d, local_count: %d, tmp: %d\n", c_ID, local_count, tmp);
+    printf("CPU ID: %d, local_count: %d, tmp: %d\n", cpuID, local_count, tmp);
     global_count += local_count;
 }
 
@@ -173,7 +181,7 @@ int main()
         // array[0][i] = rand();
     }
 
-    for (int NUM_THREADS = 1; NUM_THREADS <= 24; NUM_THREADS++) {
+    for (int NUM_THREADS = 1; NUM_THREADS <= MAX_THREADS; NUM_THREADS++) {
         global_count = 0;
         terminated = false;
         start_count = false;
