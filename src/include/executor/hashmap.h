@@ -15,6 +15,8 @@
 #include "common/macros.h"
 #include "common/logger.h"
 #include <bitset>
+#include "common/partition_macros.h"
+#include "common/types.h"
 #include <numa.h>
 
 namespace peloton {
@@ -37,13 +39,21 @@ class Hashmap {
   typedef std::pair<Key, Value> KVPair;
 
   struct Bucket {
+    Spinlock lock;
+    char lock_padding[63];
+
+    // 5 Element in a bucket
     std::array<KVPair, BUCKET_SIZE> kv_pairs;
     std::bitset<BUCKET_SIZE> occupied;
+    // XXX hard coded padding value
+    char data_padding[8];
   };
 
   // XXX duplication of the cuckoo hashmap interface
  public:
-  inline void reserve(size_t size) { Reserve(size); }
+  inline void reserve(size_t size, size_t partition = LOCAL_NUMA_REGION) {
+    Reserve(size, partition);
+  }
 
   inline bool insert(Key &key, Value val) { return Put(key, val); }
 
@@ -53,7 +63,7 @@ class Hashmap {
   Hashmap(bool interleave_memory = true)
       : interleave_memory_(interleave_memory) {}
 
-  void Reserve(size_t size);
+  void Reserve(size_t size, size_t partition = LOCAL_NUMA_REGION);
 
   // Returns false for duplicate keys
   bool Put(Key &key, Value val);
@@ -81,7 +91,6 @@ class Hashmap {
   bool interleave_memory_;
 
   Bucket *buckets_ = nullptr;
-  Spinlock *locks_ = nullptr;
 
   Hash hasher_;
   Pred equal_fct_;
@@ -92,4 +101,3 @@ class Hashmap {
 
 }  // namespace executor
 }  // namespace peloton
-

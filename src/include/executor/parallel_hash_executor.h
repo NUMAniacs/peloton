@@ -72,7 +72,7 @@ class ParallelHashExecutor : public AbstractExecutor {
                   std::shared_ptr<ConcurrentVector>,                  // T
                   expression::ContainerTupleHasher<LogicalTile>,      // Hash
                   expression::ContainerTupleComparator<LogicalTile>,  // Pred
-                  4,  // Bucket size
+                  5,  // Bucket size
                   1   // Probe step size
                   > CustomHashMapType;
 

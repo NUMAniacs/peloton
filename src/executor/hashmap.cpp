@@ -15,7 +15,6 @@
 #include "common/logger.h"
 #include "executor/hashmap.h"
 #include <numa.h>
-#include "common/logger.h"
 #include "common/value.h"
 #include "executor/logical_tile.h"
 #include "executor/parallel_hash_executor.h"
@@ -32,7 +31,7 @@ namespace peloton {
 namespace executor {
 
 HASHMAP_TEMPLATE_ARGUMENTS
-void HASHMAP_TYPE::Reserve(size_t size) {
+void HASHMAP_TYPE::Reserve(size_t size, size_t partition) {
   // Compute the appropriate size so that we allocate pages
   num_buckets_ = (size + BUCKET_SIZE - 1) / BUCKET_SIZE;
   num_buckets_ = RoundUp(num_buckets_);
@@ -40,16 +39,14 @@ void HASHMAP_TYPE::Reserve(size_t size) {
 
   // Malloc the arrays
   size_t bucket_malloc_size = sizeof(Bucket) * num_buckets_;
-  size_t lock_malloc_size = sizeof(Spinlock) * num_buckets_;
 
+  LOG_TRACE("size of bucket %d", (int)sizeof(Bucket));
   if (interleave_memory_) {
     // Interleave the memory so that they don't end up in just one region
     // TODO Move numa_alloc_interleaved to macros
     buckets_ = (Bucket *)numa_alloc_interleaved(bucket_malloc_size);
-    locks_ = (Spinlock *)numa_alloc_interleaved(lock_malloc_size);
   } else {
-    buckets_ = (Bucket *)malloc(bucket_malloc_size);
-    locks_ = (Spinlock *)malloc(lock_malloc_size);
+    buckets_ = (Bucket *)PL_PARTITION_ALLOC(bucket_malloc_size, partition);
   }
 
   // Initialize the buckets
@@ -61,15 +58,6 @@ void HASHMAP_TYPE::Reserve(size_t size) {
           bucket_end - bucket_begin).count();
 
   LOG_ERROR("bucket time : %d", (int)bucket_duration);
-
-  // Construct the locks in place
-  auto lock_begin = std::chrono::high_resolution_clock::now();
-  PL_MEMSET(locks_, 0, lock_malloc_size);
-  auto lock_end = std::chrono::high_resolution_clock::now();
-
-  double lock_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-      lock_end - lock_begin).count();
-  LOG_ERROR("lock time : %d", (int)lock_duration);
 }
 
 HASHMAP_TEMPLATE_ARGUMENTS
@@ -80,8 +68,8 @@ bool HASHMAP_TYPE::Put(Key &key, Value val) {
   auto slot_itr = hash % BUCKET_SIZE;
 
   while (true) {
-    locks_[bucket_itr].Lock();
     Bucket &bucket = buckets_[bucket_itr];
+    bucket.lock.Lock();
     for (size_t i = slot_itr; i < BUCKET_SIZE; i++) {
 
       // Found an empty slot. Success
@@ -97,7 +85,7 @@ bool HASHMAP_TYPE::Put(Key &key, Value val) {
         bucket.occupied[i] = true;
 
         // Unlock before return
-        locks_[bucket_itr].Unlock();
+        bucket.lock.Unlock();
         return true;
       } else {
 
@@ -105,14 +93,14 @@ bool HASHMAP_TYPE::Put(Key &key, Value val) {
         if (equal_fct_(key, bucket.kv_pairs[i].first)) {
 
           // Unlock before return
-          locks_[bucket_itr].Unlock();
+          bucket.lock.Unlock();
           return false;
         }
       }
     }
 
     // Unlock before return
-    locks_[bucket_itr].Unlock();
+    bucket.lock.Unlock();
     bucket_itr = Probe(bucket_itr);
     slot_itr = 0;
   }
@@ -151,10 +139,9 @@ template class Hashmap<
     std::shared_ptr<ParallelHashExecutor::ConcurrentVector>,  // T
     expression::ContainerTupleHasher<LogicalTile>,            // Hash
     expression::ContainerTupleComparator<LogicalTile>,        // Pred
-    4,                                                        // Bucket size
+    5,                                                        // Bucket size
     1                                                         // Probe step size
     >;
 
 }  // namespace executor
 }  // namespace peloton
-
