@@ -162,6 +162,7 @@ void WriteOutput(int thread_num) {
   out << (state.random_partition_execution ? "true" : "false") << " ";
   out << (state.custom_hashtable ? "true" : "false") << " ";
   out << (state.one_partition ? "true" : "false") << " ";
+  out << (state.partition_by_join_key ? "true" : "false") << " ";
   out << state.execution_time_ms << " ";
 
   for (auto t : state.execution_time_breakdown) {
