@@ -82,15 +82,20 @@ void *local_work(void *parm) {
   int k = 0;
 
   while (!terminated) {
-    // simulate the extra math here;
-    tmp += xorshf96(x, y, z);
-    tmp += array[array_index][xorshf96(x, y, z) & rand_mask];
-    // tmp += array[array_index][rand_r(&random_seeds[c_ID]) & rand_mask];
-    if (start_count) {
-      ++k;
-      if (k == COUNT_THRESHOLD) {
-        ++local_count;
-        k = 0;
+    int start_loc = xorshf96(x, y, z);
+    int region = array_index;
+    for(int i = 0; i < 10000; i++){
+      tmp += array[region][(start_loc+i)%N];
+      // tmp += array[array_index][rand_r(&random_seeds[c_ID]) & rand_mask];
+      if (start_count) {
+        ++k;
+        if (k == COUNT_THRESHOLD) {
+          ++local_count;
+          k = 0;
+        }
+      }
+      if(terminated){
+        break;
       }
     }
   }
@@ -112,15 +117,23 @@ void *remote_work(void *parm) {
   int k = 0;
 
   while (!terminated) {
-    tmp += array[xorshf96(x, y, z) % num_regions][xorshf96(x, y, z) % N];
-    // tmp += array[array_index][rand_r(&random_seeds[c_ID]) & rand_mask];
-    if (start_count) {
-      ++k;
-      if (k == COUNT_THRESHOLD) {
-        ++local_count;
-        k = 0;
+    int start_loc = xorshf96(x, y, z);
+    int region = xorshf96(x, y, z) % num_regions;
+    for(int i = 0; i < 10000; i++){
+      tmp += array[region][(start_loc+i)%N];
+      // tmp += array[array_index][rand_r(&random_seeds[c_ID]) & rand_mask];
+      if (start_count) {
+        ++k;
+        if (k == COUNT_THRESHOLD) {
+          ++local_count;
+          k = 0;
+        }
+      }
+      if(terminated){
+        break;
       }
     }
+
 
   }
   printf("CPU ID: %d, local_count: %d, tmp: %d\n", index, local_count, tmp);
@@ -184,7 +197,7 @@ int main() {
     pthread_attr_init(&attr);
 
     for (int i = 0; i < num_threads/num_regions; i++){
-      for(int region; region < num_regions; region++){
+      for(int region = 0; region < num_regions; region++){
         int thread_id = region_mapping[region][i];
         CPU_ZERO(&cpus);
         CPU_SET(thread_id, &cpus);
@@ -211,7 +224,7 @@ int main() {
       pthread_join(threads[i], NULL);
     }
     
-    printf("time: %lf, total count: %d, ratio: %lf\n", time, (int) global_count,
+    fprintf(stderr, "time: %lf, total count: %d, ratio: %lf\n", time, (int) global_count,
         1.0 * global_count / time);
   }
 
