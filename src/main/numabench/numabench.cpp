@@ -67,11 +67,11 @@ void RunBenchmark() {
   state.partition_by_join_key = true;
   RunHelper();
 
-//  state.custom_hashtable = true;
-//  state.partition_by_join_key = false;
-//  RunHelper();
-//  state.partition_by_join_key = true;
-//  RunHelper();
+  state.custom_hashtable = true;
+  state.partition_by_join_key = false;
+  RunHelper();
+  state.partition_by_join_key = true;
+  RunHelper();
 
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();
 
