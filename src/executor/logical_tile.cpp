@@ -22,6 +22,7 @@
 #include "storage/tile.h"
 #include "storage/tile_group.h"
 #include "common/partition_macros.h"
+#include "common/numa_allocator.h"
 
 namespace peloton {
 namespace executor {
@@ -46,7 +47,7 @@ void *LogicalTile::operator new(size_t size, int partition) {
   if (partition == LOCAL_NUMA_REGION || UNDEFINED_NUMA_REGION) {
     partition = PL_GET_PARTITION_ID(PL_GET_PARTITION_NODE());
   }
-  return malloc(size);
+  return common::NumaAllocator::malloc_numa(size);
   //PL_PARTITION_ALLOC(size, partition);
 }
 
