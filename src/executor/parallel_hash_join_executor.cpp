@@ -253,18 +253,25 @@ void ParallelHashJoinExecutor::ExecuteTask(
   hash_join_executor->AddChild(hash_join_task->hash_executor.get());
 
   bool status = hash_join_executor->Init();
+  std::vector<LogicalTile *, common::StlNumaAllocator<LogicalTile *>>
+      buffered_result_tiles;
   if (status == true) {
     while (status) {
       status = hash_join_executor->Execute();
       // Set the result
       auto result_tile = hash_join_executor->GetOutput();
       if (result_tile != nullptr) {
-        hash_join_task->GetResultTileList().emplace_back(result_tile);
+        buffered_result_tiles.push_back(result_tile);
       }
     }
   } else {
     // TODO handle failure
     PL_ASSERT(false);
+  }
+
+  auto &result_list = hash_join_task->GetResultTileList();
+  for (auto result_tile : buffered_result_tiles) {
+    result_list.emplace_back(result_tile);
   }
 
   if (task_top->trackable->TaskComplete()) {

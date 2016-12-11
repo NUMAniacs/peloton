@@ -94,12 +94,19 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   auto &column_ids = hash_executor->GetHashKeyIds();
   size_t num_tuples = 0;
 
-  for (size_t tile_itr = 0; tile_itr < (*child_tiles)[task_id].size();
-       tile_itr++) {
+  std::vector<LogicalTile *, common::StlNumaAllocator<LogicalTile *>>
+      result_tiles;
+  // Access global result tile once and make a local copy
+  auto &result_tiles_ref = (*child_tiles)[task_id];
+  for (auto &result_tile : result_tiles_ref) {
+    result_tiles.push_back(result_tile.get());
+  }
+
+  for (size_t tile_itr = 0; tile_itr < result_tiles.size(); tile_itr++) {
 
     LOG_DEBUG("Advance to next tile. Task id: %d, tile_itr: %d", (int)task_id,
               (int)tile_itr);
-    auto tile = (*child_tiles)[task_id][tile_itr].get();
+    auto tile = result_tiles[tile_itr];
 
     // Go over all tuples in the logical tile
     for (oid_t tuple_id : *tile) {
@@ -108,24 +115,6 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
 
       CuckooHashMapType::key_type key(tile, tuple_id, &column_ids);
       std::shared_ptr<ConcurrentVector> value;
-
-//      auto status =
-//          use_custom ? custom_ht.find(key, value) : cuckoo_ht.find(key, value);
-//      // Not found
-//      if (status == false) {
-//        LOG_TRACE("key not found %d", (int)tuple_id);
-//        value.reset(new ConcurrentVector());
-//        auto success = use_custom ? custom_ht.Put(key, value)
-//                                  : cuckoo_ht.insert(key, value);
-//        if (success == false) {
-//          success = use_custom ? custom_ht.find(key, value)
-//                               : cuckoo_ht.find(key, value);
-//        }
-//        PL_ASSERT(success);
-//      } else {
-//        // Found key
-//        LOG_TRACE("key found %d", (int)tuple_id);
-//      }
 
       if (use_custom) {
         auto &custom_ht = custom_ht_vec[partition_id];
@@ -168,7 +157,6 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
     }
   }
   LOG_DEBUG("Task %d hashed %d tuples", (int)task_id, (int)num_tuples);
-  hash_executor->IncrementNumTuple(num_tuples);
 
   if (task->trackable->TaskComplete()) {
     (const_cast<planner::AbstractPlan *>(task->node))->RecordTaskExecutionEnd();

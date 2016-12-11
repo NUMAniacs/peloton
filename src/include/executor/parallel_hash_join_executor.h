@@ -45,10 +45,10 @@ class ParallelHashJoinExecutor : public AbstractParallelJoinExecutor {
   // Record offsets to locate right tiles from different tasks
   // We have this variable because we're re-using the BuildOutputTile function
   // which assumes serial execution.
-  std::vector<size_t> tile_offsets_;
+  std::vector<size_t, common::StlNumaAllocator<size_t>> tile_offsets_;
 
-  std::deque<LogicalTile *> buffered_output_tiles;
-  std::vector<std::unique_ptr<LogicalTile>> right_tiles_;
+  std::deque<LogicalTile *, common::StlNumaAllocator<LogicalTile *>>
+      buffered_output_tiles;
 
   // logical tile iterators
   size_t left_logical_tile_itr_ = 0;
