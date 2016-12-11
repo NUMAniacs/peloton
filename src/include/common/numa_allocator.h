@@ -37,7 +37,7 @@ struct MemData {
 class NumaAllocator {
 public:
   static void Init() {
-    //instance = new NumaAllocator();
+    instance = new NumaAllocator();
     // initialize
     for(int i = 0; i < (int)std::thread::hardware_concurrency(); i++){
       std::vector<MemData> first_alloc = std::vector<MemData>();
@@ -70,7 +70,7 @@ private:
     if (memory_data_[core][index].space_left < size){
       size_t alloc_size = std::max((size_t)DEFAULT_NUMA_MALLOC_SIZE, size);
       void * new_memory = PL_PARTITION_ALLOC(alloc_size, PL_GET_PARTITION_ID(core));
-      memory_data_[core].push_back(MemData{size, size, (char *)new_memory});
+      memory_data_[core].push_back(MemData{alloc_size, alloc_size, (char *)new_memory});
       index++;
     }
     auto &memdata = memory_data_[core][index];

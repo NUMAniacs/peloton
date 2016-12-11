@@ -51,7 +51,7 @@ void *LogicalTile::operator new(size_t size, int partition) {
   //PL_PARTITION_ALLOC(size, partition);
 }
 
-void LogicalTile::operator delete(void *ptr, size_t) {
+void LogicalTile::operator delete(void *, size_t) {
   //  LogicalTile *tile = (LogicalTile *)ptr;
   // TODO numa-unaware delete
   // if (tile->GetPartition() == UNDEFINED_NUMA_REGION) {
@@ -61,7 +61,7 @@ void LogicalTile::operator delete(void *ptr, size_t) {
 
   // For numa-aware delete
   //PL_PARTITION_FREE(ptr, size);
-  free(ptr);
+  //free(ptr);
 }
 
 /**
