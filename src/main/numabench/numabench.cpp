@@ -24,6 +24,7 @@
 #include "benchmark/numabench/numabench_workload.h"
 
 #include "gc/gc_manager_factory.h"
+#include "common/numa_allocator.h"
 
 namespace peloton {
 namespace benchmark {
@@ -44,6 +45,7 @@ void RunHelper() {
     // Emit throughput
     WriteOutput(thread_num);
     thread_num += state.thread_step;
+    common::NumaAllocator::cleanup();
   }
 }
 
@@ -51,6 +53,7 @@ void RunHelper() {
 void RunBenchmark() {
 
   PelotonInit::Initialize();
+  common::NumaAllocator::Init();
 
   //  I think this happens in Initialize
   //  gc::GCManagerFactory::GetInstance().StartGC();
