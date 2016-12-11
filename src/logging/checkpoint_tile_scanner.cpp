@@ -33,7 +33,7 @@ std::unique_ptr<executor::LogicalTile> CheckpointTileScanner::Scan(
 
   // Construct position list by looping through tile group
   // and applying the predicate.
-  std::vector<oid_t> position_list;
+  executor::LogicalTile::PositionList position_list;
   for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
     // check transaction visibility
     if (IsVisible(tile_group_header, tuple_id, start_cid)) {

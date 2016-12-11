@@ -203,7 +203,7 @@ bool HybridScanExecutor::SeqScanUtil() {
       upper_bound_block = reverse_iter->block;
     }
 
-    std::vector<oid_t> position_list;
+    LogicalTile::PositionList position_list;
     for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
       ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
       if (type_ == HYBRID_SCAN_TYPE_HYBRID && item_pointers_.size() > 0 &&
@@ -370,7 +370,7 @@ bool HybridScanExecutor::ExecPrimaryIndexLookup() {
     return false;
   }
 
-  std::map<oid_t, std::vector<oid_t>> visible_tuples;
+  std::map<oid_t, LogicalTile::PositionList> visible_tuples;
 
   // for every tuple that is found in the index.
   for (auto tuple_location_ptr : tuple_location_ptrs) {

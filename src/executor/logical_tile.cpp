@@ -359,11 +359,11 @@ LogicalTile::PositionListsBuilder::PositionListsBuilder(
     SetLeftSource(left_pos_list);
   }
   PL_ASSERT(non_empty_pos_list != nullptr);
-  output_lists_.push_back(std::vector<oid_t>());
+  output_lists_.push_back(PositionList());
   // reserve one extra pos list for the empty tile
   for (size_t column_itr = 0; column_itr < non_empty_pos_list->size() + 1;
        column_itr++) {
-    output_lists_.push_back(std::vector<oid_t>());
+    output_lists_.push_back(PositionList());
   }
 }
 
@@ -387,7 +387,7 @@ LogicalTile::PositionListsBuilder::PositionListsBuilder(LogicalTile *left_tile,
   // Construct position lists for output tile
   for (size_t column_itr = 0; column_itr < output_tile_column_count;
        column_itr++) {
-    output_lists_.push_back(std::vector<oid_t>());
+    output_lists_.push_back(PositionList());
   }
 }
 

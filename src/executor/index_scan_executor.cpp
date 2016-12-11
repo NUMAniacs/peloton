@@ -168,7 +168,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   auto current_txn = executor_context_->GetTransaction();
 
-  std::map<oid_t, std::vector<oid_t>> visible_tuples;
+  std::map<oid_t, LogicalTile::PositionList> visible_tuples;
 
   // for every tuple that is found in the index.
   for (auto tuple_location_ptr : tuple_location_ptrs) {
@@ -331,7 +331,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
 
   auto current_txn = executor_context_->GetTransaction();
 
-  std::map<oid_t, std::vector<oid_t>> visible_tuples;
+  std::map<oid_t, LogicalTile::PositionList> visible_tuples;
 
   for (auto tuple_location_ptr : tuple_location_ptrs) {
 

@@ -34,8 +34,8 @@ namespace {
  *
  * @return Position list.
  */
-std::vector<oid_t> CreateIdentityPositionList(unsigned int size) {
-  std::vector<oid_t> position_list(size);
+LogicalTile::PositionList CreateIdentityPositionList(unsigned int size) {
+  LogicalTile::PositionList position_list(size);
   for (oid_t id = 0; id < size; id++) {
     position_list[id] = id;
   }
