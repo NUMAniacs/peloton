@@ -85,7 +85,6 @@ void ParallelHashExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   auto &custom_ht_vec = hash_executor->GetCustomHashTable();
   auto &cuckoo_ht_vec = hash_executor->GetCuckooHashTable();
 
-  // TODO: there is a BUG
   // only one vec will be initialized
   //  probably need to specify type
   //  auto &custom_ht = custom_ht_vec[partition_id];

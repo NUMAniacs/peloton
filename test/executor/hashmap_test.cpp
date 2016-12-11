@@ -92,7 +92,7 @@ TEST_F(HashmapTests, BasicTest) {
 TEST_F(HashmapTests, MultiThreadTest) {
   int num_keys = 4;
   TestHashMapType hashmap;
-  hashmap.Reserve(num_keys * 2);
+  hashmap.Reserve(num_keys * 2, false);
 
   size_t num_threads = 8;
   LaunchParallelTest(num_threads, PutTest, &hashmap, num_keys);
