@@ -21,6 +21,7 @@
 #include "common/printable.h"
 #include "common/types.h"
 #include "common/value.h"
+#include "common/numa_allocator.h"
 
 namespace peloton {
 
@@ -55,10 +56,10 @@ class LogicalTile : public Printable {
   struct ColumnInfo;
 
   /* A vector of position to represent a column */
-  typedef std::vector<oid_t> PositionList;
+  typedef std::vector<oid_t, common::StlNumaAllocator<oid_t>> PositionList;
 
   /* A vector of column to represent a tile */
-  typedef std::vector<PositionList> PositionLists;
+  typedef std::vector<PositionList, common::StlNumaAllocator<PositionList>> PositionLists;
 
   LogicalTile(const LogicalTile &) = delete;
   LogicalTile &operator=(const LogicalTile &) = delete;
