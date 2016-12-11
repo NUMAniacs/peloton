@@ -149,32 +149,35 @@ bool ParallelSeqScanExecutor::DExecute() {
       for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
         ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
 
-
-        auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, tuple_id);
+        auto visibility = transaction_manager.IsVisible(
+            current_txn, tile_group_header, tuple_id);
 
         // check transaction visibility
         if (visibility == VISIBILITY_OK) {
           // if the tuple is visible, then perform predicate evaluation.
           if (predicate_ == nullptr) {
             position_list.push_back(tuple_id);
-            auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
-                                                       txn_partition_id_);
+            auto res = transaction_manager.PerformRead(
+                current_txn, location, acquire_owner, txn_partition_id_);
             if (!res) {
-              transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
+              transaction_manager.SetTransactionResult(current_txn,
+                                                       RESULT_FAILURE);
               return res;
             }
           } else {
             expression::ContainerTuple<storage::TileGroup> tuple(
                 tile_group.get(), tuple_id);
             LOG_TRACE("Evaluate predicate for a tuple");
-            auto eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
+            auto eval =
+                predicate_->Evaluate(&tuple, nullptr, executor_context_);
             LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
             if (eval.IsTrue()) {
               position_list.push_back(tuple_id);
-              auto res = transaction_manager.PerformRead(current_txn, location, acquire_owner,
-                                                         txn_partition_id_);
+              auto res = transaction_manager.PerformRead(
+                  current_txn, location, acquire_owner, txn_partition_id_);
               if (!res) {
-                transaction_manager.SetTransactionResult(current_txn, RESULT_FAILURE);
+                transaction_manager.SetTransactionResult(current_txn,
+                                                         RESULT_FAILURE);
                 return res;
               } else {
                 LOG_TRACE("Sequential Scan Predicate Satisfied");
@@ -190,14 +193,15 @@ bool ParallelSeqScanExecutor::DExecute() {
       }
 
       // Construct logical tile.
-      // TODO We should construct the logical tile in the current partition
-      std::unique_ptr<LogicalTile> logical_tile(
-          LogicalTileFactory::GetTile(DEFAULT_NUMA_REGION));
+      // We should construct the logical tile in the current partition
+      LogicalTile *logical_tile =
+          new LogicalTileFactory::GetTile(DEFAULT_NUMA_REGION);
       logical_tile->AddColumns(tile_group, column_ids_);
       logical_tile->AddPositionList(std::move(position_list));
 
       LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
-      seq_scan_task_->GetResultTileList().push_back(std::move(logical_tile));
+      result_tiles[num_result_tiles++] = logical_tile;
+
       return true;
     }
   }
@@ -207,13 +211,11 @@ bool ParallelSeqScanExecutor::DExecute() {
   return false;
 }
 
-LogicalTile* ParallelSeqScanExecutor::GetOutput() {
-  if (curr_result_idx >= seq_scan_task_->GetResultTileList().size()) {
+LogicalTile *ParallelSeqScanExecutor::GetOutput() {
+  if (curr_result_idx >= num_result_tiles) {
     return nullptr;
   }
-  auto result_tile =
-      seq_scan_task_->GetResultTileList()[curr_result_idx].release();
-  curr_result_idx++;
+  auto result_tile = result_tiles[curr_result_idx++];
   return result_tile;
 }
 
@@ -237,6 +239,12 @@ void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
   } else {
     // TODO handle failure
     PL_ASSERT(false);
+  }
+
+  SeqScanTask *seq_scan_task = (SeqScanTask *)task.get();
+  auto &list = seq_scan_task->GetResultTileList();
+  for (auto tile : executor.result_tiles) {
+    list.emplace_back(tile);
   }
 
   if (task->trackable->TaskComplete()) {
