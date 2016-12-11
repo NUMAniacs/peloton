@@ -370,7 +370,7 @@ class LogicalTile : public Printable {
    * @brief Bit-vector storing visibility of each row in the position lists.
    * Used to cheaply invalidate rows of positions.
    */
-  std::vector<bool> visible_rows_;
+  std::vector<bool, common::StlNumaAllocator<bool>> visible_rows_;
 
   /** @brief Total # of allocated slots in the logical tile **/
   oid_t total_tuples_ = 0;
