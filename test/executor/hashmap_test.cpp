@@ -65,7 +65,7 @@ TEST_F(HashmapTests, BasicTest) {
 
   int num_keys = 4;
   TestHashMapType hashmap;
-  hashmap.Reserve(num_keys * 2);
+  hashmap.Reserve(num_keys * 2, false);
 
   std::shared_ptr<executor::ParallelHashExecutor::ConcurrentVector> val1(
       new executor::ParallelHashExecutor::ConcurrentVector());
