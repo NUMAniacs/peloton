@@ -76,9 +76,13 @@ class ParallelHashExecutor : public AbstractExecutor {
                   1   // Probe step size
                   > CustomHashMapType;
 
-  inline std::array<CuckooHashMapType, 8> &GetCuckooHashTable() { return cuckoo_hash_table_; }
+  inline std::array<CuckooHashMapType, 8> &GetCuckooHashTable() {
+    return cuckoo_hash_table_;
+  }
 
-  inline std::array<CustomHashMapType, 8> &GetCustomHashTable() { return custom_hash_table_; }
+  inline std::array<CustomHashMapType, 8> &GetCustomHashTable() {
+    return custom_hash_table_;
+  }
 
   inline const std::vector<oid_t> &GetHashKeyIds() const { return column_ids_; }
 
