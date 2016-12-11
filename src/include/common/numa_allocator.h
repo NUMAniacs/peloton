@@ -40,11 +40,7 @@ public:
     instance = new NumaAllocator();
     // initialize
     for(int i = 0; i < (int)std::thread::hardware_concurrency(); i++){
-      std::vector<MemData> first_alloc = std::vector<MemData>();
-      size_t size = DEFAULT_NUMA_MALLOC_SIZE;
-      void * new_memory = PL_PARTITION_ALLOC((size_t)DEFAULT_NUMA_MALLOC_SIZE, PL_GET_PARTITION_ID(i));
-      first_alloc.push_back(MemData{size, size, (char *)new_memory});
-      instance->memory_data_[i] = first_alloc;
+      instance->memory_data_[i] = std::vector<MemData>();
     }
   }
 
@@ -54,7 +50,7 @@ public:
   }
 
   static void cleanup(){
-    instance->cleanup();
+    instance->cleanup_();
   }
 
 private:
@@ -67,7 +63,7 @@ private:
     // this is okay because we are pinned
     int core = sched_getcpu();
     int index = ((int)memory_data_[core].size()) - 1;
-    if (memory_data_[core][index].space_left < size){
+    if (index == -1 || memory_data_[core][index].space_left < size){
       size_t alloc_size = std::max((size_t)DEFAULT_NUMA_MALLOC_SIZE, size);
       void * new_memory = PL_PARTITION_ALLOC(alloc_size, PL_GET_PARTITION_ID(core));
       memory_data_[core].push_back(MemData{alloc_size, alloc_size, (char *)new_memory});
@@ -87,8 +83,6 @@ private:
       }
       thread.second.clear();
     }
-    memory_data_.clear();
-
   }
 
 private:
