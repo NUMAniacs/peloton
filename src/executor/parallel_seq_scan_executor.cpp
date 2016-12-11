@@ -194,8 +194,7 @@ bool ParallelSeqScanExecutor::DExecute() {
 
       // Construct logical tile.
       // We should construct the logical tile in the current partition
-      LogicalTile *logical_tile =
-          new LogicalTileFactory::GetTile(DEFAULT_NUMA_REGION);
+      LogicalTile *logical_tile = LogicalTileFactory::GetTile(DEFAULT_NUMA_REGION);
       logical_tile->AddColumns(tile_group, column_ids_);
       logical_tile->AddPositionList(std::move(position_list));
 

@@ -23,6 +23,8 @@
 
 // Should we set the granularity by number of tile groups or number of tuples??
 #define TASK_TILEGROUP_COUNT (unsigned int)100000/DEFAULT_TUPLES_PER_TILEGROUP
+// XXX TASK_RESULT_COUNT == TASK_TILEGROUP_COUNT. We need a constant instead of expression
+#define TASK_RESULT_COUNT 10
 
 namespace peloton {
 
