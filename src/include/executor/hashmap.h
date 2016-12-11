@@ -69,7 +69,7 @@ class Hashmap {
   // Functions
  private:
   inline size_t Probe(size_t bucket_itr) const {
-    return (bucket_itr + PROBE_STEP_SIZE) % num_slots_;
+    return (bucket_itr + PROBE_STEP_SIZE) % num_buckets_;
   }
 
   inline size_t GetHash(const Key &key) const {
