@@ -32,6 +32,9 @@ class ParallelSeqScanExecutor : public AbstractScanExecutor {
 
   void static ExecuteTask(std::shared_ptr<AbstractTask> task);
 
+  LogicalTile *result_tiles[TASK_TILEGROUP_COUNT];
+  size_t num_result_tiles = 0;
+
  protected:
   bool DInit();
 
