@@ -61,6 +61,7 @@ void RunBenchmark() {
   // Load the databases
   LoadNUMABenchDatabase();
 
+
   if (state.one_partition) {
 
     // ====== No Shuffle =======
