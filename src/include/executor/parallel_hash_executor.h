@@ -104,7 +104,12 @@ class ParallelHashExecutor : public AbstractExecutor {
       }
     } else {
       for (int i = 0; i < partition_num; ++i) {
-        cuckoo_hash_table_[i].reserve(num_tuples[i]);
+        try {
+          cuckoo_hash_table_[i].reserve(num_tuples[i]);
+        }
+        catch (Exception &e) {
+          LOG_ERROR("cuckoomap reserve failed with %s", e.what());
+        }
       }
     }
   }
