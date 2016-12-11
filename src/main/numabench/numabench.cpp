@@ -55,8 +55,8 @@ void RunBenchmark() {
   PelotonInit::Initialize();
   common::NumaAllocator::Init();
 
-//  I think this happens in Initialize
-//  gc::GCManagerFactory::GetInstance().StartGC();
+  //  I think this happens in Initialize
+  //  gc::GCManagerFactory::GetInstance().StartGC();
 
   // Create the database
   CreateNUMABenchDatabase();
@@ -64,10 +64,49 @@ void RunBenchmark() {
   // Load the databases
   LoadNUMABenchDatabase();
 
-  state.custom_hashtable = false;
-  RunHelper();
-  state.custom_hashtable = true;
-  RunHelper();
+
+  if (state.one_partition) {
+
+    // ====== No Shuffle =======
+    state.random_partition_execution = false;
+    // Cuckoo
+    state.custom_hashtable = false;
+    RunHelper();
+    // Custom
+    state.custom_hashtable = true;
+    RunHelper();
+
+    // ====== Shuffle =======
+    state.random_partition_execution = true;
+
+    // Cuckoo
+    state.custom_hashtable = false;
+    RunHelper();
+    // Custom
+    state.custom_hashtable = true;
+    RunHelper();
+
+  } else {
+
+    // ====== No Shuffle =======
+    state.random_partition_execution = false;
+    // Cuckoo
+    state.custom_hashtable = false;
+    RunHelper();
+    // Custom
+    state.custom_hashtable = true;
+    RunHelper();
+
+    // ====== Shuffle =======
+    state.random_partition_execution = true;
+
+    // Cuckoo
+    state.custom_hashtable = false;
+    RunHelper();
+    // Custom
+    state.custom_hashtable = true;
+    RunHelper();
+  }
 
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();
 
@@ -79,8 +118,8 @@ void RunBenchmark() {
 }  // namespace peloton
 
 int main(int argc, char **argv) {
-  peloton::benchmark::numabench::ParseArguments(argc, argv,
-                                           peloton::benchmark::numabench::state);
+  peloton::benchmark::numabench::ParseArguments(
+      argc, argv, peloton::benchmark::numabench::state);
 
   peloton::benchmark::numabench::RunBenchmark();
 
