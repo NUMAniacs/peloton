@@ -121,7 +121,7 @@ class Spinlock {
   Spinlock(const Spinlock &copy) : spin_lock_state(Unlocked) { (void)copy; }
 
   inline void Lock() {
-    while (!TryLock()) {
+    while (IsLocked() || TryLock() == false) {
       _mm_pause();  // helps the cpu to detect busy-wait loop
     }
   }
