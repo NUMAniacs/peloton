@@ -90,8 +90,25 @@ void RunBenchmark() {
 
   } else {
 
-    // ====== No Shuffle =======
-    state.random_partition_execution = false;
+//    // ====== No Shuffle =======
+//    state.random_partition_execution = false;
+//
+//    // Cuckoo
+//    state.custom_hashtable = false;
+//    state.partition_by_join_key = false;
+//    RunHelper();
+//    state.partition_by_join_key = true;
+//    RunHelper();
+//
+//    // Custom
+//    state.custom_hashtable = true;
+//    state.partition_by_join_key = false;
+//    RunHelper();
+//    state.partition_by_join_key = true;
+//    RunHelper();
+//
+//    // ====== Shuffle =======
+//    state.random_partition_execution = true;
 
     // Cuckoo
     state.custom_hashtable = false;
@@ -100,29 +117,12 @@ void RunBenchmark() {
     state.partition_by_join_key = true;
     RunHelper();
 
-    // Custom
-    state.custom_hashtable = true;
-    state.partition_by_join_key = false;
-    RunHelper();
-    state.partition_by_join_key = true;
-    RunHelper();
-
-    // ====== Shuffle =======
-    state.random_partition_execution = true;
-
-    // Cuckoo
-    state.custom_hashtable = false;
-    state.partition_by_join_key = false;
-    RunHelper();
-    state.partition_by_join_key = true;
-    RunHelper();
-
-    // Custom
-    state.custom_hashtable = true;
-    state.partition_by_join_key = false;
-    RunHelper();
-    state.partition_by_join_key = true;
-    RunHelper();
+//    // Custom
+//    state.custom_hashtable = true;
+//    state.partition_by_join_key = false;
+//    RunHelper();
+//    state.partition_by_join_key = true;
+//    RunHelper();
   }
 
   concurrency::EpochManagerFactory::GetInstance().StopEpoch();
