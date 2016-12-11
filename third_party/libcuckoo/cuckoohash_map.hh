@@ -361,7 +361,7 @@ public:
      * or if the initial space exceeds the maximum hashpower
      */
     cuckoohash_map(size_t n = DEFAULT_SIZE,
-                   double mlf = DEFAULT_MINIMUM_LOAD_FACTOR,
+                   double mlf = 0.0001, //DEFAULT_MINIMUM_LOAD_FACTOR,
                    size_t mhp = NO_MAXIMUM_HASHPOWER,
                    const hasher& hf = hasher(),
                    const key_equal eql = key_equal())
