@@ -242,8 +242,8 @@ void ParallelSeqScanExecutor::ExecuteTask(std::shared_ptr<AbstractTask> task) {
 
   SeqScanTask *seq_scan_task = (SeqScanTask *)task.get();
   auto &list = seq_scan_task->GetResultTileList();
-  for (auto tile : executor.result_tiles) {
-    list.emplace_back(tile);
+  for (size_t i = 0; i < executor.num_result_tiles; i++) {
+    list.emplace_back(executor.result_tiles[i]);
   }
 
   if (task->trackable->TaskComplete()) {
